@@ -1,0 +1,6 @@
+id=props-overlay
+name=Props Overlay (Pixel-7 fingerprint matrix)
+version=v0.1.0
+versionCode=1
+author=emulator-builder
+description=Overlays /system/build.prop with a Pixel-7 (panther / Tensor-G2 / Android 14) fingerprint matrix and re-applies the same values at runtime via resetprop --persist. Targets CLO-132 (G-MOD-501). Five properties pinned: ro.build.fingerprint, ro.build.id, ro.product.brand, ro.product.manufacturer, ro.product.model.

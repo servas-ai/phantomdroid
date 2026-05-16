@@ -1,0 +1,7 @@
+#!/system/bin/sh
+# Minimal Magisk-module update-binary stub for props-overlay.
+# Actual overlay is applied by:
+#   1. Magisk auto-mirroring system/build.prop at late_start, and
+#   2. service.sh re-asserting the five fields via resetprop --persist.
+# This stub satisfies the Magisk installer format requirement.
+SKIPUNZIP=1
