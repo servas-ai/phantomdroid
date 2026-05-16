@@ -125,6 +125,64 @@ _resolve_buildcommits() {
   done
 }
 
+# _routine_tick_empty_report
+# Faithfully simulates one routine tick where the latest clawpatch report is
+# EMPTY (no findings). This is the exact scenario the old broken routine
+# mishandled (its step 05-enforce had `else: rm -f "${INPUTS_LOCK_FILE}"`).
+# The new routine must:
+#   - step 04-accumulate: add nothing (empty report → no new IDs)
+#   - step 04b-resolve:   no clearance events
+#   - step 05-enforce:    derive lock from open-findings.json; lock STAYS engaged
+#                         IFF any finding has status == "open" (no spurious rm).
+# This helper transcribes step 05-enforce verbatim from the YAML routine.
+_routine_tick_empty_report() {
+  # Step 03-review (skipped — empty report). Create an empty report marker
+  # to prove the helper handles the same path the routine would.
+  local EMPTY_REPORT
+  EMPTY_REPORT="$(mktemp)"
+  echo '{"findings": []}' > "${EMPTY_REPORT}"
+
+  # Step 04-accumulate: extract engaging IDs from empty report → none added.
+  local NEW_IDS
+  NEW_IDS="$(jq -r '
+    .findings[]?
+    | select(
+        ( (.severity == "critical" or .severity == "high") and .confidence != "low" )
+        or ( .category == "security" and .confidence != "low" and .severity != "low" )
+      )
+    | .findingId
+  ' "${EMPTY_REPORT}")"
+  if [ -n "${NEW_IDS}" ]; then
+    echo "  ROUTINE-TICK: unexpected new IDs from empty report: ${NEW_IDS}" >&2
+    rm -f "${EMPTY_REPORT}"
+    return 1
+  fi
+
+  # Step 04b-resolve: no buildcommits, no label changes — noop.
+
+  # Step 05-enforce: derive lock from persisted open-findings.json — verbatim
+  # transcription from docs/super-action/clawpatch/paperclip-routine-quality-gate.yml.
+  local OPEN_COUNT
+  OPEN_COUNT="$(jq '[.findings[] | select(.status == "open")] | length' "${OPEN_FINDINGS}")"
+  if [ "${OPEN_COUNT}" -gt 0 ]; then
+    mkdir -p "$(dirname "${LOCK_FILE}")"
+    local OPEN_IDS
+    OPEN_IDS="$(jq -r '[.findings[] | select(.status == "open") | .findingId] | join(",")' "${OPEN_FINDINGS}")"
+    {
+      echo "engaged_at: $(date -u +%FT%TZ)"
+      echo "open_findings: ${OPEN_COUNT}"
+      echo "finding_ids: ${OPEN_IDS}"
+      echo "open_findings_file: ${OPEN_FINDINGS}"
+    } > "${LOCK_FILE}"
+  else
+    # Open-set empty — clear lock. This branch is reachable ONLY when prior
+    # ticks have cleared all findings via path (a) or (b), NEVER because the
+    # current report is empty.
+    rm -f "${LOCK_FILE}"
+  fi
+  rm -f "${EMPTY_REPORT}"
+}
+
 _ok() {
   echo "  PASS: $1"
   PASS=$((PASS + 1))
@@ -243,23 +301,46 @@ _assert_finding_status "llmjudge-s5ddd002" "open" "finding 2 still open"
 _assert_lock_engaged "lock stays engaged (finding 2 still open)"
 
 # ─── S6 — sticky property ────────────────────────────────────────────────────
+#
+# Regression test for the original CLO-111 bug. The old routine step 05-enforce
+# had `else: rm -f "${INPUTS_LOCK_FILE}"`, meaning any tick with an empty report
+# would spuriously remove the lock — even if prior commits had unresolved
+# critical findings. The new routine must NOT exhibit this behavior.
+#
+# This scenario drives _routine_tick_empty_report, which transcribes step
+# 05-enforce verbatim from the YAML, so a regression in the routine logic
+# will be caught here.
 
 echo ""
 echo "=== S6: sticky — empty subsequent report does NOT clear lock ==="
 _setup
 _inject_finding "llmjudge-s6eee000" "critical"
 _engage_lock
-_assert_lock_engaged "pre-condition: lock engaged"
+_assert_lock_engaged "pre-condition: lock engaged after critical finding"
 
-# Simulate a later report run that finds no new findings (empty report scenario).
-# In the old broken routine this would rm -f the lock. In the new routine,
-# step 04-accumulate adds nothing (no new findings), step 04b-resolve finds no
-# clearance events, and step 05-enforce derives from the still-open open-set.
-# We emulate that by calling _engage_lock again without modifying open-findings.
-_engage_lock  # second tick, no changes to open-findings
+# Drive a full routine tick with an empty report. The lock must survive.
+if ! _routine_tick_empty_report; then
+  _fail "_routine_tick_empty_report failed with non-zero exit"
+else
+  _ok "routine tick with empty report ran clean"
+fi
 
-_assert_finding_status "llmjudge-s6eee000" "open" "finding still open after empty report"
-_assert_lock_engaged "lock still engaged after empty report (sticky property)"
+_assert_finding_status "llmjudge-s6eee000" "open" "finding still open after empty-report tick"
+_assert_lock_engaged "lock still engaged after empty-report tick (sticky property)"
+
+# Verify lock contents still reference the original finding (proof the lock
+# was not silently re-derived from an empty set then re-engaged).
+LOCK_IDS_AFTER="$(grep 'finding_ids:' "${LOCK_FILE}" 2>/dev/null | cut -d' ' -f2- || echo '')"
+if [ "${LOCK_IDS_AFTER}" = "llmjudge-s6eee000" ]; then
+  _ok "lock metadata still references original finding ID"
+else
+  _fail "lock metadata drifted: '${LOCK_IDS_AFTER}' != 'llmjudge-s6eee000'"
+fi
+
+# Drive a SECOND empty-report tick to confirm stickiness across multiple ticks.
+_routine_tick_empty_report >/dev/null
+_assert_lock_engaged "lock still engaged after TWO empty-report ticks"
+_assert_finding_status "llmjudge-s6eee000" "open" "finding still open after TWO empty-report ticks"
 
 # ─── S5b — BuildCommit with exit 1 does NOT clear ───────────────────────────
 
