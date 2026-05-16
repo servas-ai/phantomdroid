@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.cloudphone.hide.frida.maps">
+
+    <!-- Marks this APK as an Xposed module loadable by Vector (JingMatrix/Vector) -->
+    <application
+        android:label="HideFridaMaps"
+        android:description="@string/module_description"
+        android:allowBackup="false"
+        android:hasCode="true">
+
+        <!-- Xposed module declaration -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Redacts Frida/Gadget lines from /proc/pid/maps to prevent instrumentation detection" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+
+        <!--
+            Scope: this module is loaded ONLY into processes explicitly allowed
+            in the Vector scope list. system_server, zygote, and init are NEVER
+            in that list per the proposal's scope denylist.
+        -->
+    </application>
+</manifest>

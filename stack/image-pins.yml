@@ -1,0 +1,73 @@
+# image-pins.yml
+# Canonical image digest pins for the cloud-phone-research-planner sandbox pipeline.
+# Update this file whenever a new base image is pulled or a module is updated.
+# No :latest tags are permitted; always use @sha256:<digest> in compose files.
+#
+# Format:
+#   <logical_name>:
+#     repository: <repo>
+#     tag: <human-readable tag>
+#     digest_amd64: sha256:<64-char-hex>
+#     digest_arm64: sha256:<64-char-hex>   # optional; include when both arches are needed
+#     pulled_at: <ISO8601>
+#     pulled_by: <agent-id>
+#     verified_by: <agent-id or "docker manifest inspect">
+#     used_in_layers: [L0a, ...]
+
+redroid_12_64only:
+  repository: redroid/redroid
+  tag: "12.0.0_64only-latest"
+  digest_amd64: "sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  digest_arm64: "sha256:3c7f9450188226bf8042c0159b9b38abe2106f1ceb0dfa45fae1cbc6409cd9bb"
+  pulled_at: "2026-05-16T04:50:00Z"
+  pulled_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+  verified_by: "docker manifest inspect redroid/redroid:12.0.0_64only-latest"
+  used_in_layers:
+    - L0a
+  notes: >
+    Multi-arch OCI index. Compose files must pin by amd64 digest when running on
+    x86_64 hosts. Pinning the index manifest is NOT sufficient — it can resolve
+    to a different arch. Use the per-platform digest.
+
+# ─── Module build-base images ───────────────────────────────────────────────
+# hide-frida-maps is built from source (in-tree); no external build-base image.
+# Gradle build uses the standard Android SDK from the CI toolchain, which is
+# version-locked in stack/L4/hide-frida-maps/build.gradle.kts (compileSdk=34).
+# No separate build-base image required.
+
+# NeoZygisk and Vector are consumed as prebuilt releases from GitHub; they are
+# not Docker images. Their SHAs are recorded in the module_pins section below.
+
+module_pins:
+  neozygisk:
+    repo: "JingMatrix/NeoZygisk"
+    version_tag: "v2.3"
+    commit_sha: "671937c8f0a67623986b19a0d7a1f495e61942ad"
+    resolved_at: "2026-05-16T04:45:00Z"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git ls-remote https://github.com/JingMatrix/NeoZygisk.git refs/tags/v2.3"
+    license: "GPL-3.0"
+    ships_in_layer: "L0b"
+
+  vector:
+    repo: "JingMatrix/Vector"
+    version_tag: "v2.0"
+    commit_sha: "76141fed151f49b818144d54f2ebb6ab9a2df11c"
+    resolved_at: "2026-05-16T04:45:00Z"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git ls-remote https://github.com/JingMatrix/Vector.git refs/tags/v2.0"
+    license: "GPL-3.0"
+    ships_in_layer: "L0b"
+
+  hide_frida_maps:
+    repo: "stack/L4/hide-frida-maps (in-tree)"
+    version_tag: "0.1.0"
+    commit_sha: "TBD_AFTER_BRANCH_COMMIT"
+    resolved_at: "pending git commit on sandbox/019e2f10-37cb-7c8b-bbfb-90e573cfe302"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git commit of stack/L4/hide-frida-maps/ on feature branch"
+    license: "GPL-3.0"
+    ships_in_layer: "L4"
+    note: >
+      SHA will be updated in this file immediately after the branch commit.
+      Stability should pull from the sandbox/019e2f10-* branch, not from main.
