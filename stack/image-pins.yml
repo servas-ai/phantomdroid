@@ -105,3 +105,41 @@ cpuinfo_overlay_v0_1_0:
     from any registry; it bind-mounts the working-tree path read-only into
     the container. The probe target is kernel.cpuinfo_bogomips (CLO-27,
     baseline=0.45, target ≤0.10).
+
+# ─── Module pins for L0b/L4 mutation work ─────────────────────────────────
+# These are not Docker images. They are pinned source or release references
+# used by the module pipeline and must be reconciled with the canonical
+# runtime before any live deployment.
+module_pins:
+  neozygisk:
+    repo: "JingMatrix/NeoZygisk"
+    version_tag: "v2.3"
+    commit_sha: "671937c8f0a67623986b19a0d7a1f495e61942ad"
+    resolved_at: "2026-05-16T04:45:00Z"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git ls-remote https://github.com/JingMatrix/NeoZygisk.git refs/tags/v2.3"
+    license: "GPL-3.0"
+    ships_in_layer: "L0b"
+
+  vector:
+    repo: "JingMatrix/Vector"
+    version_tag: "v2.0"
+    commit_sha: "76141fed151f49b818144d54f2ebb6ab9a2df11c"
+    resolved_at: "2026-05-16T04:45:00Z"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git ls-remote https://github.com/JingMatrix/Vector.git refs/tags/v2.0"
+    license: "GPL-3.0"
+    ships_in_layer: "L0b"
+
+  hide_frida_maps:
+    repo: "stack/L4/hide-frida-maps (in-tree)"
+    version_tag: "0.1.0"
+    commit_sha: "425c8e215693c88746e8475fe8fd32df177f36fe"
+    resolved_at: "2026-05-16T04:48:00Z"
+    resolved_by: "8fd1506f-01cc-492b-a4d0-5e2a174fb739"
+    resolution_method: "git commit 425c8e21 on branch sandbox/019e2f10-37cb-7c8b-bbfb-90e573cfe302"
+    license: "GPL-3.0"
+    ships_in_layer: "L4"
+    note: >
+      The source module now exists in-tree under stack/L4/hide-frida-maps.
+      Runtime integration still needs a live boot and module-load proof.

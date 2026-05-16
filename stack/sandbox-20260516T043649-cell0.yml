@@ -1,0 +1,90 @@
+# Sandbox cell: sandbox-20260516T043649-cell0
+# Mutation ref: 019e2f10-37cb-7c8b-bbfb-90e573cfe302 (CLO-28)
+# Layer set: L0a + L0b + L4
+# Built by: Stability Manager (CLO-31)
+# Probed by: Detection Oracle (CLO-32)
+#
+# Preflight requirement: refuse-privileged-compose v6e66408c36 must PASS before docker compose up
+# Hard rules: privileged=false, cap_drop=[ALL], no-new-privileges, seccomp pinned, no :latest
+
+name: clo28-sandbox-cell0
+
+x-hardening: &hardening
+  privileged: false
+  cap_drop:
+    - ALL
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp:./seccomp/redroid-sandbox.json"
+  read_only: false         # ReDroid needs writable /data
+
+x-network: &network
+  networks:
+    - sandbox-cell0-net
+
+services:
+  # ─── L0a: ReDroid base ───────────────────────────────────────────────────
+  redroid:
+    # Image pinned by digest (amd64). No :latest.
+    # Digest sourced from: docker manifest inspect redroid/redroid:12.0.0_64only-latest
+    image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+    container_name: clo28-cell0-redroid
+    restart: "no"
+    <<: [*hardening, *network]
+
+    # ReDroid requires binder and ashmem kernel features; expose only what's needed
+    devices:
+      - /dev/binder:/dev/binder
+      - /dev/ashmem:/dev/ashmem
+      - /dev/dri:/dev/dri        # GPU acceleration (optional, graceful fail)
+
+    volumes:
+      # L0b root modules (NeoZygisk + Vector)
+      - ./L0b/magisk:/system/addon.d:ro
+      - ./L0b/neozygisk/modules:/data/adb/modules:rw
+      - ./L0b/vector/modules:/data/adb/modules/vector:rw
+      # L4 hide-frida-maps module APK + config
+      - ./L4/hide-frida-maps/build/outputs/apk/release:/data/local/tmp/hide-frida-maps:ro
+      - ./sandbox/cell0/vector-conf:/data/adb/modules/vector/conf:rw
+      # Shared workspace source for build reference
+      - type: bind
+        source: ./L4/hide-frida-maps
+        target: /src/L4/hide-frida-maps
+        read_only: true
+
+    environment:
+      - ANDROID_DATA=/data
+      - androidboot.hardware=redroid
+      - androidboot.redroid_net_ndns=1
+      # Disable GApps/Play for clean probe environment
+      - androidboot.redroid_google_play_store=0
+      # ADB over TCP
+      - androidboot.redroid_adb_port=5555
+
+    ports:
+      # ADB port — accessible from probe agent; NOT exposed to host 0.0.0.0
+      - "127.0.0.1:15555:5555"
+      # No other ports
+
+    healthcheck:
+      test: ["CMD", "sh", "-c", "getprop sys.boot_completed | grep -q 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  # ─── Probe sidecar (runs Detection's test suite once ReDroid is healthy) ─
+  # Note: this sidecar is a placeholder; Detection Oracle drives probes externally
+  # via adb to 127.0.0.1:15555.  This service is intentionally absent.
+
+networks:
+  sandbox-cell0-net:
+    driver: bridge
+    # Isolated from the main network and from other sandbox cells
+    internal: false    # ADB needs outbound for some operations; firewall at host level
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.40.0/29   # /29 = 6 usable IPs; exactly what we need
+
+volumes: {}  # All state is ephemeral for sandbox cells; no named volumes
