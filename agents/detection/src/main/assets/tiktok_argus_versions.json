@@ -1,0 +1,47 @@
+{
+  "schema": "tiktok-argus-versions/1",
+  "note": "ELF offset of the X-Argus signing entry point inside libmetasec_ov.so (arm64). Offsets change with every TikTok release and MUST be re-derived via static analysis (readelf -s / objdump / Ghidra) before use. Only entries marked validated=true have been confirmed against a real APK.",
+  "fragility": "HIGH",
+  "versions": {
+    "5.4.1": {
+      "arch": "arm64",
+      "lib": "libmetasec_ov.so",
+      "offset": "0x88ee0",
+      "symbol_hint": "sub_88ee0",
+      "validated": true,
+      "notes": "Baseline reference. Validated against com.zhiliaoapp.musically 5.4.1 APK."
+    },
+    "5.5.0": {
+      "arch": "arm64",
+      "lib": "libmetasec_ov.so",
+      "offset": "unknown",
+      "symbol_hint": null,
+      "validated": false,
+      "notes": "Re-derive required. Use readelf --syms or Ghidra auto-analysis starting from 0x88ee0 ± 0x4000."
+    },
+    "5.6.0": {
+      "arch": "arm64",
+      "lib": "libmetasec_ov.so",
+      "offset": "unknown",
+      "symbol_hint": null,
+      "validated": false,
+      "notes": "Re-derive required."
+    },
+    "6.x": {
+      "arch": "arm64",
+      "lib": "libmetasec_ov.so",
+      "offset": "unknown",
+      "symbol_hint": null,
+      "validated": false,
+      "notes": "Major version boundary — Argus SDK was likely upgraded; expect non-trivial offset delta."
+    }
+  },
+  "re_derive_procedure": [
+    "1. Unpack the target APK: apktool d com.zhiliaoapp.musically-<ver>.apk",
+    "2. Locate libmetasec_ov.so under lib/arm64-v8a/",
+    "3. Run: readelf -s libmetasec_ov.so | grep -i 'argus\\|sign\\|compute_x'",
+    "4. If stripped: open in Ghidra, search for cross-references to 'X-Argus' string literal",
+    "5. Record the resolved offset and set validated=true in this table",
+    "6. Update TikTokArgusSigningProbe.VALIDATED_OFFSET_V541 companion constant if replacing the baseline"
+  ]
+}
