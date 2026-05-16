@@ -589,3 +589,13 @@ probes:
     android_layer: framework
     description: "MediaProjection session active (Android 15+ DETECT_SCREEN_RECORDING); screenshot capture callback (Android 14+ DETECT_SCREEN_CAPTURE). freeRASP T11/T12"
     mitigation_layer: not_spoofable
+
+  - rank: 66
+    id: app.tiktok_argus_signing
+    category: runtime
+    severity: high
+    android_layer: application
+    description: "Detects TikTok Argus signing SDK: libsscronet.so + libmetasec_ov.so presence under /data/app/<pkg>/lib/. libmetasec_ov.so offset 0x88ee0 (v5.4.1, arm64) is the X-Argus generator entry point. Offset is version-specific — see tiktok_argus_versions.json. Passive only. CLO-19."
+    mitigation_layer: L4
+    fragility: HIGH
+    versions_table: tiktok_argus_versions.json
