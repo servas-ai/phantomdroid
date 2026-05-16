@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "sha": "0000000000000000000000000000000000000001",
+  "addresses_finding_id": "kernel.cpuinfo_bogomips",
+  "layer": "L1",
+  "files_changed": [
+    "agents/stability/stack/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed"
+  ],
+  "acceptance_cmd_result": {
+    "cmd": "bash agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh",
+    "exit_code": 1,
+    "passed": false,
+    "duration_ms": 73,
+    "log_excerpt": "FAIL: expected 2 occurrences of '0xd44' (Cortex-X1), found 0"
+  },
+  "worker": {
+    "adapter": "aider",
+    "version": "0.55",
+    "tier": 2
+  }
+}

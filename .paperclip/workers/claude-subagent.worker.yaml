@@ -1,0 +1,64 @@
+# Worker adapter — Claude Code subagent (SDK-spawned Task tool)
+#
+# Authoritative: CTO, CLO-108, 2026-05-16
+# Contract: BuildCommit v1.0 — .paperclip/contracts/buildcommit.schema.json
+#
+# Catch-all / highest-capability worker. Spawned via the Claude Code Task tool
+# (not an external CLI). The orchestrator routes here when:
+#   - No cheaper worker matches picks_when, OR
+#   - Complexity > tier_max of cheaper workers, OR
+#   - Task requires Claude-specific skills (Plan mode, Aristotle decomposition,
+#     SpoofStack-discipline preflight)
+schema_version: "1.0"
+
+adapter: claude-subagent
+kind: sdk_subagent
+
+capabilities:
+  - code-write
+  - refactor
+  - multi-file-edit
+  - bug-fix
+  - test-write
+  - code-review
+  - plan                   # Plan-mode authoring (CTO-style ADR / decision)
+  - debug                  # multi-hop root-cause analysis
+  - architecture           # cross-module design decisions
+
+# Catch-all ceiling; no Tier-5 task may bypass CTO render but claude-subagent
+# CAN execute the implementation steps of a Tier-5 plan once rendered.
+tier_max: 5
+
+picks_when:
+  # Fallback when nothing else matches. The orchestrator MUST prefer cheaper
+  # workers; claude-subagent picks only when their picks_when predicates fail
+  # OR when capabilities include `plan`/`architecture`/`debug` (no other
+  # adapter has these).
+  fallback: true
+  required_capability_any:
+    - plan
+    - architecture
+    - debug
+    - code-review
+  complexity_max: 5
+
+invoke:
+  # `kind: sdk_subagent` means there is no shell cmd — the harness invokes the
+  # Claude Code Task tool directly with this descriptor. The fields below mirror
+  # what the Task tool accepts so the harness can construct the invocation.
+  task_tool:
+    subagent_type_field: "{{required_subagent_type}}"  # e.g. "general-purpose"
+    prompt_field: "{{task_prompt}}"
+    description_field: "{{task_short_description}}"
+    run_in_background: false
+    isolation: worktree                                # safe-by-default
+  timeout_seconds: 3600
+
+out_contract: .paperclip/work/claude-subagent/{{session_id}}/buildcommit.json
+
+exits_with:
+  0: "BuildCommit written; ready for verifier"
+  1: "task failed (subagent returned without a usable commit)"
+  2: "contract violation (output present but does not validate)"
+  3: "context exhausted (subagent ran out of conversation budget; consider split)"
+  124: "timeout"

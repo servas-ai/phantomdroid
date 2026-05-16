@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://paperclip.dev/contracts/buildcommit.schema.json",
+  "title": "BuildCommit",
+  "description": "Typed payload emitted by every worker-adapter when it lands a change in response to a finding. Closes the dual-loop contract triad on the BUILD_COMMITTED side: every commit must (a) name the finding it addresses, (b) name the SpoofStack layer it touches, (c) enumerate files changed, (d) carry the acceptance-command result so the verifier can gate issue closure on a real CI signal — not on a self-report. Authoritative version: v1.0 (CTO, CLO-108, 2026-05-16).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sha",
+    "addresses_finding_id",
+    "layer",
+    "files_changed",
+    "acceptance_cmd_result"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Optional semver of this contract that the emitter targets. Allows forward-compat as the schema evolves. Absent = treat as 1.0.",
+      "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+      "default": "1.0"
+    },
+    "sha": {
+      "type": "string",
+      "description": "Full 40-character lowercase git commit SHA on the upstream branch. Short SHAs are not accepted because they are not collision-stable across the SpoofStack repo's lifetime.",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "addresses_finding_id": {
+      "type": "string",
+      "description": "Identifier of the finding / issue this commit is intended to close. Accepts a Paperclip issue identifier (e.g. CLO-27) or a fully-qualified probe id (e.g. runtime.frida_memory_maps). Either form lets the verifier resolve the originating FINDING side of the dual-loop triad.",
+      "anyOf": [
+        {
+          "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$",
+          "description": "Paperclip issue identifier (e.g. CLO-27)."
+        },
+        {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "description": "Probe id, dot-separated (e.g. runtime.frida_memory_maps)."
+        }
+      ]
+    },
+    "layer": {
+      "type": "string",
+      "description": "SpoofStack layer the change targets, per BEST-STACK.md §II. L0a is Stability's host-compose layer; L0b..L6 are Builder lanes. Use only the canonical tokens — no aliases.",
+      "enum": ["L0a", "L0b", "L1", "L2", "L3", "L4", "L5", "L6", "shared", "test", "docs"]
+    },
+    "files_changed": {
+      "type": "array",
+      "description": "Repo-relative paths of every file the commit touched (added, modified, deleted, or renamed). Minimum one entry — a zero-file BuildCommit is a contract violation. The verifier cross-checks this list against `git show --name-only $sha`.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^\\s][^\\0]*$"
+      }
+    },
+    "acceptance_cmd_result": {
+      "type": "object",
+      "description": "Result of running the acceptance command(s) declared on the parent issue. The verifier reads `passed`; humans read `log_excerpt` for debugging. `cmd` is the literal shell invocation; `exit_code` is the process exit code. A BuildCommit may not declare `passed: true` while `exit_code != 0`.",
+      "additionalProperties": false,
+      "required": ["cmd", "exit_code", "passed"],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "The acceptance command, exactly as executed (after any harness templating expansion).",
+          "minLength": 1
+        },
+        "exit_code": {
+          "type": "integer",
+          "description": "Process exit code. 0 = green; any non-zero = red.",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "Convenience boolean. MUST equal (exit_code == 0). The verifier rejects the commit on mismatch."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "description": "Wall-clock duration of the acceptance run, in milliseconds.",
+          "minimum": 0
+        },
+        "log_excerpt": {
+          "type": "string",
+          "description": "Tail of combined stdout/stderr, suitable for a comment body. Truncated to ~4KB by the harness.",
+          "maxLength": 8192
+        },
+        "log_artifact_url": {
+          "type": "string",
+          "description": "Optional URL to the full log artifact (object-storage, Paperclip work-product, etc.).",
+          "format": "uri"
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "description": "Optional provenance block — which worker-adapter emitted this BuildCommit, what version, and the contract version it claims to satisfy. Helps the verifier route follow-up issues back to the correct lane.",
+      "additionalProperties": false,
+      "required": ["adapter"],
+      "properties": {
+        "adapter": {
+          "type": "string",
+          "enum": ["cline", "aider", "gemini", "claude-subagent"]
+        },
+        "version": { "type": "string" },
+        "session_id": { "type": "string" },
+        "tier": {
+          "type": "integer",
+          "description": "Task tier this commit was attempted at (see worker.yaml tier_max).",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "container_image": {
+      "type": "string",
+      "description": "Digest-pinned container image the commit targets, when relevant (L0a/L0b commits). Must include an @sha256:… digest — tag-only references are rejected (`enforce-spoofstack-discipline` Gate 3).",
+      "pattern": "^[^@:\\s]+(:[^@\\s]+)?@sha256:[0-9a-f]{64}$"
+    },
+    "stack_layers": {
+      "type": "array",
+      "description": "Optional snapshot of the post-commit SpoofStack layer-set (mirrors AGENTS.md BUILD_COMMITTED body). Use when the commit changes multi-layer composition.",
+      "items": {
+        "type": "string",
+        "pattern": "^L[0-6][ab]?:.+$"
+      }
+    },
+    "proposal_id": {
+      "type": "string",
+      "description": "Optional reference to the mutation proposal (mutations/proposals/<id>.json) this commit fulfils."
+    }
+  },
+  "allOf": [
+    {
+      "description": "`acceptance_cmd_result.passed` must be consistent with `exit_code`.",
+      "if": {
+        "type": "object",
+        "properties": {
+          "acceptance_cmd_result": {
+            "type": "object",
+            "properties": { "exit_code": { "const": 0 } },
+            "required": ["exit_code"]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "acceptance_cmd_result": {
+            "type": "object",
+            "properties": { "passed": { "const": true } }
+          }
+        }
+      },
+      "else": {
+        "type": "object",
+        "properties": {
+          "acceptance_cmd_result": {
+            "type": "object",
+            "properties": { "passed": { "const": false } }
+          }
+        }
+      }
+    }
+  ]
+}

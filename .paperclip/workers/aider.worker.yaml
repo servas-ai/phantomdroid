@@ -1,0 +1,55 @@
+# Worker adapter — Aider (git-native CLI pair-programming agent)
+#
+# Authoritative: CTO, CLO-108, 2026-05-16
+# Contract: BuildCommit v1.0 — .paperclip/contracts/buildcommit.schema.json
+schema_version: "1.0"
+
+adapter: aider
+kind: external_cli
+
+# Aider's edge over cline: native git integration (auto-commit, conflict
+# detection, branch awareness) and explicit multi-file scope via file globs.
+# Use when the task spans 3+ files or requires a clean per-step commit trail.
+capabilities:
+  - code-write
+  - refactor
+  - multi-file-edit
+  - bug-fix
+  - test-write
+  - git-commit            # aider commits each step itself; harness reads SHA
+
+tier_max: 4
+
+picks_when:
+  layer: [L0a, L0b, L1, L2, shared, test]
+  task_kind: [code-write, refactor, multi-file-edit, bug-fix]
+  complexity_max: 4
+  # Prefer aider over cline when scope crosses multiple files.
+  prefers_when_files_changed_min: 3
+  needs_local_workspace: true
+
+invoke:
+  # --yes auto-confirms aider's diffs; --no-stream is required for the harness
+  # to capture deterministic output. The harness wraps stdout/stderr capture
+  # and reads the last commit SHA from the working tree.
+  cmd: >-
+    aider --yes --no-stream
+    --model {{aider_model}}
+    --message-file {{task_file}}
+    --git
+    --commit-prompt "{{commit_subject}}"
+    {{file_glob}}
+  timeout_seconds: 2400
+  env_passthrough:
+    - ANTHROPIC_API_KEY
+    - OPENAI_API_KEY
+    - AIDER_MODEL
+
+out_contract: .paperclip/work/aider/{{session_id}}/buildcommit.json
+
+exits_with:
+  0: "BuildCommit written; commit landed on working branch"
+  1: "task failed (model declined or asked for clarification — re-route)"
+  2: "contract violation"
+  3: "merge conflict (worker did not commit; orchestrator decides retry vs. escalate)"
+  124: "timeout"
