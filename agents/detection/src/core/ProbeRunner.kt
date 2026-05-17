@@ -1,4 +1,4 @@
-package com.example.detectorlab.core
+package com.detectorlab.core
 
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope

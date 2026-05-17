@@ -1,11 +1,11 @@
-package com.example.detectorlab.probes.env
+package com.detectorlab.probes.env
 
-import com.example.detectorlab.core.PackageManagerView
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.SensorManagerView
-import com.example.detectorlab.core.SensorSample
-import com.example.detectorlab.core.TelephonyField
-import com.example.detectorlab.core.TimeView
+import com.detectorlab.core.PackageManagerView
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.SensorManagerView
+import com.detectorlab.core.SensorSample
+import com.detectorlab.core.TelephonyField
+import com.detectorlab.core.TimeView
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals

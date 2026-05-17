@@ -23,6 +23,11 @@ dist/
 *.apk
 *.aab
 
+# Gradle (CLO-115)
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
 # Secrets
 .env
 .env.local

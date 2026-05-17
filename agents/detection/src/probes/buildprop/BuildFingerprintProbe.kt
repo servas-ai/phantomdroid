@@ -1,12 +1,12 @@
-package com.example.detectorlab.probes.buildprop
+package com.detectorlab.probes.buildprop
 
-import com.example.detectorlab.core.AndroidLayer
-import com.example.detectorlab.core.Evidence
-import com.example.detectorlab.core.Probe
-import com.example.detectorlab.core.ProbeCategory
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.ProbeResult
-import com.example.detectorlab.core.ProbeSeverity
+import com.detectorlab.core.AndroidLayer
+import com.detectorlab.core.Evidence
+import com.detectorlab.core.Probe
+import com.detectorlab.core.ProbeCategory
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.ProbeResult
+import com.detectorlab.core.ProbeSeverity
 
 /**
  * Probe #1 — Build Fingerprint.

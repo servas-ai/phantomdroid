@@ -1,4 +1,4 @@
-package com.example.detectorlab.core
+package com.detectorlab.core
 
 /**
  * Result of one Probe execution. Maps 1:1 to JSON-Schema-v1

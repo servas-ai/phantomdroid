@@ -1,4 +1,4 @@
-package com.example.detectorlab.core
+package com.detectorlab.core
 
 /**
  * A Probe is a single, contained Android-detection test. The contract is

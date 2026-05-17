@@ -1,12 +1,12 @@
-package com.example.detectorlab.probes.app
+package com.detectorlab.probes.app
 
-import com.example.detectorlab.core.AndroidLayer
-import com.example.detectorlab.core.Evidence
-import com.example.detectorlab.core.Probe
-import com.example.detectorlab.core.ProbeCategory
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.ProbeResult
-import com.example.detectorlab.core.ProbeSeverity
+import com.detectorlab.core.AndroidLayer
+import com.detectorlab.core.Evidence
+import com.detectorlab.core.Probe
+import com.detectorlab.core.ProbeCategory
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.ProbeResult
+import com.detectorlab.core.ProbeSeverity
 
 /**
  * Probe — app.ig_family_device_id_header (CLO-18, BEST-STACK row 7)

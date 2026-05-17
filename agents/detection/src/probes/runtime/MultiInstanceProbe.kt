@@ -1,13 +1,13 @@
-package com.example.detectorlab.probes.runtime
+package com.detectorlab.probes.runtime
 
-import com.example.detectorlab.core.AndroidLayer
-import com.example.detectorlab.core.Evidence
-import com.example.detectorlab.core.PackageManagerView
-import com.example.detectorlab.core.Probe
-import com.example.detectorlab.core.ProbeCategory
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.ProbeResult
-import com.example.detectorlab.core.ProbeSeverity
+import com.detectorlab.core.AndroidLayer
+import com.detectorlab.core.Evidence
+import com.detectorlab.core.PackageManagerView
+import com.detectorlab.core.Probe
+import com.detectorlab.core.ProbeCategory
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.ProbeResult
+import com.detectorlab.core.ProbeSeverity
 
 /**
  * Probe — runtime.multi_instance (A17 N8, freeRASP T13)

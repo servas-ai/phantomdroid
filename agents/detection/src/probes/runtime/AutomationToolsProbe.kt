@@ -1,12 +1,12 @@
-package com.example.detectorlab.probes.runtime
+package com.detectorlab.probes.runtime
 
-import com.example.detectorlab.core.AndroidLayer
-import com.example.detectorlab.core.Evidence
-import com.example.detectorlab.core.Probe
-import com.example.detectorlab.core.ProbeCategory
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.ProbeResult
-import com.example.detectorlab.core.ProbeSeverity
+import com.detectorlab.core.AndroidLayer
+import com.detectorlab.core.Evidence
+import com.detectorlab.core.Probe
+import com.detectorlab.core.ProbeCategory
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.ProbeResult
+import com.detectorlab.core.ProbeSeverity
 
 /**
  * Probe — runtime.automation_tools (A17 N9, freeRASP T10)
@@ -133,7 +133,7 @@ internal fun isAppiumAccessibilityServiceEnabled(ctx: ProbeContext): Boolean {
  * or its test companion is installed — the presence of either is a reliable
  * indicator that UIAutomator-based automation is configured on the device.
  */
-internal fun isUiAutomatorInstalled(pm: com.example.detectorlab.core.PackageManagerView): Boolean =
+internal fun isUiAutomatorInstalled(pm: com.detectorlab.core.PackageManagerView): Boolean =
     pm.isPackageInstalled(AutomationToolsProbe.PKG_UIAUTOMATOR) ||
         pm.isPackageInstalled(AutomationToolsProbe.PKG_UIAUTOMATOR_TEST)
 

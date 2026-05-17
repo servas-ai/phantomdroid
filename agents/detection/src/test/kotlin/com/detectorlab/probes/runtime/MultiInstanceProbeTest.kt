@@ -1,15 +1,15 @@
-package com.example.detectorlab.probes.runtime
+package com.detectorlab.probes.runtime
 
-import com.example.detectorlab.core.KeyguardManagerView
-import com.example.detectorlab.core.MediaProjectionManagerView
-import com.example.detectorlab.core.PackageManagerView
-import com.example.detectorlab.core.ProbeContext
-import com.example.detectorlab.core.SensorManagerView
-import com.example.detectorlab.core.SensorSample
-import com.example.detectorlab.core.TelephonyField
-import com.example.detectorlab.core.UnknownKeyguardManagerView
-import com.example.detectorlab.core.UnknownMediaProjectionManagerView
-import com.example.detectorlab.core.UserHandleView
+import com.detectorlab.core.KeyguardManagerView
+import com.detectorlab.core.MediaProjectionManagerView
+import com.detectorlab.core.PackageManagerView
+import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.SensorManagerView
+import com.detectorlab.core.SensorSample
+import com.detectorlab.core.TelephonyField
+import com.detectorlab.core.UnknownKeyguardManagerView
+import com.detectorlab.core.UnknownMediaProjectionManagerView
+import com.detectorlab.core.UserHandleView
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -154,7 +154,7 @@ class MultiInstanceProbeTest {
 
     @Test
     fun `findCloneSuffixPackages filters colon entries`() {
-        val pm = object : com.example.detectorlab.core.PackageManagerView {
+        val pm = object : com.detectorlab.core.PackageManagerView {
             override fun isPackageInstalled(packageName: String) = false
             override fun listInstalledPackages() = listOf(
                 "com.google.android.gms:remote",   // process name — must be filtered

@@ -1,4 +1,4 @@
-package com.example.detectorlab.core
+package com.detectorlab.core
 
 /**
  * Probe-side abstraction over android.content.Context that lets unit tests
