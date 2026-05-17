@@ -1,77 +1,79 @@
-Processor	: AArch64 Processor rev 14 (aarch64)
+Processor	: AArch64 Processor rev 0 (aarch64)
 processor	: 0
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x4
-CPU part	: 0xd42
+CPU variant	: 0x1
+CPU part	: 0xd44
 CPU revision	: 0
 
 processor	: 1
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x4
-CPU part	: 0xd42
+CPU variant	: 0x1
+CPU part	: 0xd44
 CPU revision	: 0
 
 processor	: 2
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x4
-CPU part	: 0xd42
+CPU variant	: 0x1
+CPU part	: 0xd41
 CPU revision	: 0
 
 processor	: 3
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x4
-CPU part	: 0xd42
+CPU variant	: 0x1
+CPU part	: 0xd41
 CPU revision	: 0
 
 processor	: 4
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x55
+CPU variant	: 0x2
 CPU part	: 0xd05
 CPU revision	: 0
 
 processor	: 5
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x55
+CPU variant	: 0x2
 CPU part	: 0xd05
 CPU revision	: 0
 
 processor	: 6
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x55
+CPU variant	: 0x2
 CPU part	: 0xd05
 CPU revision	: 0
 
 processor	: 7
-BogoMIPS	: 2.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+BogoMIPS	: 38.40
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
 CPU implementer	: 0x41
 CPU architecture: 8
-CPU variant	: 0x55
+CPU variant	: 0x2
 CPU part	: 0xd05
 CPU revision	: 0
 
 Hardware	: Tensor G2
-# Serial is injected at runtime by service.sh from sha256(container_uuid)[:16]
+# Serial is injected at runtime by service.sh from the persistent
+# /data/local/tmp/cpuinfo-overlay.serial (sha256 of container UUID,
+# written once at first boot, read thereafter).
 # Placeholder replaced before bind-mount — NOT a real device identifier.
 Serial		: 0000000000000000
