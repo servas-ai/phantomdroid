@@ -1,0 +1,4 @@
+ .gitignore                                |   3 +
+ agents/detection/src/core/ProbeContext.kt |  46 ++++++++++++
+ shared/probes/inventory.yml               | 120 +++++++++++++++++++++++++++---
+ 3 files changed, 159 insertions(+), 10 deletions(-)

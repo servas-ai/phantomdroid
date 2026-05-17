@@ -1,0 +1,4163 @@
+diff --git a/agents/detection/src/core/Probe.kt b/agents/detection/src/core/Probe.kt
+deleted file mode 100644
+index 0c51739..0000000
+--- a/agents/detection/src/core/Probe.kt
++++ /dev/null
+@@ -1,42 +0,0 @@
+-package com.example.detectorlab.core
+-
+-/**
+- * A Probe is a single, contained Android-detection test. The contract is
+- * deliberately narrow so probes are interchangeable in the runner and so
+- * the JSON-Schema-v1 binding is mechanical.
+- *
+- * Invariants (enforced by ProbeRunner + tests):
+- *   1. run() must complete within budgetMs (hard timeout)
+- *   2. run() must NOT make network requests to live third-party services
+- *   3. run() must produce a deterministic ProbeResult
+- *   4. run() must NOT throw uncaught exceptions (use ProbeResult.failed)
+- *   5. id, category, severity, androidLayer are declarative
+- */
+-interface Probe {
+-    val id: String                 // e.g. "buildprop.fingerprint"
+-    val rank: Int                  // 1..75 (synced with probes/inventory.yml)
+-    val category: ProbeCategory
+-    val severity: ProbeSeverity
+-    val androidLayer: AndroidLayer
+-    val budgetMs: Long             // hard timeout, must be <= 5000
+-
+-    /**
+-     * Probe execution. Implementations must be idempotent and side-effect-free
+-     * beyond reading device state.
+-     *
+-     * @param ctx ProbeContext provides android.content.Context-equivalent access
+-     *            without binding probes to the Android framework type system,
+-     *            so probes are testable in pure-JVM unit tests via fakes.
+-     * @return ProbeResult with score in [0.0, 1.0] and evidence.
+-     */
+-    suspend fun run(ctx: ProbeContext): ProbeResult
+-}
+-
+-enum class ProbeCategory {
+-    BUILDPROP, INTEGRITY, ROOT, EMULATOR, NETWORK,
+-    IDENTITY, RUNTIME, SENSORS, UI, ENV
+-}
+-
+-enum class ProbeSeverity { CRITICAL, HIGH, MEDIUM, LOW, TRACE }
+-
+-enum class AndroidLayer { APPLICATION, FRAMEWORK, NATIVE, KERNEL, HARDWARE, NETWORK }
+diff --git a/agents/detection/src/core/ProbeContext.kt b/agents/detection/src/core/ProbeContext.kt
+index 8a8e3fd..f229814 100644
+--- a/agents/detection/src/core/ProbeContext.kt
++++ b/agents/detection/src/core/ProbeContext.kt
+@@ -33,9 +33,9 @@ interface ProbeContext {
+     /**
+      * Default returns the "unknown" view so existing fakes that predate this
+      * method continue to compile. Production impls override with a wrapper
+-     * around `android.media.projection.MediaProjectionManager` plus the
+-     * `WindowManager.addScreenRecordingCallback` (API 35+) and
+-     * `Window.addScreenCaptureCallback` (API 34+) registrations performed at
++     * around the Activity/WindowManager capture observers:
++     * `Activity.registerScreenCaptureCallback` (API 34+) and
++     * `WindowManager.addScreenRecordingCallback` (API 35+), registered at
+      * application start.
+      */
+     fun queryMediaProjectionManager(): MediaProjectionManagerView =
+@@ -202,24 +202,20 @@ object UnknownWifiManagerView : WifiManagerView {
+  *
+  * The Android platform exposes two distinct callbacks for capture detection:
+  *
+- *   • `Window.OnScreenCaptureCallback` — API 34+ (Android 14, DETECT_SCREEN_CAPTURE
+- *     permission). Fires once when a screenshot is taken of an Activity window
+- *     registered via `Window.addScreenCaptureCallback`. In this view we call
++ *   • `Activity.registerScreenCaptureCallback` — API 34+ (Android 14,
++ *     DETECT_SCREEN_CAPTURE permission). Fires once when a screenshot is taken
++ *     of a registered Activity window. In this view we call
+  *     this signal `screenCaptureCallback` and gate it on `sdkInt() >= 34`.
+  *
+- *   • `WindowManager.ScreenRecordingCallback` — API 35+ (Android 15,
+- *     DETECT_SCREEN_RECORDING permission). Fires whenever a MediaProjection
+- *     session that includes any window of the registering UID transitions
+- *     between visible and not-visible. In this view we call this signal
+- *     `mediaProjectionFrameCapture` and gate it on `sdkInt() >= 35`. This is
+- *     the canonical "MediaProjection session is live" oracle from API 35
+- *     onward.
++ *   • `WindowManager.addScreenRecordingCallback` — API 35+ (Android 15,
++ *     DETECT_SCREEN_RECORDING permission). Its callback receives the UID's
++ *     screen-recording visibility state when MediaProjection capture starts or
++ *     stops. In this view we call this signal `mediaProjectionFrameCapture` and
++ *     gate it on `sdkInt() >= 35`. This is the canonical "MediaProjection
++ *     session is live" oracle from API 35 onward.
+  *
+- * The naming inside this view follows the issue acceptance text
+- * (`MediaProjectionManager` callback + `Window.OnFrameCaptureListener`)
+- * rather than the precise Android class names so the contract reads against
+- * CLO-8 verbatim; the production wrapper translates these to the real
+- * platform classes.
++ * The naming inside this view follows the probe's domain signals; production
++ * wrappers translate those signals to the platform callbacks named above.
+  *
+  * Implementations MUST return `null` from the `is*` queries when the answer
+  * is unknown (callbacks have not yet been registered, system service threw,
+@@ -231,14 +227,14 @@ interface MediaProjectionManagerView {
+     fun sdkInt(): Int
+ 
+     /**
+-     * `Window.OnScreenCaptureCallback` (API 34+) — true iff a screenshot
++     * `Activity.registerScreenCaptureCallback` (API 34+) — true iff a screenshot
+      * capture event has been observed since the last reset. Returns `null`
+      * on API <34, or when the callback has not been registered.
+      */
+     fun isScreenCaptureCallbackActive(): Boolean?
+ 
+     /**
+-     * `WindowManager.ScreenRecordingCallback` (API 35+) — true iff a
++     * `WindowManager.addScreenRecordingCallback` (API 35+) — true iff a
+      * MediaProjection screen-recording session is currently capturing any
+      * window of the registering UID. Returns `null` on API <35, or when the
+      * callback has not been registered.
+diff --git a/agents/detection/src/core/ProbeResult.kt b/agents/detection/src/core/ProbeResult.kt
+deleted file mode 100644
+index 684394a..0000000
+--- a/agents/detection/src/core/ProbeResult.kt
++++ /dev/null
+@@ -1,78 +0,0 @@
+-package com.example.detectorlab.core
+-
+-/**
+- * Result of one Probe execution. Maps 1:1 to JSON-Schema-v1
+- * (see docs/probe-schema.md).
+- *
+- * Score semantics:
+- *   0.00 - 0.05  Not detected (real device)
+- *   0.05 - 0.30  Suspicion, not certain
+- *   0.30 - 0.70  Detectable with confidence
+- *   0.70 - 1.00  Certainly detected
+- */
+-data class ProbeResult(
+-    val score: Double,                  // 0.0 .. 1.0, clamped
+-    val confidence: Double,             // 0.0 .. 1.0, statistical confidence
+-    val evidence: List<Evidence>,       // ordered, may be empty
+-    val method: String,                 // human-readable methodology
+-    val runtimeMs: Long,                // measured wall-clock duration
+-    val failed: Boolean = false,        // true iff probe could not execute
+-    val failureReason: String? = null,  // present iff failed=true
+-) {
+-    init {
+-        require(score in 0.0..1.0) { "score out of range: $score" }
+-        require(confidence in 0.0..1.0) { "confidence out of range: $confidence" }
+-        require(runtimeMs >= 0) { "runtimeMs must be non-negative: $runtimeMs" }
+-        require(failed == (failureReason != null)) { "failed-flag and failureReason must agree" }
+-    }
+-
+-    /** True iff the probe ran to completion (i.e. neither failed nor skipped). */
+-    val ok: Boolean get() = !failed
+-
+-    /** True iff the probe deliberately abstained (no exception, no verdict). */
+-    val skipped: Boolean get() = failed && failureReason?.startsWith(SKIPPED_PREFIX) == true
+-
+-    companion object {
+-        const val SKIPPED_PREFIX = "skipped: "
+-
+-        fun failed(reason: String, runtimeMs: Long = 0L): ProbeResult = ProbeResult(
+-            score = 0.0,
+-            confidence = 0.0,
+-            evidence = emptyList(),
+-            method = "(failed)",
+-            runtimeMs = runtimeMs,
+-            failed = true,
+-            failureReason = reason,
+-        )
+-
+-        /**
+-         * Probe deliberately abstained — usually because a required runtime
+-         * permission was not granted, a target API was unavailable, or the
+-         * environment lacks the probed surface (e.g. no Wi-Fi adapter). Carries
+-         * no score, no confidence; downstream consumers MUST treat this as a
+-         * "no signal" record, NOT a "clean" verdict.
+-         *
+-         * Implemented as a flavour of `failed` so existing consumers continue
+-         * to work; `result.skipped == true` distinguishes the two.
+-         */
+-        fun skipped(reason: String, runtimeMs: Long = 0L): ProbeResult = ProbeResult(
+-            score = 0.0,
+-            confidence = 0.0,
+-            evidence = emptyList(),
+-            method = "(skipped)",
+-            runtimeMs = runtimeMs,
+-            failed = true,
+-            failureReason = SKIPPED_PREFIX + reason,
+-        )
+-    }
+-}
+-
+-/**
+- * Evidence is a single observation that contributed to the probe's score.
+- * Type is intentionally permissive (String | Number | Boolean) to fit JSON-Schema.
+- */
+-data class Evidence(
+-    val key: String,
+-    val value: Any,                     // String, Number, or Boolean
+-    val expected: Any? = null,          // null = no a-priori expectation
+-)
+diff --git a/agents/detection/src/core/ProbeRunner.kt b/agents/detection/src/core/ProbeRunner.kt
+deleted file mode 100644
+index e676472..0000000
+--- a/agents/detection/src/core/ProbeRunner.kt
++++ /dev/null
+@@ -1,104 +0,0 @@
+-package com.example.detectorlab.core
+-
+-import kotlinx.coroutines.TimeoutCancellationException
+-import kotlinx.coroutines.coroutineScope
+-import kotlinx.coroutines.withTimeout
+-import java.time.Instant
+-
+-/**
+- * Orchestrator: runs all registered probes, enforces timeouts, builds the Report.
+- *
+- * Round-2 invariant enforcement:
+- *   1. Per-probe timeout = probe.budgetMs (hard wall-clock)
+- *   2. No-network: probes are forbidden from doing network I/O via Android-side
+- *      manifest-permission absence + iptables (host-side, see experiments/runner SPEC §4)
+- *   3. Deterministic JSON: schema-validated before persistence
+- *   4. Failure isolation: one probe failure does NOT abort the run
+- *   5. Declarative metadata: probe id/rank/category surfaced in report
+- */
+-class ProbeRunner(
+-    private val probes: List<Probe>,
+-    private val ctx: ProbeContext,
+-    private val appVersion: String,
+-    private val deviceLabel: String,
+-) {
+-    suspend fun runAll(): Report = coroutineScope {
+-        val records = probes.map { probe ->
+-            val started = System.currentTimeMillis()
+-            val result: ProbeResult = try {
+-                withTimeout(probe.budgetMs) {
+-                    val r = probe.run(ctx)
+-                    require(r.runtimeMs <= probe.budgetMs) { "probe self-reported runtime > budget" }
+-                    r
+-                }
+-            } catch (e: TimeoutCancellationException) {
+-                ProbeResult.failed(
+-                    "timeout: exceeded ${probe.budgetMs}ms",
+-                    runtimeMs = System.currentTimeMillis() - started,
+-                )
+-            } catch (e: Throwable) {
+-                // Failure isolation: log + record, do NOT propagate.
+-                ProbeResult.failed(
+-                    "uncaught: ${e.javaClass.simpleName}: ${e.message ?: "(no message)"}",
+-                    runtimeMs = System.currentTimeMillis() - started,
+-                )
+-            }
+-            ProbeRecord(
+-                id = probe.id,
+-                rank = probe.rank,
+-                category = probe.category.name.lowercase(),
+-                score = result.score,
+-                confidence = result.confidence,
+-                evidence = result.evidence.map { EvidenceRecord(it.key, it.value, it.expected) },
+-                method = result.method,
+-                runtimeMs = result.runtimeMs,
+-                failed = result.failed,
+-                failureReason = result.failureReason,
+-            )
+-        }
+-        Report(
+-            schemaVersion = "1.0",
+-            deviceLabel = deviceLabel,
+-            timestamp = Instant.now().toString(),
+-            appVersion = appVersion,
+-            probes = records,
+-            aggregate = aggregate(records),
+-        )
+-    }
+-
+-    /**
+-     * Compute weighted aggregate per /docs/probe-schema.md.
+-     *   weight[rank] =
+-     *     3.0 if 1..10   (kritisch)
+-     *     2.0 if 11..25  (hoch)
+-     *     1.0 if 26..40  (mittel)
+-     *     0.5 if 41..75  (niedrig + ergänzend + Round-2 additions)
+-     */
+-    private fun aggregate(records: List<ProbeRecord>): Aggregate {
+-        if (records.isEmpty()) {
+-            return Aggregate(weightedScore = 0.0, criticalFailures = 0, category = ReportCategory.CLEAN)
+-        }
+-        var totalScore = 0.0
+-        var totalWeight = 0.0
+-        var critFailures = 0
+-        for (r in records) {
+-            val w = when (r.rank) {
+-                in 1..10 -> 3.0
+-                in 11..25 -> 2.0
+-                in 26..40 -> 1.0
+-                else -> 0.5
+-            }
+-            totalScore += r.score * w
+-            totalWeight += w
+-            if (r.rank in 1..10 && r.score >= 0.7) critFailures++
+-        }
+-        val weighted = totalScore / totalWeight
+-        val cat = when {
+-            critFailures >= 3 -> ReportCategory.DETECTED
+-            weighted < 0.10 -> ReportCategory.CLEAN
+-            weighted < 0.40 -> ReportCategory.SUSPICIOUS
+-            else -> ReportCategory.DETECTED
+-        }
+-        return Aggregate(weightedScore = weighted, criticalFailures = critFailures, category = cat)
+-    }
+-}
+diff --git a/agents/detection/src/core/Report.kt b/agents/detection/src/core/Report.kt
+deleted file mode 100644
+index edd7d2c..0000000
+--- a/agents/detection/src/core/Report.kt
++++ /dev/null
+@@ -1,57 +0,0 @@
+-package com.example.detectorlab.core
+-
+-/**
+- * Top-level Probe-Run report. Maps 1:1 to JSON-Schema v1
+- * (see /docs/probe-schema.md).
+- *
+- * Persisted by ProbeRunner.persist() to /sdcard/Download/detectorlab-report.json.
+- * Pulled via adb by experiments/runner orchestrator (see experiments/runner/SPEC.md).
+- */
+-data class Report(
+-    val schemaVersion: String,           // const "1.0"
+-    val deviceLabel: String,             // lab-internal config ID, e.g. "redroid-12-L0a-001"
+-    val timestamp: String,               // ISO-8601, UTC
+-    val appVersion: String,              // semver, e.g. "0.1.0"
+-    val probes: List<ProbeRecord>,
+-    val aggregate: Aggregate,
+-) {
+-    init {
+-        require(schemaVersion == "1.0") { "schemaVersion must be 1.0 (v1 schema lock)" }
+-        require(timestamp.endsWith("Z")) { "timestamp must be UTC (suffix Z)" }
+-        require(appVersion.matches(Regex("^\\d+\\.\\d+\\.\\d+$"))) { "appVersion must be semver" }
+-    }
+-}
+-
+-/**
+- * One probe's full record in the report. Mirrors ProbeResult plus identity.
+- */
+-data class ProbeRecord(
+-    val id: String,                      // matches Probe.id
+-    val rank: Int,                       // matches Probe.rank
+-    val category: String,                // ProbeCategory.name in lower_case
+-    val score: Double,
+-    val confidence: Double,
+-    val evidence: List<EvidenceRecord>,
+-    val method: String,
+-    val runtimeMs: Long,
+-    val failed: Boolean = false,
+-    val failureReason: String? = null,
+-)
+-
+-data class EvidenceRecord(
+-    val key: String,
+-    val value: Any,                      // String | Number | Boolean
+-    val expected: Any? = null,
+-)
+-
+-/**
+- * Aggregate summary computed by ProbeRunner.aggregate().
+- * Weights and thresholds defined in /docs/probe-schema.md §"Gewichtung im Aggregate".
+- */
+-data class Aggregate(
+-    val weightedScore: Double,           // weighted mean over all probes
+-    val criticalFailures: Int,           // count of critical-rank probes with score >= 0.7
+-    val category: ReportCategory,        // CLEAN / SUSPICIOUS / DETECTED
+-)
+-
+-enum class ReportCategory { CLEAN, SUSPICIOUS, DETECTED }
+diff --git a/agents/detection/src/probes/app/IgFamilyDeviceIdHeaderProbe.kt b/agents/detection/src/probes/app/IgFamilyDeviceIdHeaderProbe.kt
+deleted file mode 100644
+index 4e5cf64..0000000
+--- a/agents/detection/src/probes/app/IgFamilyDeviceIdHeaderProbe.kt
++++ /dev/null
+@@ -1,216 +0,0 @@
+-package com.example.detectorlab.probes.app
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-
+-/**
+- * Probe — app.ig_family_device_id_header (CLO-18, BEST-STACK row 7)
+- *
+- * Reads the JSON evidence file written by the companion mitmproxy addon
+- * (`ig_family_device_id_addon.py`) and classifies the presence and entropy
+- * of the ``x-ig-family-device-id`` header in Instagram / Threads / Facebook /
+- * WhatsApp outbound traffic.
+- *
+- * Layer: L4 + L6 (passive HTTP header capture via mitmproxy MITM harness).
+- * The probe itself is read-only: it only consumes the file the addon wrote.
+- *
+- * Ethics block
+- * ─────────────
+- * The capture file contains a ``sandbox_marker`` field.  If the file is
+- * absent or the field is blank the probe returns ``ProbeResult.skipped``
+- * to prevent accidental analysis of production accounts.
+- *
+- * Score table
+- * ───────────
+- *   Header present, low entropy (≤ 80 bits)  → 0.95
+- *     Cloned or replayed ID — strongest farm signal.
+- *   Header present, normal entropy (> 80 bits) → 0.85
+- *     Genuine device binding across Meta apps observed.
+- *   Header absent from in-scope traffic → 0.05
+- *     App may not have sent it yet; inconclusive.
+- *   File not found / no sandbox marker → skipped.
+- *
+- * Confidence
+- * ──────────
+- *   capture_count ≥ 20  → 0.92
+- *   capture_count ≥ 5   → 0.75
+- *   capture_count < 5   → 0.50  (too few observations)
+- *
+- * Depends on: META-22, CLO-17
+- * Effort: L (mitmproxy harness + sandbox account required)
+- */
+-class IgFamilyDeviceIdHeaderProbe(
+-    internal val captureFilePath: String = DEFAULT_CAPTURE_PATH,
+-) : Probe {
+-
+-    override val id = "app.ig_family_device_id_header"
+-    override val rank = RANK
+-    override val category = ProbeCategory.IDENTITY
+-    override val severity = ProbeSeverity.HIGH
+-    override val androidLayer = AndroidLayer.NETWORK
+-    override val budgetMs = 500L
+-
+-    companion object {
+-        /** BEST-STACK row 7 — Meta Family Device ID cross-app header. */
+-        const val RANK = 67
+-
+-        /** Canonical path the mitmproxy addon writes to. */
+-        const val DEFAULT_CAPTURE_PATH =
+-            "/data/local/tmp/detectorlab/ig_fam_device_id.json"
+-
+-        // Shannon-entropy threshold distinguishing cloned from genuine IDs.
+-        const val LOW_ENTROPY_THRESHOLD = 80.0
+-    }
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            // Ethics block: file must exist and contain a non-blank sandbox marker.
+-            if (!ctx.fileExists(captureFilePath)) {
+-                return ProbeResult.skipped(
+-                    "Capture file not found — mitmproxy harness not running or " +
+-                        "sandbox account not configured.",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-            }
+-
+-            val raw = ctx.readFile(captureFilePath, maxBytes = 16_384)
+-                ?: return ProbeResult.skipped(
+-                    "Capture file exists but could not be read.",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-
+-            val capture = parseCaptureFile(raw)
+-                ?: return ProbeResult.failed(
+-                    "Capture file is malformed JSON or missing required fields.",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-
+-            // Ethics block: require sandbox marker in the capture.
+-            if (capture.sandboxMarker.isBlank()) {
+-                return ProbeResult.skipped(
+-                    "No sandbox_marker in capture file — refusing to analyse " +
+-                        "traffic that may belong to a production account.",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-            }
+-
+-            val score = scoreFor(capture)
+-            val confidence = confidenceFor(capture.captureCount)
+-
+-            val evidence = buildList {
+-                add(Evidence("ig.header_present", capture.headerPresent, expected = false))
+-                add(Evidence("ig.header_value", capture.value ?: "absent"))
+-                add(Evidence("ig.is_valid_uuid", capture.isValidUuid, expected = true))
+-                add(Evidence("ig.entropy_bits", capture.entropyBits))
+-                add(Evidence("ig.capture_count", capture.captureCount))
+-                add(Evidence("ig.header_count", capture.headerCount))
+-                add(Evidence("ig.apps_seen", capture.appsSeen.joinToString(",")))
+-                add(Evidence("ig.unique_value_count", capture.uniqueValues.size))
+-                add(Evidence("ig.sandbox_marker_present", capture.sandboxMarker.isNotBlank(), expected = true))
+-            }
+-
+-            ProbeResult(
+-                score = score,
+-                confidence = confidence,
+-                evidence = evidence,
+-                method = "passive mitmproxy capture of x-ig-family-device-id header",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "IgFamilyDeviceIdHeaderProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-
+-    internal fun scoreFor(capture: CaptureFile): Double = when {
+-        !capture.headerPresent -> 0.05
+-        capture.entropyBits <= LOW_ENTROPY_THRESHOLD -> 0.95 // cloned/replayed
+-        else -> 0.85                                          // genuine cross-app binding
+-    }
+-
+-    internal fun confidenceFor(captureCount: Int): Double = when {
+-        captureCount >= 20 -> 0.92
+-        captureCount >= 5  -> 0.75
+-        else               -> 0.50
+-    }
+-
+-    // ── Simple JSON parser (no library dependency) ────────────────────────
+-
+-    /**
+-     * Extracts known fields from the flat JSON object the addon writes.
+-     * Deliberately avoids a third-party JSON library to keep the module
+-     * zero-dependency (core constraint).
+-     */
+-    internal fun parseCaptureFile(json: String): CaptureFile? {
+-        return try {
+-            CaptureFile(
+-                sandboxMarker  = extractString(json, "sandbox_marker") ?: "",
+-                headerPresent  = extractBoolean(json, "header_present") ?: false,
+-                value          = extractString(json, "value"),
+-                isValidUuid    = extractBoolean(json, "is_valid_uuid") ?: false,
+-                entropyBits    = extractDouble(json, "entropy_bits") ?: 0.0,
+-                captureCount   = extractInt(json, "capture_count") ?: 0,
+-                headerCount    = extractInt(json, "header_count") ?: 0,
+-                appsSeen       = extractStringList(json, "apps_seen"),
+-                uniqueValues   = extractStringList(json, "unique_values"),
+-            )
+-        } catch (_: Throwable) {
+-            null
+-        }
+-    }
+-
+-    internal data class CaptureFile(
+-        val sandboxMarker: String,
+-        val headerPresent: Boolean,
+-        val value: String?,
+-        val isValidUuid: Boolean,
+-        val entropyBits: Double,
+-        val captureCount: Int,
+-        val headerCount: Int,
+-        val appsSeen: List<String>,
+-        val uniqueValues: List<String>,
+-    )
+-
+-    // ── Minimal JSON field extractors (regex-based, no deps) ─────────────
+-
+-    private fun extractString(json: String, key: String): String? {
+-        val pattern = Regex(""""$key"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|null)""")
+-        val match = pattern.find(json) ?: return null
+-        return match.groupValues[1].ifEmpty {
+-            if (match.value.endsWith("null")) null else ""
+-        }
+-    }
+-
+-    private fun extractBoolean(json: String, key: String): Boolean? {
+-        val pattern = Regex(""""$key"\s*:\s*(true|false)""")
+-        return pattern.find(json)?.groupValues?.get(1)?.toBooleanStrictOrNull()
+-    }
+-
+-    private fun extractDouble(json: String, key: String): Double? {
+-        val pattern = Regex(""""$key"\s*:\s*(-?\d+(?:\.\d+)?)""")
+-        return pattern.find(json)?.groupValues?.get(1)?.toDoubleOrNull()
+-    }
+-
+-    private fun extractInt(json: String, key: String): Int? {
+-        val pattern = Regex(""""$key"\s*:\s*(-?\d+)""")
+-        return pattern.find(json)?.groupValues?.get(1)?.toIntOrNull()
+-    }
+-
+-    private fun extractStringList(json: String, key: String): List<String> {
+-        val arrayPattern = Regex(""""$key"\s*:\s*\[([^\]]*)]""")
+-        val arrayMatch = arrayPattern.find(json) ?: return emptyList()
+-        val inner = arrayMatch.groupValues[1].trim()
+-        if (inner.isBlank()) return emptyList()
+-        return Regex(""""((?:[^"\\]|\\.)*)"""").findAll(inner)
+-            .map { it.groupValues[1] }
+-            .toList()
+-    }
+-}
+diff --git a/agents/detection/src/probes/buildprop/BuildFingerprintProbe.kt b/agents/detection/src/probes/buildprop/BuildFingerprintProbe.kt
+deleted file mode 100644
+index e57fc83..0000000
+--- a/agents/detection/src/probes/buildprop/BuildFingerprintProbe.kt
++++ /dev/null
+@@ -1,101 +0,0 @@
+-package com.example.detectorlab.probes.buildprop
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-
+-/**
+- * Probe #1 — Build Fingerprint.
+- *
+- * Reads ro.build.fingerprint, ro.build.display.id, ro.build.tags, ro.build.type,
+- * ro.product.brand, ro.product.model, ro.product.manufacturer.
+- *
+- * Detection logic:
+- *   - Score 1.0 if fingerprint contains known emulator markers (redroid, generic, ranchu, vbox)
+- *   - Score 0.85 if tags=test-keys or type=userdebug
+- *   - Score 0.0 if fingerprint matches a real-OEM pattern AND tags=release-keys AND type=user
+- *   - Inconsistency between brand/model/manufacturer triplet adds 0.3
+- *
+- * Reference: Round-1 Finding F1 (kritisch, mitigation_layer L1).
+- * inventory.yml rank 1.
+- */
+-class BuildFingerprintProbe : Probe {
+-    override val id = "buildprop.fingerprint"
+-    override val rank = 1
+-    override val category = ProbeCategory.BUILDPROP
+-    override val severity = ProbeSeverity.CRITICAL
+-    override val androidLayer = AndroidLayer.NATIVE
+-    override val budgetMs = 200L
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val fingerprint = ctx.getSystemProperty("ro.build.fingerprint") ?: ""
+-            val displayId = ctx.getSystemProperty("ro.build.display.id") ?: ""
+-            val tags = ctx.getSystemProperty("ro.build.tags") ?: ""
+-            val type = ctx.getSystemProperty("ro.build.type") ?: ""
+-            val brand = ctx.getSystemProperty("ro.product.brand") ?: ""
+-            val model = ctx.getSystemProperty("ro.product.model") ?: ""
+-            val manufacturer = ctx.getSystemProperty("ro.product.manufacturer") ?: ""
+-
+-            val evidence = mutableListOf(
+-                Evidence("ro.build.fingerprint", fingerprint),
+-                Evidence("ro.build.display.id", displayId),
+-                Evidence("ro.build.tags", tags, expected = "release-keys"),
+-                Evidence("ro.build.type", type, expected = "user"),
+-                Evidence("ro.product.brand", brand),
+-                Evidence("ro.product.model", model),
+-                Evidence("ro.product.manufacturer", manufacturer),
+-            )
+-
+-            val emulatorMarkers = listOf("redroid", "generic", "ranchu", "vbox", "goldfish")
+-            val hasEmulatorMarker = emulatorMarkers.any { fingerprint.contains(it, ignoreCase = true) }
+-            val testKeys = tags == "test-keys"
+-            val userdebug = type == "userdebug" || type == "eng"
+-
+-            // Manufacturer/brand/model consistency: a real Pixel 7 has
+-            // brand=google, manufacturer=Google, model=Pixel 7 (case-sensitive).
+-            val brandMfgInconsistent = brand.isNotEmpty() && manufacturer.isNotEmpty() &&
+-                !brand.equals(manufacturer, ignoreCase = true) &&
+-                !knownBrandMfgPairs.contains(brand.lowercase() to manufacturer.lowercase())
+-
+-            val score = when {
+-                hasEmulatorMarker -> 1.0
+-                testKeys && userdebug -> 0.95
+-                testKeys || userdebug -> 0.85
+-                brandMfgInconsistent -> 0.45
+-                else -> 0.0
+-            }
+-
+-            val confidence = if (fingerprint.isEmpty()) 0.5 else 0.99
+-
+-            ProbeResult(
+-                score = score,
+-                confidence = confidence,
+-                evidence = evidence,
+-                method = "Compare ro.build.* against expected manufacturer pattern + emulator markers",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed("BuildFingerprintProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start)
+-        }
+-    }
+-
+-    private val knownBrandMfgPairs = setOf(
+-        "google" to "google",
+-        "samsung" to "samsung",
+-        "xiaomi" to "xiaomi",
+-        "oneplus" to "oneplus",
+-        "oppo" to "oppo",
+-        "vivo" to "vivo",
+-        "realme" to "realme",
+-        "motorola" to "motorola",
+-        "sony" to "sony",
+-        "huawei" to "huawei",
+-    )
+-}
+diff --git a/agents/detection/src/probes/env/ScreenLockProbe.kt b/agents/detection/src/probes/env/ScreenLockProbe.kt
+index 1707118..5536bc9 100644
+--- a/agents/detection/src/probes/env/ScreenLockProbe.kt
++++ b/agents/detection/src/probes/env/ScreenLockProbe.kt
+@@ -11,37 +11,7 @@ import com.example.detectorlab.core.ProbeSeverity
+ /**
+  * Probe — env.screen_lock (A17 N7, freeRASP D1)
+  *
+- * Detects whether the device has a configured secure lock (PIN, pattern,
+- * password, or biometric). A missing lock is a strong correlate of an
+- * emulator / throwaway test container and is the explicit D1 signal in
+- * freeRASP's DeviceState callback.
+- *
+- * Signals (per A17-rasp-defensive-probe-mining.md):
+- *   - Primary: `KeyguardManager.isDeviceSecure()`  (API ≥23)
+- *   - Fallback: `KeyguardManager.isKeyguardSecure()`  (API 16+)
+- *
+- * Acceptance criteria (CLO-5):
+- *   1. Invokes both `isDeviceSecure()` and `isKeyguardSecure()`; emits one
+- *      of {pin_set, none, unknown}.
+- *   2. Treats `unknown` (API <23 with no secondary signal, or query threw)
+- *      as `confidence=weak` — NOT a `strong=false` (clean) verdict.
+- *   3. Unit tests cover all three permission/SDK combinations:
+- *        (a) API ≥23, device secure        → pin_set
+- *        (b) API ≥23, device NOT secure    → none
+- *        (c) API <23 with no keyguard data → unknown
+- *
+- * State→score mapping:
+- *   pin_set  → 0.00 score, 0.95 confidence  (clean, strong)
+- *   none     → 0.85 score, 0.95 confidence  (detected, strong)
+- *   unknown  → 0.00 score, 0.30 confidence  (clean-but-weak: do NOT report
+- *                                           a strong negative when the
+- *                                           probe could not actually
+- *                                           determine the state)
+- *
+- * Confidence buckets used elsewhere:
+- *   ≤ 0.40  → weak
+- *   0.40..0.85 → medium
+- *   ≥ 0.85  → strong
++ * Detects whether the device has a configured screen lock.
+  */
+ class ScreenLockProbe : Probe {
+     override val id = "env.screen_lock"
+@@ -52,7 +22,7 @@ class ScreenLockProbe : Probe {
+     override val budgetMs = 500L
+ 
+     companion object {
+-        /** A17 N7. Inventory expansion (META-22) reserves 61..71 for A17 N1..N11. */
++        /** A17 N7 inventory reservation (61..71) */
+         const val RANK = 66
+ 
+         const val STATE_PIN_SET = "pin_set"
+@@ -60,13 +30,13 @@ class ScreenLockProbe : Probe {
+         const val STATE_UNKNOWN = "unknown"
+ 
+         private const val SCORE_PIN_SET = 0.0
+-        private const val SCORE_NONE = 0.85
++        private const val SCORE_NONE = 0.4
+         private const val SCORE_UNKNOWN = 0.0
+ 
+         private const val CONFIDENCE_STRONG = 0.95
+         private const val CONFIDENCE_WEAK = 0.30
+ 
+-        private const val API_M = 23  // Build.VERSION_CODES.M — when isDeviceSecure() lands
++        private const val API_M = 23
+     }
+ 
+     override suspend fun run(ctx: ProbeContext): ProbeResult {
+@@ -75,12 +45,10 @@ class ScreenLockProbe : Probe {
+             val kg = ctx.queryKeyguardManager()
+             val sdk = kg.sdkInt()
+ 
+-            // Capture both signals up front so evidence is always complete,
+-            // regardless of which one drives the verdict.
+             val deviceSecure: Boolean? = kg.isDeviceSecure()
+             val keyguardSecure: Boolean? = kg.isKeyguardSecure()
+ 
+-            val state: String = classify(sdk, deviceSecure, keyguardSecure)
++            val state = classify(sdk, deviceSecure, keyguardSecure)
+ 
+             val score = when (state) {
+                 STATE_NONE -> SCORE_NONE
+@@ -92,23 +60,15 @@ class ScreenLockProbe : Probe {
+             val evidence = listOf(
+                 Evidence("state", state, expected = STATE_PIN_SET),
+                 Evidence("Build.VERSION.SDK_INT", sdk),
+-                Evidence(
+-                    "KeyguardManager.isDeviceSecure",
+-                    deviceSecure?.toString() ?: "null",
+-                    expected = "true",
+-                ),
+-                Evidence(
+-                    "KeyguardManager.isKeyguardSecure",
+-                    keyguardSecure?.toString() ?: "null",
+-                    expected = "true",
+-                ),
++                Evidence("KeyguardManager.isDeviceSecure", deviceSecure?.toString() ?: "null", expected = "true"),
++                Evidence("KeyguardManager.isKeyguardSecure", keyguardSecure?.toString() ?: "null", expected = "true"),
+             )
+ 
+             ProbeResult(
+                 score = score,
+                 confidence = confidence,
+                 evidence = evidence,
+-                method = "KeyguardManager.isDeviceSecure() + isKeyguardSecure() with API<23 unknown-fallback",
++                method = "KeyguardManager.isDeviceSecure() + isKeyguardSecure()",
+                 runtimeMs = System.currentTimeMillis() - start,
+             )
+         } catch (e: Throwable) {
+@@ -119,20 +79,6 @@ class ScreenLockProbe : Probe {
+         }
+     }
+ 
+-    /**
+-     * Decision table:
+-     *
+-     *   API ≥23 → trust `isDeviceSecure` (it is the canonical API for the
+-     *             secure-lockscreen question on Marshmallow+)
+-     *
+-     *   API <23 → fall back to `isKeyguardSecure`. Treat its negative reply
+-     *             as `unknown` (it cannot distinguish "Slide" from "None"
+-     *             reliably on every OEM), not as a clean `none` verdict.
+-     *             A positive reply still resolves to `pin_set`.
+-     *
+-     *   `isDeviceSecure==null` on API ≥23 means the service threw — fall
+-     *   through to the API<23 branch.
+-     */
+     internal fun classify(
+         sdk: Int,
+         deviceSecure: Boolean?,
+@@ -141,10 +87,10 @@ class ScreenLockProbe : Probe {
+         if (sdk >= API_M && deviceSecure != null) {
+             return if (deviceSecure) STATE_PIN_SET else STATE_NONE
+         }
+-        // Pre-M, or post-M with a null primary signal: try the fallback.
++
+         return when (keyguardSecure) {
+             true -> STATE_PIN_SET
+-            false -> STATE_UNKNOWN  // cannot distinguish "Slide" from "None" reliably
++            false -> STATE_UNKNOWN
+             null -> STATE_UNKNOWN
+         }
+     }
+diff --git a/agents/detection/src/probes/env/TimeSpoofingProbe.kt b/agents/detection/src/probes/env/TimeSpoofingProbe.kt
+deleted file mode 100644
+index 9b20587..0000000
+--- a/agents/detection/src/probes/env/TimeSpoofingProbe.kt
++++ /dev/null
+@@ -1,237 +0,0 @@
+-package com.example.detectorlab.probes.env
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-import kotlin.math.abs
+-
+-/**
+- * Probe — env.time_spoofing  (A17 N4)
+- *
+- * Layer: L4 (runtime) + cross (network NTP)
+- *
+- * Detection strategy — cross-validate four independent time sources, then flag
+- * any delta that exceeds the per-pair threshold documented below (freeRASP T15):
+- *
+- *   Delta pair                            Threshold (ms)  Score if exceeded
+- *   ──────────────────────────────────────────────────────────────────────────
+- *   bootEpoch_drift     (D1)              ±30 000          0.55  (drift of
+- *                                                                 (wall - elapsed)
+- *                                                                 vs the session
+- *                                                                 anchor — see D1
+- *                                                                 notes below)
+- *   wall_vs_gps         (D2)              ±10 000          0.75  (GPS carries
+- *                                                                 hardware time)
+- *   wall_vs_ntp         (D3)              ±10 000          0.80  (NTP is an
+- *                                                                 authoritative
+- *                                                                 external source)
+- *   gps_vs_ntp          (D4)              ± 5 000          0.90  (both external;
+- *                                                                 divergence is
+- *                                                                 highly suspicious)
+- *
+- * Thresholds are mutable via `assets/baselines/time-thresholds.json`; the probe
+- * reads defaults from the constants below when the asset file is absent.
+- *
+- * Score is the maximum over all triggered deltas. Confidence is 0.95 when two
+- * or more deltas are triggered, 0.80 when exactly one, 0.97 when all clean.
+- *
+- * ── D1 — bootEpoch anchor strategy ─────────────────────────────────────────
+- *
+- * Earlier revisions of this probe computed `abs(wallClockMs - elapsedRealtimeMs)`,
+- * which is a unit-error: wall-clock is Unix-epoch ms (~1.7e12), elapsedRealtime
+- * is boot-relative ms (small). The difference is dominated by the boot epoch
+- * and trivially exceeds the 30 s threshold on every clean device.
+- *
+- * The correct invariant is that `bootEpoch ≡ wallClockMs - elapsedRealtimeMs`
+- * is approximately constant over the life of a process. Wall-clock jumps
+- * (manual time changes, NITZ updates, malicious spoofing) shift bootEpoch
+- * by the same amount; elapsedRealtime keeps advancing monotonically through
+- * deep sleep. So a step in bootEpoch is direct evidence of a wall-clock
+- * adjustment.
+- *
+- * Anchor lifecycle:
+- *   • Storage:  in-memory `@Volatile` field on this probe instance. The
+- *               anchor is intentionally session-stable, not persisted —
+- *               survives across probe invocations within the same process,
+- *               resets on process restart (the next run() reseeds).
+- *   • TTL:      process lifetime. No external eviction; tied to the probe
+- *               instance lifecycle managed by the scheduler.
+- *   • Seeding:  on the first run() invocation in a session, the anchor is
+- *               null. We compute `bootEpoch = wallMs - elapsedMs`, store it,
+- *               record `d1_anchor_seeded_boot_epoch_ms` evidence, and return
+- *               D1 score = 0 (we cannot detect drift without a reference).
+- *   • Compare:  on subsequent calls, `currentBootEpoch = wallMs - elapsedMs`;
+- *               `d1Delta = abs(currentBootEpoch - anchorBootEpoch)`. If the
+- *               delta exceeds `d1WallVsElapsedMs` (default 30 000 ms),
+- *               D1 fires with `SCORE_D1`.
+- *
+- * Race notes: read-update of the anchor is done under a small intrinsic lock
+- * so two concurrent first-calls can't both observe `null` and seed twice.
+- */
+-class TimeSpoofingProbe : Probe {
+-    override val id = "env.time_spoofing"
+-    override val rank = 4
+-    override val category = ProbeCategory.ENV
+-    override val severity = ProbeSeverity.HIGH
+-    override val androidLayer = AndroidLayer.FRAMEWORK
+-    override val budgetMs = 3000L
+-
+-    // Default thresholds (ms). Mutable via assets/baselines/time-thresholds.json.
+-    internal companion object {
+-        const val D1_WALL_VS_ELAPSED_MS = 30_000L
+-        const val D2_WALL_VS_GPS_MS     = 10_000L
+-        const val D3_WALL_VS_NTP_MS     = 10_000L
+-        const val D4_GPS_VS_NTP_MS      =  5_000L
+-
+-        const val SCORE_D1 = 0.55
+-        const val SCORE_D2 = 0.75
+-        const val SCORE_D3 = 0.80
+-        const val SCORE_D4 = 0.90
+-
+-        const val THRESHOLDS_ASSET = "assets/baselines/time-thresholds.json"
+-    }
+-
+-    // Session-stable anchor for D1. See class KDoc for lifecycle.
+-    @Volatile
+-    private var bootEpochAnchorMs: Long? = null
+-    private val anchorLock = Any()
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val thresholds = loadThresholds(ctx)
+-
+-            val tv = ctx.queryTimeView()
+-            val wallMs     = tv.wallClockMs()
+-            val elapsedMs  = tv.elapsedRealtimeMs()
+-            val gpsMs      = tv.gpsTimestampMs()
+-            val ntpMs      = tv.ntpTimestampMs()
+-
+-            val evidence = mutableListOf<Evidence>()
+-            var maxScore = 0.0
+-            var triggeredCount = 0
+-
+-            evidence += Evidence("wall_clock_ms",       wallMs)
+-            evidence += Evidence("elapsed_realtime_ms", elapsedMs)
+-            evidence += Evidence("gps_timestamp_ms",    gpsMs ?: "unavailable")
+-            evidence += Evidence("ntp_timestamp_ms",    ntpMs ?: "unavailable")
+-
+-            // D1 — drift of (wall - elapsed) bootEpoch vs the session anchor.
+-            // First call seeds the anchor and yields score=0; subsequent calls
+-            // compare. See class KDoc "D1 — bootEpoch anchor strategy".
+-            val currentBootEpochMs = wallMs - elapsedMs
+-            val priorAnchor: Long? = synchronized(anchorLock) {
+-                val existing = bootEpochAnchorMs
+-                if (existing == null) {
+-                    bootEpochAnchorMs = currentBootEpochMs
+-                    null   // signals "we just seeded"
+-                } else {
+-                    existing
+-                }
+-            }
+-
+-            if (priorAnchor == null) {
+-                evidence += Evidence("d1_anchor_seeded_boot_epoch_ms", currentBootEpochMs)
+-            } else {
+-                val d1Delta = abs(currentBootEpochMs - priorAnchor)
+-                val d1Threshold = thresholds.d1WallVsElapsedMs
+-                evidence += Evidence("boot_epoch_anchor_ms", priorAnchor)
+-                evidence += Evidence("boot_epoch_current_ms", currentBootEpochMs)
+-                evidence += Evidence("delta_wall_vs_elapsed_ms", d1Delta, expected = "<$d1Threshold")
+-                if (d1Delta > d1Threshold) {
+-                    maxScore = maxOf(maxScore, SCORE_D1)
+-                    triggeredCount++
+-                }
+-            }
+-
+-            // D2 — wall vs GPS
+-            if (gpsMs != null) {
+-                val d2Delta = abs(wallMs - gpsMs)
+-                val d2Threshold = thresholds.d2WallVsGpsMs
+-                evidence += Evidence("delta_wall_vs_gps_ms", d2Delta, expected = "<$d2Threshold")
+-                if (d2Delta > d2Threshold) {
+-                    maxScore = maxOf(maxScore, SCORE_D2)
+-                    triggeredCount++
+-                }
+-            } else {
+-                evidence += Evidence("delta_wall_vs_gps_ms", "skipped: GPS unavailable")
+-            }
+-
+-            // D3 — wall vs NTP
+-            if (ntpMs != null) {
+-                val d3Delta = abs(wallMs - ntpMs)
+-                val d3Threshold = thresholds.d3WallVsNtpMs
+-                evidence += Evidence("delta_wall_vs_ntp_ms", d3Delta, expected = "<$d3Threshold")
+-                if (d3Delta > d3Threshold) {
+-                    maxScore = maxOf(maxScore, SCORE_D3)
+-                    triggeredCount++
+-                }
+-            } else {
+-                evidence += Evidence("delta_wall_vs_ntp_ms", "skipped: NTP unavailable")
+-            }
+-
+-            // D4 — GPS vs NTP (only when both present)
+-            if (gpsMs != null && ntpMs != null) {
+-                val d4Delta = abs(gpsMs - ntpMs)
+-                val d4Threshold = thresholds.d4GpsVsNtpMs
+-                evidence += Evidence("delta_gps_vs_ntp_ms", d4Delta, expected = "<$d4Threshold")
+-                if (d4Delta > d4Threshold) {
+-                    maxScore = maxOf(maxScore, SCORE_D4)
+-                    triggeredCount++
+-                }
+-            } else {
+-                evidence += Evidence("delta_gps_vs_ntp_ms", "skipped: GPS or NTP unavailable")
+-            }
+-
+-            val confidence = when {
+-                triggeredCount >= 2 -> 0.95
+-                triggeredCount == 1 -> 0.80
+-                else -> 0.97
+-            }
+-
+-            ProbeResult(
+-                score = maxScore,
+-                confidence = confidence,
+-                evidence = evidence,
+-                method = "cross-validate bootEpoch anchor + wall/GPS/NTP per freeRASP T15",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "TimeSpoofingProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-
+-    private fun loadThresholds(ctx: ProbeContext): Thresholds {
+-        val raw = ctx.readFile(THRESHOLDS_ASSET) ?: return Thresholds()
+-        return try {
+-            Thresholds(
+-                d1WallVsElapsedMs = parseJsonLong(raw, "wall_vs_elapsed_ms") ?: D1_WALL_VS_ELAPSED_MS,
+-                d2WallVsGpsMs     = parseJsonLong(raw, "wall_vs_gps_ms")     ?: D2_WALL_VS_GPS_MS,
+-                d3WallVsNtpMs     = parseJsonLong(raw, "wall_vs_ntp_ms")     ?: D3_WALL_VS_NTP_MS,
+-                d4GpsVsNtpMs      = parseJsonLong(raw, "gps_vs_ntp_ms")      ?: D4_GPS_VS_NTP_MS,
+-            )
+-        } catch (_: Throwable) {
+-            Thresholds()
+-        }
+-    }
+-
+-    /** Minimal JSON long-value extractor — avoids a full JSON library dependency. */
+-    private fun parseJsonLong(json: String, key: String): Long? {
+-        val pattern = Regex(""""$key"\s*:\s*(\d+)""")
+-        return pattern.find(json)?.groupValues?.get(1)?.toLongOrNull()
+-    }
+-
+-    internal data class Thresholds(
+-        val d1WallVsElapsedMs: Long = D1_WALL_VS_ELAPSED_MS,
+-        val d2WallVsGpsMs:     Long = D2_WALL_VS_GPS_MS,
+-        val d3WallVsNtpMs:     Long = D3_WALL_VS_NTP_MS,
+-        val d4GpsVsNtpMs:      Long = D4_GPS_VS_NTP_MS,
+-    )
+-}
+diff --git a/agents/detection/src/probes/env/WifiSecurityTypeProbe.kt b/agents/detection/src/probes/env/WifiSecurityTypeProbe.kt
+deleted file mode 100644
+index aa8c07e..0000000
+--- a/agents/detection/src/probes/env/WifiSecurityTypeProbe.kt
++++ /dev/null
+@@ -1,144 +0,0 @@
+-package com.example.detectorlab.probes.env
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-import com.example.detectorlab.core.WifiSecurityType
+-
+-/**
+- * Probe — env.wifi_security_type (A17 N6, freeRASP T14)
+- *
+- * Classifies the security type of the currently associated Wi-Fi network as
+- * one of: `none, wep, wpa, wpa2, wpa3, unknown`. An open or WEP-encrypted
+- * link in a "production" environment correlates strongly with a research/lab
+- * setup and is the freeRASP T14 signal.
+- *
+- * Acceptance criteria (CLO-4):
+- *   1. Reads `WifiInfo` + `WifiConfiguration.KeyMgmt`; classifies the link as
+- *      `{none, wep, wpa, wpa2, wpa3, unknown}`.
+- *   2. API 31+ uses `WifiManager.getCurrentNetwork()` + `NetworkCapabilities`;
+- *      older paths use the deprecated `WifiConfiguration.allowedKeyManagement`.
+- *      The API split is gated by `Build.VERSION.SDK_INT`.
+- *   3. The probe is **inert without `ACCESS_FINE_LOCATION` (API <33) /
+- *      `NEARBY_WIFI_DEVICES` (API >=33)** — it returns `ProbeResult.skipped`
+- *      rather than throwing or recording a `failed` result.
+- *
+- * The API-31-split itself is enforced inside `WifiManagerView` implementations
+- * (production wrapper around `android.net.wifi.WifiManager`); the probe only
+- * consults the unified `currentNetworkSecurityType()` surface and reports
+- * which `apiPath` produced the answer.
+- *
+- * Score table:
+- *   NONE          → 0.90  (open AP — strong correlate of lab/research)
+- *   WEP           → 0.85  (deprecated, only seen on lab or seriously old setups)
+- *   WPA           → 0.30  (legacy but still in the wild — weak signal)
+- *   WPA2          → 0.05  (modern baseline, near-noise)
+- *   WPA3          → 0.00  (current best practice)
+- *   UNKNOWN       → 0.00  with confidence=weak (classified-but-undecipherable)
+- *   NOT_CONNECTED → 0.00  with confidence=weak (no signal)
+- *   UNAVAILABLE   → ProbeResult.skipped (permission not granted)
+- *
+- * Severity: LOW per inventory; an insecure link is signal, not certainty.
+- */
+-class WifiSecurityTypeProbe : Probe {
+-    override val id = "env.wifi_security_type"
+-    override val rank = RANK
+-    override val category = ProbeCategory.ENV
+-    override val severity = ProbeSeverity.LOW
+-    override val androidLayer = AndroidLayer.NETWORK
+-    override val budgetMs = 750L
+-
+-    companion object {
+-        /** A17 N6. Inventory expansion (META-22) places this at logical 43.5;
+-         *  the probe-class Int rank is allocated from the 61..71 A17 reservation
+-         *  pending the Int-rank reconciliation called out in the META-22 PR. */
+-        const val RANK = 65
+-    }
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val wifi = ctx.queryWifiManager()
+-            val sdk = wifi.sdkInt()
+-
+-            // (3) Inert without permission → ProbeResult.skipped, NOT failed.
+-            if (!wifi.hasWifiAccessPermission()) {
+-                val permissionName = if (sdk >= 33) "NEARBY_WIFI_DEVICES" else "ACCESS_FINE_LOCATION"
+-                return ProbeResult.skipped(
+-                    "$permissionName not granted",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-            }
+-
+-            val read = wifi.currentNetworkSecurityType()
+-
+-            // (3) Defence-in-depth: if the view returns UNAVAILABLE despite
+-            //     hasWifiAccessPermission()==true, still skip rather than guess.
+-            if (read.type == WifiSecurityType.UNAVAILABLE) {
+-                return ProbeResult.skipped(
+-                    "WifiManagerView reported UNAVAILABLE despite permission held",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-            }
+-
+-            val score = scoreFor(read.type)
+-            val confidence = confidenceFor(read.type)
+-
+-            val evidence = listOf(
+-                Evidence("wifi.security_type", labelFor(read.type), expected = "wpa2_or_wpa3"),
+-                Evidence("Build.VERSION.SDK_INT", sdk),
+-                Evidence("wifi.api_path", read.apiPath),
+-                Evidence("wifi.permission_granted", true, expected = true),
+-            )
+-
+-            ProbeResult(
+-                score = score,
+-                confidence = confidence,
+-                evidence = evidence,
+-                method = "WifiManager.currentNetwork (API >=31) | WifiConfiguration.KeyMgmt (API <31)",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "WifiSecurityTypeProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-
+-    internal fun scoreFor(type: WifiSecurityType): Double = when (type) {
+-        WifiSecurityType.NONE -> 0.90
+-        WifiSecurityType.WEP -> 0.85
+-        WifiSecurityType.WPA -> 0.30
+-        WifiSecurityType.WPA2 -> 0.05
+-        WifiSecurityType.WPA3 -> 0.00
+-        WifiSecurityType.UNKNOWN, WifiSecurityType.NOT_CONNECTED -> 0.00
+-        WifiSecurityType.UNAVAILABLE ->
+-            error("UNAVAILABLE must be intercepted before scoreFor()")
+-    }
+-
+-    internal fun confidenceFor(type: WifiSecurityType): Double = when (type) {
+-        WifiSecurityType.NONE, WifiSecurityType.WEP -> 0.95
+-        WifiSecurityType.WPA -> 0.90
+-        WifiSecurityType.WPA2, WifiSecurityType.WPA3 -> 0.95
+-        WifiSecurityType.UNKNOWN, WifiSecurityType.NOT_CONNECTED -> 0.30
+-        WifiSecurityType.UNAVAILABLE ->
+-            error("UNAVAILABLE must be intercepted before confidenceFor()")
+-    }
+-
+-    /** Lower-cased label that matches the acceptance-criterion enum spelling. */
+-    internal fun labelFor(type: WifiSecurityType): String = when (type) {
+-        WifiSecurityType.NONE -> "none"
+-        WifiSecurityType.WEP -> "wep"
+-        WifiSecurityType.WPA -> "wpa"
+-        WifiSecurityType.WPA2 -> "wpa2"
+-        WifiSecurityType.WPA3 -> "wpa3"
+-        WifiSecurityType.UNKNOWN -> "unknown"
+-        WifiSecurityType.NOT_CONNECTED -> "not_connected"
+-        WifiSecurityType.UNAVAILABLE -> "unavailable"
+-    }
+-}
+diff --git a/agents/detection/src/probes/kernel/CpuInfoProbe.kt b/agents/detection/src/probes/kernel/CpuInfoProbe.kt
+deleted file mode 100644
+index 95446c5..0000000
+--- a/agents/detection/src/probes/kernel/CpuInfoProbe.kt
++++ /dev/null
+@@ -1,210 +0,0 @@
+-package com.example.detectorlab.probes.kernel
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-
+-/**
+- * Probe — kernel.cpuinfo_bogomips_implementer  (CLO-20)
+- *
+- * Layer: L0a (kernel) + L4
+- * Hard ceiling rank: 9
+- *
+- * Detection strategy:
+- *   1. Read /proc/cpuinfo and emit {bogomips, cpu_implementer, hwcap, arch}.
+- *   2. Cross-reference getauxval(AT_HWCAP) via a separate ProbeContext query for
+- *      the arch-trap signal (x86 host capability bits leaking through an
+- *      ARM-claimed device). The AT_HWCAP surface is exposed via
+- *      `ProbeContext.readFile(HWCAP_PATH)` on the production impl, which wraps
+- *      Os.sysconf / android.system.OsConstants.AT_HWCAP; unit tests supply a
+- *      controlled fake value.
+- *   3. Compare observed BogoMIPS and CPU implementer against Pixel 8 / 9 / 9 Pro
+- *      baselines loaded from `assets/baselines/cpuinfo/<model>.json`. A mismatch
+- *      contributes to the score.
+- *
+- * Score table:
+- *   arch mismatch (ARM claimed but x86 HWCAP detected)    → 0.95
+- *   implementer mismatch vs all known baselines            → 0.70
+- *   bogomips out of range vs all known baselines           → 0.40
+- *   hwcap contains x86-only bits (SSE/AVX) on ARM device   → 0.80
+- *
+- * Final score = max(triggered signals), clamped to [0.0, 1.0].
+- * Confidence is 0.95 when any signal fires, 0.92 when clean.
+- */
+-class CpuInfoProbe : Probe {
+-    override val id = "kernel.cpuinfo_bogomips_implementer"
+-    override val rank = RANK
+-    override val category = ProbeCategory.EMULATOR
+-    override val severity = ProbeSeverity.HIGH
+-    override val androidLayer = AndroidLayer.KERNEL
+-    override val budgetMs = 3000L
+-
+-    companion object {
+-        const val RANK = 9
+-
+-        const val PROC_CPUINFO = "/proc/cpuinfo"
+-
+-        /** Virtual path used by ProbeContext impls to expose getauxval(AT_HWCAP). */
+-        const val HWCAP_PATH = "sys/auxval/AT_HWCAP"
+-
+-        const val BASELINES_DIR = "assets/baselines/cpuinfo"
+-
+-        /** ARM implementer codes for Cortex/Kryo families found in Pixel 8/9/9Pro. */
+-        val KNOWN_ARM_IMPLEMENTERS = setOf(
+-            "0x41",  // ARM Ltd
+-            "0x51",  // Qualcomm
+-            "0x41",  // Apple (shouldn't appear on Android but cover edge case)
+-        )
+-
+-        /** BogoMIPS range observed on Pixel 8 / 9 / 9 Pro (Tensor G3/G4). */
+-        const val BOGOMIPS_MIN = 1.0
+-        const val BOGOMIPS_MAX = 10_000.0
+-
+-        /** x86-specific HWCAP bits (AT_HWCAP on x86 sets bits like SSE, SSE2). */
+-        // On ARM, AT_HWCAP encodes NEON/AES/SHA etc. On x86 the bit layout differs
+-        // completely. We detect x86 leakage by checking for bit 0x00000002 (FPU on
+-        // x86) combined with absence of ARM NEON (bit 0x00001000).
+-        const val X86_FPU_BIT  = 0x00000002L
+-        const val ARM_NEON_BIT = 0x00001000L
+-
+-        const val SCORE_ARCH_MISMATCH       = 0.95
+-        const val SCORE_X86_HWCAP_ON_ARM    = 0.80
+-        const val SCORE_IMPLEMENTER_MISMATCH = 0.70
+-        const val SCORE_BOGOMIPS_OUT_OF_RANGE = 0.40
+-    }
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val cpuinfo = ctx.readFile(PROC_CPUINFO)
+-                ?: return ProbeResult.skipped(
+-                    "cpuinfo unavailable (/proc/cpuinfo not readable)",
+-                    runtimeMs = System.currentTimeMillis() - start,
+-                )
+-
+-            val parsed = parseCpuInfo(cpuinfo)
+-            val hwcapRaw = ctx.readFile(HWCAP_PATH)?.trim()?.toLongOrNull()
+-
+-            val evidence = mutableListOf<Evidence>()
+-            evidence += Evidence("bogomips",        parsed.bogomips ?: "unavailable")
+-            evidence += Evidence("cpu_implementer", parsed.cpuImplementer ?: "unavailable")
+-            evidence += Evidence("hwcap",           parsed.hwcap)
+-            evidence += Evidence("arch",            parsed.arch)
+-            evidence += Evidence("auxval_hwcap_raw", hwcapRaw ?: "unavailable")
+-
+-            var maxScore = 0.0
+-            var signalFired = false
+-
+-            // Signal 1: arch mismatch — x86 host capability bits leaking through ARM device.
+-            // Detected when /proc/cpuinfo reports an ARM implementer but AT_HWCAP carries
+-            // x86 FPU bit without ARM NEON.
+-            if (hwcapRaw != null) {
+-                val hasX86Fpu  = (hwcapRaw and X86_FPU_BIT)  != 0L
+-                val hasArmNeon = (hwcapRaw and ARM_NEON_BIT) != 0L
+-                val archClaimsArm = parsed.arch == "arm64"
+-                if (archClaimsArm && hasX86Fpu && !hasArmNeon) {
+-                    evidence += Evidence("arch_mismatch", true, expected = false)
+-                    maxScore = maxOf(maxScore, SCORE_ARCH_MISMATCH)
+-                    signalFired = true
+-                } else {
+-                    evidence += Evidence("arch_mismatch", false, expected = false)
+-                }
+-
+-                // Signal 2: x86 HWCAP bits on ARM device (broader check: any x86-only
+-                // layout where NEON is absent on a device claiming arm64).
+-                if (archClaimsArm && !hasArmNeon && hwcapRaw != 0L) {
+-                    evidence += Evidence("x86_hwcap_on_arm", true, expected = false)
+-                    maxScore = maxOf(maxScore, SCORE_X86_HWCAP_ON_ARM)
+-                    signalFired = true
+-                } else {
+-                    evidence += Evidence("x86_hwcap_on_arm", false, expected = false)
+-                }
+-            }
+-
+-            // Signal 3: CPU implementer mismatch vs known Pixel baselines.
+-            val imp = parsed.cpuImplementer
+-            if (imp != null && imp.lowercase() !in KNOWN_ARM_IMPLEMENTERS) {
+-                evidence += Evidence("implementer_mismatch", true, expected = false)
+-                evidence += Evidence("implementer_observed", imp)
+-                maxScore = maxOf(maxScore, SCORE_IMPLEMENTER_MISMATCH)
+-                signalFired = true
+-            } else {
+-                evidence += Evidence("implementer_mismatch", false, expected = false)
+-            }
+-
+-            // Signal 4: BogoMIPS out of expected range.
+-            val bogo = parsed.bogomips
+-            if (bogo != null && (bogo < BOGOMIPS_MIN || bogo > BOGOMIPS_MAX)) {
+-                evidence += Evidence("bogomips_out_of_range", true, expected = false)
+-                evidence += Evidence("bogomips_observed", bogo)
+-                maxScore = maxOf(maxScore, SCORE_BOGOMIPS_OUT_OF_RANGE)
+-                signalFired = true
+-            } else {
+-                evidence += Evidence("bogomips_out_of_range", false, expected = false)
+-            }
+-
+-            val confidence = if (signalFired) 0.95 else 0.92
+-
+-            ProbeResult(
+-                score      = maxScore,
+-                confidence = confidence,
+-                evidence   = evidence,
+-                method     = "proc_cpuinfo+getauxval(AT_HWCAP) arch-trap cross-reference",
+-                runtimeMs  = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "CpuInfoProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-}
+-
+-// ── Parsing ───────────────────────────────────────────────────────────────────
+-
+-internal data class CpuInfoFields(
+-    val bogomips: Double?,
+-    val cpuImplementer: String?,
+-    val hwcap: List<String>,
+-    val arch: String,
+-)
+-
+-/**
+- * Parses the flat key:value format of /proc/cpuinfo.
+- * On ARM64 devices, the relevant fields appear as:
+- *
+- *   BogoMIPS        : 38.40
+- *   CPU implementer : 0x41
+- *   Features        : fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp ...
+- *
+- * On x86 the layout differs (no "CPU implementer"); we detect this by
+- * checking for "vendor_id" which is x86-exclusive.
+- */
+-internal fun parseCpuInfo(raw: String): CpuInfoFields {
+-    val lines = raw.lines()
+-
+-    fun field(key: String): String? =
+-        lines.firstOrNull { it.startsWith(key, ignoreCase = true) }
+-            ?.substringAfter(':')?.trim()
+-
+-    val bogomips       = field("BogoMIPS")?.toDoubleOrNull()
+-                      ?: field("bogomips")?.toDoubleOrNull()
+-    val cpuImplementer = field("CPU implementer")
+-    val features       = field("Features")?.split(" ")?.filter { it.isNotBlank() }
+-                      ?: emptyList()
+-
+-    val isX86 = lines.any { it.startsWith("vendor_id", ignoreCase = true) }
+-    val arch  = if (isX86) "x86_64" else "arm64"
+-
+-    return CpuInfoFields(
+-        bogomips        = bogomips,
+-        cpuImplementer  = cpuImplementer,
+-        hwcap           = features,
+-        arch            = arch,
+-    )
+-}
+diff --git a/agents/detection/src/probes/runtime/AutomationToolsProbe.kt b/agents/detection/src/probes/runtime/AutomationToolsProbe.kt
+deleted file mode 100644
+index 80a8735..0000000
+--- a/agents/detection/src/probes/runtime/AutomationToolsProbe.kt
++++ /dev/null
+@@ -1,164 +0,0 @@
+-package com.example.detectorlab.probes.runtime
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-
+-/**
+- * Probe — runtime.automation_tools (A17 N9, freeRASP T10)
+- *
+- * Detects active automation tooling by checking three independent signals:
+- *   1. Appium accessibility service enabled
+- *      (`io.appium.uiautomator2.server` in Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+- *   2. UIAutomator package installed
+- *      (`com.github.uiautomator` or `androidx.test.uiautomator`)
+- *   3. ADB enabled (`adb_enabled == 1`) paired with an active ADB shell
+- *      connection on port 5555 (hex `15B3`, state `01`=ESTABLISHED in
+- *      `/proc/net/tcp`).
+- *
+- * Acceptance criteria (CLO-7):
+- *   - Detects Appium via ENABLED_ACCESSIBILITY_SERVICES settings key.
+- *   - Detects UIAutomator instrumentation host via PackageManager.
+- *   - Detects `adb_enabled=1` paired with port-5555 ESTABLISHED entry in
+- *     `/proc/net/tcp` (the dual requirement avoids false-positives on devices
+- *     that ship with adb_enabled but no active connection).
+- *   - Matchers exposed as top-level `internal` functions so the droidrun
+- *     bootstrap harness (Issue 09) can reuse them without instantiating the
+- *     probe class.
+- *
+- * Score table:
+- *   Appium service active               → +0.90 (strongest signal; only seen in test rigs)
+- *   UIAutomator package installed       → +0.40 (moderate; may exist on dev devices)
+- *   adb_enabled AND port-5555 active    → +0.70 (strong combined signal)
+- *   adb_enabled only (no port-5555)     → +0.15 (weak; many dev phones have adb_enabled)
+- *   Final score clamped to [0.0, 1.0].
+- *
+- * Severity: MEDIUM (inventory rank 51.5, mitigation_layer L4).
+- */
+-class AutomationToolsProbe : Probe {
+-    override val id = "runtime.automation_tools"
+-    override val rank = RANK
+-    override val category = ProbeCategory.RUNTIME
+-    override val severity = ProbeSeverity.MEDIUM
+-    override val androidLayer = AndroidLayer.FRAMEWORK
+-    override val budgetMs = 1000L
+-
+-    companion object {
+-        /** A17 N9. META-22 reserves 61..71 for A17 N1..N11; N9 maps to 69. */
+-        const val RANK = 69
+-
+-        const val PKG_APPIUM_SERVER = "io.appium.uiautomator2.server"
+-        const val PKG_UIAUTOMATOR   = "com.github.uiautomator"
+-        const val PKG_UIAUTOMATOR_TEST = "com.github.uiautomator.test"
+-        const val SETTING_ADB_ENABLED = "adb_enabled"
+-        const val PROC_NET_TCP = "/proc/net/tcp"
+-
+-        // Port 5555 in big-endian hex as it appears in /proc/net/tcp local_address column.
+-        // /proc/net/tcp uses little-endian 4-byte IP + big-endian port, so port 5555 = 0x15B3.
+-        const val PORT_5555_HEX = "15B3"
+-    }
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val pm = ctx.queryPackageManager()
+-
+-            val appiumActive = isAppiumAccessibilityServiceEnabled(ctx)
+-            val uiAutomatorInstalled = isUiAutomatorInstalled(pm)
+-            val adbEnabled = isAdbEnabled(ctx)
+-            val port5555Active = isPort5555Active(ctx)
+-            val adbShellActive = adbEnabled && port5555Active
+-
+-            val rawScore = sequenceOf(
+-                if (appiumActive) 0.90 else 0.0,
+-                if (uiAutomatorInstalled) 0.40 else 0.0,
+-                if (adbShellActive) 0.70 else if (adbEnabled) 0.15 else 0.0,
+-            ).sum().coerceAtMost(1.0)
+-
+-            val anyDetected = appiumActive || uiAutomatorInstalled || adbShellActive
+-
+-            val confidence = when {
+-                appiumActive -> 0.95
+-                adbShellActive -> 0.90
+-                uiAutomatorInstalled -> 0.80
+-                adbEnabled && !port5555Active -> 0.40   // weak: enabled but no active connection
+-                else -> 0.95                             // clean, strong
+-            }
+-
+-            val evidence = buildList {
+-                add(Evidence("appium.accessibility_service_enabled", appiumActive, expected = false))
+-                add(Evidence("uiautomator.package_installed", uiAutomatorInstalled, expected = false))
+-                add(Evidence("settings.adb_enabled", adbEnabled, expected = false))
+-                add(Evidence("proc_net_tcp.port_5555_established", port5555Active, expected = false))
+-                add(Evidence("adb_shell_active", adbShellActive, expected = false))
+-            }
+-
+-            ProbeResult(
+-                score = rawScore,
+-                confidence = confidence,
+-                evidence = evidence,
+-                method = buildString {
+-                    append("accessibility_settings+package_manager+proc_net_tcp")
+-                    if (anyDetected) append(" [DETECTED]")
+-                },
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "AutomationToolsProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-}
+-
+-// ── Reusable matchers (droidrun bootstrap harness, Issue 09) ──────────────────
+-
+-/**
+- * Returns true when `io.appium.uiautomator2.server` appears in the
+- * `enabled_accessibility_services` secure setting — the canonical signal
+- * that Appium's UIAutomator2 driver is active on the device.
+- */
+-internal fun isAppiumAccessibilityServiceEnabled(ctx: ProbeContext): Boolean {
+-    val setting = ctx.querySettingSecure("enabled_accessibility_services") ?: return false
+-    return AutomationToolsProbe.PKG_APPIUM_SERVER in setting
+-}
+-
+-/**
+- * Returns true when the UIAutomator stub package (`com.github.uiautomator`)
+- * or its test companion is installed — the presence of either is a reliable
+- * indicator that UIAutomator-based automation is configured on the device.
+- */
+-internal fun isUiAutomatorInstalled(pm: com.example.detectorlab.core.PackageManagerView): Boolean =
+-    pm.isPackageInstalled(AutomationToolsProbe.PKG_UIAUTOMATOR) ||
+-        pm.isPackageInstalled(AutomationToolsProbe.PKG_UIAUTOMATOR_TEST)
+-
+-/**
+- * Returns true when `Settings.Secure.adb_enabled == "1"`.
+- */
+-internal fun isAdbEnabled(ctx: ProbeContext): Boolean =
+-    ctx.querySettingSecure(AutomationToolsProbe.SETTING_ADB_ENABLED) == "1"
+-
+-/**
+- * Returns true when an ESTABLISHED TCP connection on local port 5555 exists in
+- * `/proc/net/tcp`. The kernel writes port in big-endian hex; 5555 == 0x15B3.
+- *
+- * `/proc/net/tcp` format (space-separated): sl local_address rem_address st ...
+- * `local_address` is `XXXXXXXX:PPPP` where PPPP is the port in upper-case hex.
+- * State `01` == ESTABLISHED.
+- */
+-internal fun isPort5555Active(ctx: ProbeContext): Boolean {
+-    val content = ctx.readFile(AutomationToolsProbe.PROC_NET_TCP) ?: return false
+-    return content.lines().any { line ->
+-        val parts = line.trim().split(Regex("\\s+"))
+-        if (parts.size < 4) return@any false
+-        val localAddr = parts[1]   // XXXXXXXX:PPPP
+-        val state = parts[3]       // e.g. "01"
+-        val port = localAddr.substringAfterLast(':').uppercase()
+-        port == AutomationToolsProbe.PORT_5555_HEX && state == "01"
+-    }
+-}
+diff --git a/agents/detection/src/probes/runtime/MultiInstanceProbe.kt b/agents/detection/src/probes/runtime/MultiInstanceProbe.kt
+deleted file mode 100644
+index 0c7199c..0000000
+--- a/agents/detection/src/probes/runtime/MultiInstanceProbe.kt
++++ /dev/null
+@@ -1,171 +0,0 @@
+-package com.example.detectorlab.probes.runtime
+-
+-import com.example.detectorlab.core.AndroidLayer
+-import com.example.detectorlab.core.Evidence
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.Probe
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.ProbeResult
+-import com.example.detectorlab.core.ProbeSeverity
+-
+-/**
+- * Probe — runtime.multi_instance (A17 N8, freeRASP T13)
+- *
+- * Detects whether the app is running inside a multi-instance / clone-app
+- * container. Three independent signals are combined:
+- *
+- *   1. **Secondary-user check** (`UserHandle.myUserId() != 0`)
+- *      Any non-zero user ID indicates the process is running as a managed
+- *      profile, work profile, guest user, or OEM clone space. This is the
+- *      single most reliable signal.
+- *
+- *   2. **Clone-app package suffix scan** (freeRASP T13 token list)
+- *      Installed packages whose names end with `.parallel`, `.dual`, `.clone`,
+- *      or `.alpha` strongly indicate an OEM dual-app / clone-app framework.
+- *      The suffix matcher MUST NOT match `:remote` process-name decorators — a
+- *      package name containing `:` is a process descriptor, not a package, and
+- *      must be silently dropped before suffix comparison.
+- *
+- *   3. **OEM multi-instance framework presence**
+- *      Known MIUI (Xiaomi/Redmi) and Samsung Secure Folder system packages
+- *      signal that the OEM multi-instance layer is installed, even if no
+- *      clone suffix is detected.
+- *
+- * Confidence is fixed at MEDIUM (0.60) for all results per the Talsec
+- * disclosure: "more detection techniques coming" — this acknowledges that the
+- * current signal set is incomplete and evasion is possible.
+- *
+- * Score table (clamped to [0.0, 1.0]):
+- *   Secondary-user (`userId != 0`)          → 0.70
+- *   Clone-suffix package found              → 0.60
+- *   OEM multi-instance framework present    → 0.80
+- *   Final score = max of all contributing signals.
+- *
+- * Severity: MEDIUM — running in a clone space is a strong but not conclusive
+- * indicator; some users legitimately use work profiles.
+- */
+-class MultiInstanceProbe : Probe {
+-    override val id = "runtime.multi_instance"
+-    override val rank = RANK
+-    override val category = ProbeCategory.RUNTIME
+-    override val severity = ProbeSeverity.MEDIUM
+-    override val androidLayer = AndroidLayer.FRAMEWORK
+-    override val budgetMs = 1500L
+-
+-    companion object {
+-        /** A17 N8. META-22 reserves 61..71 for A17 N1..N11; N8 maps to 68. */
+-        const val RANK = 68
+-
+-        /** freeRASP T13 clone-app package suffixes. */
+-        val CLONE_SUFFIXES: List<String> = listOf(".parallel", ".dual", ".clone", ".alpha")
+-
+-        /** Known MIUI Dual-Apps / clone-space system packages. */
+-        val MIUI_CLONE_PACKAGES: List<String> = listOf(
+-            "com.miui.appclone",
+-            "com.miui.dualapps",
+-            "com.lbe.parallel.intl",
+-        )
+-
+-        /** Known Samsung Secure Folder / Knox container system packages. */
+-        val SAMSUNG_SECURE_FOLDER_PACKAGES: List<String> = listOf(
+-            "com.samsung.android.knox.containeragent",
+-            "com.samsung.knox.securefolder",
+-        )
+-
+-        const val SCORE_SECONDARY_USER = 0.70
+-        const val SCORE_CLONE_SUFFIX = 0.60
+-        const val SCORE_OEM_FRAMEWORK = 0.80
+-
+-        /** Fixed medium confidence per Talsec disclosure. */
+-        const val CONFIDENCE_MEDIUM = 0.60
+-
+-        /** Talsec disclosure embedded in every result's method string. */
+-        const val TALSEC_NOTE = "talsec_disclosure:more_techniques_coming"
+-    }
+-
+-    override suspend fun run(ctx: ProbeContext): ProbeResult {
+-        val start = System.currentTimeMillis()
+-        return try {
+-            val userId = ctx.queryUserHandle().myUserId()
+-            val pm = ctx.queryPackageManager()
+-
+-            val secondaryUser = userId != null && userId != 0
+-            val clonePackages = findCloneSuffixPackages(pm)
+-            val oemFrameworkPackages = findOemFrameworkPackages(pm)
+-
+-            val cloneFound = clonePackages.isNotEmpty()
+-            val oemFound = oemFrameworkPackages.isNotEmpty()
+-
+-            val score = maxOf(
+-                if (secondaryUser) SCORE_SECONDARY_USER else 0.0,
+-                if (cloneFound) SCORE_CLONE_SUFFIX else 0.0,
+-                if (oemFound) SCORE_OEM_FRAMEWORK else 0.0,
+-            ).coerceIn(0.0, 1.0)
+-
+-            val anyDetected = secondaryUser || cloneFound || oemFound
+-
+-            val evidence = buildList {
+-                add(Evidence("user_handle.my_user_id", userId ?: "unknown", expected = 0))
+-                add(Evidence("user_handle.is_secondary_user", secondaryUser, expected = false))
+-                add(
+-                    Evidence(
+-                        key = "packages.clone_suffix_found",
+-                        value = clonePackages.firstOrNull() ?: "none",
+-                        expected = "none",
+-                    )
+-                )
+-                add(Evidence("packages.clone_suffix_count", clonePackages.size, expected = 0))
+-                add(
+-                    Evidence(
+-                        key = "packages.oem_framework_found",
+-                        value = oemFrameworkPackages.firstOrNull() ?: "none",
+-                        expected = "none",
+-                    )
+-                )
+-            }
+-
+-            ProbeResult(
+-                score = score,
+-                confidence = CONFIDENCE_MEDIUM,
+-                evidence = evidence,
+-                method = buildString {
+-                    append("user_handle+clone_suffix_scan+oem_framework_check")
+-                    append("|$TALSEC_NOTE")
+-                    if (anyDetected) append(" [DETECTED]")
+-                },
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        } catch (e: Throwable) {
+-            ProbeResult.failed(
+-                "MultiInstanceProbe: ${e.message ?: e.javaClass.simpleName}",
+-                runtimeMs = System.currentTimeMillis() - start,
+-            )
+-        }
+-    }
+-}
+-
+-/**
+- * Returns installed packages whose names end with a freeRASP T13 clone suffix.
+- *
+- * REGRESSION GUARD: Any entry containing `:` is a process-name descriptor
+- * (e.g., `com.google.android.gms:remote`), not a package name, and is silently
+- * dropped before suffix comparison. This prevents the suffix matcher from
+- * falsely matching legitimate `:remote` process names.
+- */
+-internal fun findCloneSuffixPackages(pm: PackageManagerView): List<String> =
+-    pm.listInstalledPackages()
+-        .filter { pkg -> ':' !in pkg }   // regression guard: drop process-name entries
+-        .filter { pkg ->
+-            MultiInstanceProbe.CLONE_SUFFIXES.any { suffix -> pkg.endsWith(suffix) }
+-        }
+-
+-/**
+- * Returns installed system packages that indicate an OEM multi-instance
+- * framework (MIUI Dual Apps or Samsung Secure Folder / Knox).
+- */
+-internal fun findOemFrameworkPackages(pm: PackageManagerView): List<String> {
+-    val knownSet = (MultiInstanceProbe.MIUI_CLONE_PACKAGES +
+-        MultiInstanceProbe.SAMSUNG_SECURE_FOLDER_PACKAGES).toSet()
+-    return pm.listInstalledPackages().filter { it in knownSet }
+-}
+diff --git a/agents/detection/src/probes/runtime/ScreenRecordingProbe.kt b/agents/detection/src/probes/runtime/ScreenRecordingProbe.kt
+index 2d8538e..48d9e6c 100644
+--- a/agents/detection/src/probes/runtime/ScreenRecordingProbe.kt
++++ b/agents/detection/src/probes/runtime/ScreenRecordingProbe.kt
+@@ -15,20 +15,18 @@ import com.example.detectorlab.core.ProbeSeverity
+  * the host process. Combines two callback-driven signals exposed by recent
+  * Android releases, gated on `Build.VERSION.SDK_INT` per CLO-8 §1:
+  *
+- *   • `Window.OnScreenCaptureCallback` — API 34+ (Android 14, the
++ *   • `Activity.registerScreenCaptureCallback` — API 34+ (Android 14, the
+  *     `DETECT_SCREEN_CAPTURE` permission). Fires when a screenshot of the
+  *     hosting Activity window is taken; treated as a "screenshot captured"
+  *     edge signal.
+  *
+- *   • `WindowManager.ScreenRecordingCallback` — API 35+ (Android 15, the
++ *   • `WindowManager.addScreenRecordingCallback` — API 35+ (Android 15, the
+  *     `DETECT_SCREEN_RECORDING` permission). Fires when a MediaProjection
+  *     session begins/ends capturing any window owned by the registering UID,
+  *     i.e. a real-time "frame capture" oracle.
+  *
+- * The issue acceptance text (CLO-8 §1) describes these two callbacks as
+- * "MediaProjectionManager callback (API 34+)" and "Window.OnFrameCaptureListener
+- * (API 35+)" respectively; we keep that naming inside the `MediaProjectionManagerView`
+- * contract so the wiring reads against the issue verbatim.
++ * `MediaProjectionManagerView` keeps the probe-facing signal names small while
++ * the production wrapper maps them to the platform callbacks named above.
+  *
+  * Gating rules (CLO-8 §2):
+  *   1. `sdkInt() < 34` → `ProbeResult.skipped("api_too_low: ...")`. Never
+@@ -85,7 +83,7 @@ class ScreenRecordingProbe : Probe {
+         /** A17 N10. META-22 reserves 61..71 for A17 N1..N11; N10 maps to 70. */
+         const val RANK = 70
+ 
+-        /** Android 14 — `Window.addScreenCaptureCallback` / `DETECT_SCREEN_CAPTURE`. */
++        /** Android 14 — `Activity.registerScreenCaptureCallback` / `DETECT_SCREEN_CAPTURE`. */
+         const val MIN_SDK_SCREEN_CAPTURE_CALLBACK = 34
+ 
+         /** Android 15 — `WindowManager.addScreenRecordingCallback` /
+@@ -160,9 +158,9 @@ class ScreenRecordingProbe : Probe {
+                         key = "api_path",
+                         value = when {
+                             sdk >= MIN_SDK_FRAME_CAPTURE_CALLBACK ->
+-                                "WindowManager.addScreenRecordingCallback + Window.addScreenCaptureCallback"
++                                "WindowManager.addScreenRecordingCallback + Activity.registerScreenCaptureCallback"
+                             else ->
+-                                "Window.addScreenCaptureCallback"
++                                "Activity.registerScreenCaptureCallback"
+                         },
+                     )
+                 )
+@@ -173,7 +171,7 @@ class ScreenRecordingProbe : Probe {
+                 confidence = confidence,
+                 evidence = evidence,
+                 method = buildString {
+-                    append("media_projection_callback+window_screen_capture_callback")
++                    append("media_projection_callback+activity_screen_capture_callback")
+                     if (anyDetected) append(" [DETECTED]")
+                 },
+                 runtimeMs = System.currentTimeMillis() - start,
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/IgFamilyDeviceIdHeaderProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/IgFamilyDeviceIdHeaderProbeTest.kt
+deleted file mode 100644
+index 3a3eef2..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/IgFamilyDeviceIdHeaderProbeTest.kt
++++ /dev/null
+@@ -1,282 +0,0 @@
+-package com.example.detectorlab.probes.app
+-
+-import com.example.detectorlab.core.KeyguardManagerView
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeCategory
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import com.example.detectorlab.core.UnknownKeyguardManagerView
+-import com.example.detectorlab.probes.app.IgFamilyDeviceIdHeaderProbe.CaptureFile
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertNotNull
+-import kotlin.test.assertNull
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for IgFamilyDeviceIdHeaderProbe (CLO-18).
+- *
+- * All file I/O is replaced by a fake ProbeContext; no real filesystem
+- * or mitmproxy harness is required.
+- */
+-class IgFamilyDeviceIdHeaderProbeTest {
+-
+-    // ── Fixtures ──────────────────────────────────────────────────────────
+-
+-    private val sandboxJson = """
+-        {
+-          "sandbox_marker": "SANDBOX_2026_CLO18_TEST",
+-          "capture_ts_utc": 1747350000.0,
+-          "header_present": true,
+-          "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+-          "is_valid_uuid": true,
+-          "entropy_bits": 122.5,
+-          "capture_count": 25,
+-          "header_count": 20,
+-          "apps_seen": ["instagram.com", "threads.net"],
+-          "unique_values": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+-        }
+-    """.trimIndent()
+-
+-    private val lowEntropyJson = """
+-        {
+-          "sandbox_marker": "SANDBOX_2026_CLO18_TEST",
+-          "capture_ts_utc": 1747350000.0,
+-          "header_present": true,
+-          "value": "00000000-0000-0000-0000-000000000001",
+-          "is_valid_uuid": true,
+-          "entropy_bits": 15.2,
+-          "capture_count": 30,
+-          "header_count": 30,
+-          "apps_seen": ["instagram.com"],
+-          "unique_values": ["00000000-0000-0000-0000-000000000001"]
+-        }
+-    """.trimIndent()
+-
+-    private val absentHeaderJson = """
+-        {
+-          "sandbox_marker": "SANDBOX_2026_CLO18_TEST",
+-          "capture_ts_utc": 1747350000.0,
+-          "header_present": false,
+-          "value": null,
+-          "is_valid_uuid": false,
+-          "entropy_bits": 0.0,
+-          "capture_count": 10,
+-          "header_count": 0,
+-          "apps_seen": [],
+-          "unique_values": []
+-        }
+-    """.trimIndent()
+-
+-    private val noMarkerJson = """
+-        {
+-          "sandbox_marker": "",
+-          "capture_ts_utc": 1747350000.0,
+-          "header_present": true,
+-          "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+-          "is_valid_uuid": true,
+-          "entropy_bits": 122.5,
+-          "capture_count": 25,
+-          "header_count": 20,
+-          "apps_seen": ["instagram.com"],
+-          "unique_values": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+-        }
+-    """.trimIndent()
+-
+-    private fun fakeCtx(
+-        fileExists: Boolean = true,
+-        fileContent: String? = sandboxJson,
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = fileExists
+-        override fun readFile(path: String, maxBytes: Int): String? = fileContent
+-        override fun querySettingSecure(key: String): String? = null
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = false
+-            override fun listInstalledPackages() = emptyList<String>()
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-        override fun queryKeyguardManager(): KeyguardManagerView = UnknownKeyguardManagerView
+-    }
+-
+-    private val probe = IgFamilyDeviceIdHeaderProbe()
+-
+-    // ── Ethics block ──────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `returns skipped when capture file is absent`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileExists = false))
+-        assertTrue(result.skipped)
+-        assertNotNull(result.failureReason)
+-        assertTrue(result.failureReason!!.contains("not found", ignoreCase = true))
+-    }
+-
+-    @Test
+-    fun `returns skipped when file is unreadable`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileExists = true, fileContent = null))
+-        assertTrue(result.skipped)
+-    }
+-
+-    @Test
+-    fun `returns skipped when sandbox_marker is blank`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = noMarkerJson))
+-        assertTrue(result.skipped)
+-        assertTrue(result.failureReason!!.contains("sandbox_marker", ignoreCase = true))
+-    }
+-
+-    @Test
+-    fun `returns failed when JSON is malformed`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = "not-json{{{"))
+-        assertTrue(result.failed)
+-    }
+-
+-    // ── Score table ───────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `header present with normal entropy scores 0_85`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = sandboxJson))
+-        assertFalse(result.skipped)
+-        assertFalse(result.failed)
+-        assertEquals(0.85, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `header present with low entropy scores 0_95 (cloned ID)`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = lowEntropyJson))
+-        assertEquals(0.95, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `header absent scores 0_05`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = absentHeaderJson))
+-        assertEquals(0.05, result.score, 0.001)
+-    }
+-
+-    // ── Confidence table ──────────────────────────────────────────────────
+-
+-    @Test
+-    fun `capture_count 25 yields confidence 0_92`() {
+-        assertEquals(0.92, probe.confidenceFor(25), 0.001)
+-        assertEquals(0.92, probe.confidenceFor(20), 0.001)
+-    }
+-
+-    @Test
+-    fun `capture_count 5 to 19 yields confidence 0_75`() {
+-        assertEquals(0.75, probe.confidenceFor(5), 0.001)
+-        assertEquals(0.75, probe.confidenceFor(19), 0.001)
+-    }
+-
+-    @Test
+-    fun `capture_count below 5 yields low confidence 0_50`() {
+-        assertEquals(0.50, probe.confidenceFor(0), 0.001)
+-        assertEquals(0.50, probe.confidenceFor(4), 0.001)
+-    }
+-
+-    // ── Evidence completeness ─────────────────────────────────────────────
+-
+-    @Test
+-    fun `evidence includes all required keys`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = sandboxJson))
+-        val keys = result.evidence.map { it.key }.toSet()
+-        assertTrue("ig.header_present" in keys)
+-        assertTrue("ig.header_value" in keys)
+-        assertTrue("ig.is_valid_uuid" in keys)
+-        assertTrue("ig.entropy_bits" in keys)
+-        assertTrue("ig.capture_count" in keys)
+-        assertTrue("ig.header_count" in keys)
+-        assertTrue("ig.apps_seen" in keys)
+-        assertTrue("ig.unique_value_count" in keys)
+-        assertTrue("ig.sandbox_marker_present" in keys)
+-    }
+-
+-    @Test
+-    fun `evidence reports apps_seen from capture`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = sandboxJson))
+-        val appsSeen = result.evidence.first { it.key == "ig.apps_seen" }.value as String
+-        assertTrue(appsSeen.contains("instagram.com"))
+-        assertTrue(appsSeen.contains("threads.net"))
+-    }
+-
+-    // ── JSON parser ───────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `parseCaptureFile round-trips sandbox JSON correctly`() {
+-        val capture = probe.parseCaptureFile(sandboxJson)
+-        assertNotNull(capture)
+-        assertEquals("SANDBOX_2026_CLO18_TEST", capture.sandboxMarker)
+-        assertTrue(capture.headerPresent)
+-        assertEquals("a1b2c3d4-e5f6-7890-abcd-ef1234567890", capture.value)
+-        assertTrue(capture.isValidUuid)
+-        assertEquals(122.5, capture.entropyBits, 0.01)
+-        assertEquals(25, capture.captureCount)
+-        assertEquals(20, capture.headerCount)
+-        assertTrue("instagram.com" in capture.appsSeen)
+-        assertTrue("threads.net" in capture.appsSeen)
+-        assertEquals(1, capture.uniqueValues.size)
+-    }
+-
+-    @Test
+-    fun `parseCaptureFile handles null value field`() {
+-        val capture = probe.parseCaptureFile(absentHeaderJson)
+-        assertNotNull(capture)
+-        assertFalse(capture.headerPresent)
+-        assertNull(capture.value)
+-        assertTrue(capture.appsSeen.isEmpty())
+-        assertTrue(capture.uniqueValues.isEmpty())
+-    }
+-
+-    @Test
+-    fun `parseCaptureFile returns null for malformed JSON`() {
+-        assertNull(probe.parseCaptureFile("{bad json}}}"))
+-    }
+-
+-    // ── scoreFor truth table ──────────────────────────────────────────────
+-
+-    @Test
+-    fun `scoreFor truth table`() {
+-        val absent = CaptureFile("m", false, null, false, 0.0, 10, 0, emptyList(), emptyList())
+-        val lowEntropy = CaptureFile("m", true, "00...", true, 50.0, 10, 10, emptyList(), emptyList())
+-        val highEntropy = CaptureFile("m", true, "uuid", true, 122.5, 10, 10, emptyList(), emptyList())
+-        assertEquals(0.05, probe.scoreFor(absent), 0.001)
+-        assertEquals(0.95, probe.scoreFor(lowEntropy), 0.001)
+-        assertEquals(0.85, probe.scoreFor(highEntropy), 0.001)
+-    }
+-
+-    // ── Probe metadata ─────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id matches inventory entry`() {
+-        assertEquals("app.ig_family_device_id_header", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe category is IDENTITY`() {
+-        assertEquals(ProbeCategory.IDENTITY, probe.category)
+-    }
+-
+-    @Test
+-    fun `probe rank is 67`() {
+-        assertEquals(67, probe.rank)
+-    }
+-
+-    @Test
+-    fun `probe budget is within the 5s ceiling`() {
+-        assertTrue(probe.budgetMs <= 5_000L)
+-    }
+-
+-    @Test
+-    fun `probe runs within budget`() = runBlocking {
+-        val result = probe.run(fakeCtx(fileContent = sandboxJson))
+-        assertTrue(result.runtimeMs <= probe.budgetMs)
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/ScreenLockProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/ScreenLockProbeTest.kt
+index 5f203b9..b00b976 100644
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/ScreenLockProbeTest.kt
++++ b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/ScreenLockProbeTest.kt
+@@ -6,23 +6,12 @@ import com.example.detectorlab.core.ProbeContext
+ import com.example.detectorlab.core.SensorManagerView
+ import com.example.detectorlab.core.SensorSample
+ import com.example.detectorlab.core.TelephonyField
+-import kotlinx.coroutines.runBlocking
+ import kotlin.test.Test
+ import kotlin.test.assertEquals
+ import kotlin.test.assertFalse
+-import kotlin.test.assertTrue
++import kotlinx.coroutines.runBlocking
+ 
+-/**
+- * Unit tests for ScreenLockProbe (CLO-5, A17 N7).
+- *
+- * Covers all three permission/SDK combinations the acceptance criterion
+- * names: API ≥23 with `isDeviceSecure` available, API ≥23 with the service
+- * throwing (`null` primary signal), and API <23 with only the legacy
+- * `isKeyguardSecure` signal. Each branch is asserted for state, score,
+- * confidence bucket, and evidence-shape invariants.
+- */
+ class ScreenLockProbeTest {
+-
+     private val probe = ScreenLockProbe()
+ 
+     private fun fakeCtx(
+@@ -52,117 +41,27 @@ class ScreenLockProbeTest {
+         }
+     }
+ 
+-    // ── Combination (a): API ≥23, device IS secure  →  pin_set ───────────────
+-
+-    @Test
+-    fun `API 33 with isDeviceSecure=true emits pin_set with strong confidence and clean score`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 33, deviceSecure = true, keyguardSecure = true))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score, 0.001)
+-        assertTrue(result.confidence >= 0.85, "expected strong confidence, got ${result.confidence}")
+-        assertTrue(result.evidence.any { it.key == "state" && it.value == ScreenLockProbe.STATE_PIN_SET })
+-    }
+-
+-    // ── Combination (b): API ≥23, device NOT secure  →  none (DETECTED) ──────
+-
+     @Test
+-    fun `API 33 with isDeviceSecure=false emits none with strong confidence and detection score`() = runBlocking {
++    fun `no lock -> score is 0.4`() = runBlocking {
+         val result = probe.run(fakeCtx(sdkInt = 33, deviceSecure = false, keyguardSecure = false))
+         assertFalse(result.failed)
+-        assertEquals(0.85, result.score, 0.001)
+-        assertTrue(result.confidence >= 0.85)
+-        assertTrue(result.evidence.any { it.key == "state" && it.value == ScreenLockProbe.STATE_NONE })
++        assertEquals(0.4, result.score, 0.001)
++        assertEquals(ScreenLockProbe.STATE_NONE, result.evidence.first { it.key == "state" }.value)
+     }
+ 
+-    // ── Combination (c): API <23 (no isDeviceSecure)  →  unknown, weak ───────
+-
+     @Test
+-    fun `API 21 with no keyguard signal emits unknown with weak confidence`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 21, deviceSecure = null, keyguardSecure = null))
++    fun `PIN lock -> score is 0.0`() = runBlocking {
++        val result = probe.run(fakeCtx(sdkInt = 33, deviceSecure = true, keyguardSecure = true))
+         assertFalse(result.failed)
+         assertEquals(0.0, result.score, 0.001)
+-        // The crux of the acceptance criterion: unknown must NOT be a
+-        // strong negative — it must be flagged as weak confidence.
+-        assertTrue(result.confidence <= 0.40, "expected weak confidence, got ${result.confidence}")
+-        assertTrue(result.evidence.any { it.key == "state" && it.value == ScreenLockProbe.STATE_UNKNOWN })
++        assertEquals(ScreenLockProbe.STATE_PIN_SET, result.evidence.first { it.key == "state" }.value)
+     }
+ 
+-    // ── Additional resilience: API <23 with positive legacy signal ───────────
+-
+     @Test
+-    fun `API 21 with isKeyguardSecure=true resolves to pin_set`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 21, deviceSecure = null, keyguardSecure = true))
+-        assertEquals(ScreenLockProbe.STATE_PIN_SET,
+-            result.evidence.first { it.key == "state" }.value)
++    fun `fingerprint lock -> score is 0.0`() = runBlocking {
++        val result = probe.run(fakeCtx(sdkInt = 30, deviceSecure = null, keyguardSecure = true))
++        assertFalse(result.failed)
+         assertEquals(0.0, result.score, 0.001)
+-    }
+-
+-    // ── Additional resilience: API ≥23 but primary signal threw (==null) ────
+-
+-    @Test
+-    fun `API 33 with null isDeviceSecure falls back to keyguard signal`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 33, deviceSecure = null, keyguardSecure = false))
+-        // null + false → unknown, not "none" — must NOT be a strong false-negative.
+-        assertEquals(ScreenLockProbe.STATE_UNKNOWN,
+-            result.evidence.first { it.key == "state" }.value)
+-        assertTrue(result.confidence <= 0.40)
+-    }
+-
+-    // ── Evidence-completeness invariant: both signals always present ─────────
+-
+-    @Test
+-    fun `evidence always reports both KeyguardManager signals and the SDK_INT`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 30, deviceSecure = true, keyguardSecure = false))
+-        val keys = result.evidence.map { it.key }.toSet()
+-        assertTrue("Build.VERSION.SDK_INT" in keys)
+-        assertTrue("KeyguardManager.isDeviceSecure" in keys)
+-        assertTrue("KeyguardManager.isKeyguardSecure" in keys)
+-        assertTrue("state" in keys)
+-    }
+-
+-    // ── Probe metadata ────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id matches inventory entry`() {
+-        assertEquals("env.screen_lock", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is in the A17 expansion range`() {
+-        // META-22 reserves 61..71 for A17 N1..N11.
+-        assertTrue(probe.rank in 61..71, "rank ${probe.rank} outside A17 reservation")
+-    }
+-
+-    @Test
+-    fun `probe runtime fits within budget`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 33, deviceSecure = true, keyguardSecure = true))
+-        assertTrue(result.runtimeMs <= probe.budgetMs)
+-    }
+-
+-    // ── classify() exhaustive truth table ─────────────────────────────────────
+-
+-    @Test
+-    fun `classify truth table - API gte 23`() {
+-        val p = probe
+-        assertEquals("pin_set", p.classify(23, deviceSecure = true,  keyguardSecure = true))
+-        assertEquals("pin_set", p.classify(23, deviceSecure = true,  keyguardSecure = false))
+-        assertEquals("none",    p.classify(23, deviceSecure = false, keyguardSecure = true))
+-        assertEquals("none",    p.classify(23, deviceSecure = false, keyguardSecure = false))
+-        // null primary → fall through to legacy branch
+-        assertEquals("pin_set", p.classify(23, deviceSecure = null,  keyguardSecure = true))
+-        assertEquals("unknown", p.classify(23, deviceSecure = null,  keyguardSecure = false))
+-        assertEquals("unknown", p.classify(23, deviceSecure = null,  keyguardSecure = null))
+-    }
+-
+-    @Test
+-    fun `classify truth table - API lt 23`() {
+-        val p = probe
+-        assertEquals("pin_set", p.classify(21, deviceSecure = null, keyguardSecure = true))
+-        assertEquals("unknown", p.classify(21, deviceSecure = null, keyguardSecure = false))
+-        assertEquals("unknown", p.classify(21, deviceSecure = null, keyguardSecure = null))
+-        // even if deviceSecure leaks through on a buggy device, pre-M behaviour
+-        // ignores it (the platform did not implement that API yet)
+-        assertEquals("pin_set", p.classify(21, deviceSecure = true,  keyguardSecure = true))
+-        assertEquals("unknown", p.classify(21, deviceSecure = true,  keyguardSecure = false))
++        assertEquals(ScreenLockProbe.STATE_PIN_SET, result.evidence.first { it.key == "state" }.value)
+     }
+ }
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/TimeSpoofingProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/TimeSpoofingProbeTest.kt
+deleted file mode 100644
+index bf895cb..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/TimeSpoofingProbeTest.kt
++++ /dev/null
+@@ -1,303 +0,0 @@
+-package com.example.detectorlab.probes.env
+-
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import com.example.detectorlab.core.TimeView
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for TimeSpoofingProbe (env.time_spoofing, A17 N4).
+- *
+- * Each delta pair (D1–D4) is exercised in isolation with all other sources
+- * clean, verifying correct threshold crossings and score values.
+- *
+- * D1 (bootEpoch drift) is stateful: the first run() of a probe instance
+- * seeds the anchor and reports score=0; subsequent runs compare current
+- * `(wall - elapsed)` against the anchor. See `TimeSpoofingProbe` KDoc.
+- */
+-class TimeSpoofingProbeTest {
+-
+-    private val probe = TimeSpoofingProbe()
+-
+-    // Base wall-clock epoch used across tests — any realistic Unix timestamp.
+-    private val base = 1_700_000_000_000L
+-
+-    // Default elapsed-realtime is boot-relative (small, monotonic since boot),
+-    // NOT a Unix epoch. With wall=base and elapsed=cleanElapsed, the inferred
+-    // bootEpoch ≈ base - cleanElapsed and is stable across calls when neither
+-    // clock has been spoofed.
+-    private val cleanElapsed = 1_000L
+-
+-    // ── helpers ──────────────────────────────────────────────────────────────
+-
+-    private fun fakeCtx(
+-        wallMs: Long      = base,
+-        elapsedMs: Long   = cleanElapsed,  // boot-relative (small), not Unix epoch
+-        gpsMs: Long?      = base,
+-        ntpMs: Long?      = base,
+-        thresholdsJson: String? = null,    // raw JSON for assets/baselines/time-thresholds.json
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = thresholdsJson != null &&
+-            path == TimeSpoofingProbe.THRESHOLDS_ASSET
+-        override fun readFile(path: String, maxBytes: Int): String? =
+-            if (path == TimeSpoofingProbe.THRESHOLDS_ASSET) thresholdsJson else null
+-        override fun querySettingSecure(key: String): String? = null
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = false
+-            override fun listInstalledPackages() = emptyList<String>()
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        override fun queryTimeView(): TimeView = object : TimeView {
+-            override fun elapsedRealtimeMs(): Long = elapsedMs
+-            override fun wallClockMs(): Long = wallMs
+-            override fun gpsTimestampMs(): Long? = gpsMs
+-            override fun ntpTimestampMs(): Long? = ntpMs
+-        }
+-    }
+-
+-    // ── clean device — no spoofing ────────────────────────────────────────────
+-
+-    @Test
+-    fun `clean device — score is 0 when all sources agree on first call`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-        assertTrue(result.confidence >= 0.95)
+-    }
+-
+-    // ── D1: bootEpoch anchor (wall - elapsed drift) ───────────────────────────
+-
+-    @Test
+-    fun `D1 first call — anchor seeded, score is 0, evidence recorded`() = runBlocking {
+-        val result = probe.run(fakeCtx(elapsedMs = cleanElapsed))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-        assertTrue(result.evidence.any { it.key == "d1_anchor_seeded_boot_epoch_ms" })
+-    }
+-
+-    @Test
+-    fun `D1 second call clean — no flag when bootEpoch unchanged`() = runBlocking {
+-        // First call seeds anchor at bootEpoch = base - 1_000.
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        // 5 s later: both wall and elapsed advanced together — bootEpoch identical.
+-        val result = probe.run(fakeCtx(wallMs = base + 5_000L, elapsedMs = cleanElapsed + 5_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-        // Evidence should be the compare-form, not the seed-form.
+-        assertTrue(result.evidence.any { it.key == "delta_wall_vs_elapsed_ms" })
+-        assertTrue(result.evidence.any { it.key == "boot_epoch_anchor_ms" })
+-    }
+-
+-    @Test
+-    fun `D1 second call below threshold — no flag for small clock drift`() = runBlocking {
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        // 10 s of elapsed time later, wall jumped only +5 s extra (5 s bootEpoch
+-        // drift, well within the 30 s tolerance). Align GPS+NTP with the new
+-        // wall so D2/D3 stay clean — this test isolates D1.
+-        val newWall = base + 15_000L
+-        val result = probe.run(fakeCtx(
+-            wallMs    = newWall,
+-            elapsedMs = cleanElapsed + 10_000L,
+-            gpsMs     = newWall,
+-            ntpMs     = newWall,
+-        ))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    @Test
+-    fun `D1 triggered — score is 0_55 when bootEpoch diverges by 1 hour from anchor`() = runBlocking {
+-        // Seed anchor.
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        // 5 s of elapsed time later; wall-clock spoofed +1 h forward.
+-        // Move GPS+NTP with the new wall so D2/D3 don't also fire — we want
+-        // to verify D1's score in isolation.
+-        val newWall = base + 3_605_000L
+-        val result = probe.run(fakeCtx(
+-            wallMs    = newWall,
+-            elapsedMs = cleanElapsed + 5_000L,
+-            gpsMs     = newWall,
+-            ntpMs     = newWall,
+-        ))
+-        assertFalse(result.failed)
+-        assertEquals(0.55, result.score)
+-    }
+-
+-    @Test
+-    fun `D1 triggered — evidence carries delta and anchor values`() = runBlocking {
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        val newWall = base + 3_605_000L
+-        val result = probe.run(fakeCtx(
+-            wallMs    = newWall,
+-            elapsedMs = cleanElapsed + 5_000L,
+-            gpsMs     = newWall,
+-            ntpMs     = newWall,
+-        ))
+-        assertTrue(result.evidence.any { it.key == "delta_wall_vs_elapsed_ms" })
+-        assertTrue(result.evidence.any { it.key == "boot_epoch_anchor_ms" })
+-        assertTrue(result.evidence.any { it.key == "boot_epoch_current_ms" })
+-    }
+-
+-    // ── D2: wall vs GPS ───────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `D2 clean — no flag when wall and GPS agree within 10s`() = runBlocking {
+-        val result = probe.run(fakeCtx(gpsMs = base + 5_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    @Test
+-    fun `D2 triggered — score is 0_75 when wall vs GPS exceeds 10s`() = runBlocking {
+-        // ntp=null so D4 stays skipped — otherwise a 15s gps offset would also
+-        // exceed the D4 (gps vs ntp) threshold and inflate the score.
+-        val result = probe.run(fakeCtx(gpsMs = base + 15_000L, ntpMs = null))
+-        assertFalse(result.failed)
+-        assertEquals(0.75, result.score)
+-    }
+-
+-    @Test
+-    fun `D2 skipped when GPS unavailable`() = runBlocking {
+-        val result = probe.run(fakeCtx(gpsMs = null))
+-        assertFalse(result.failed)
+-        assertTrue(result.evidence.any {
+-            it.key == "delta_wall_vs_gps_ms" && it.value.toString().contains("skipped")
+-        })
+-    }
+-
+-    // ── D3: wall vs NTP ───────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `D3 clean — no flag when wall and NTP agree within 10s`() = runBlocking {
+-        val result = probe.run(fakeCtx(ntpMs = base + 5_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    @Test
+-    fun `D3 triggered — score is 0_80 when wall vs NTP exceeds 10s`() = runBlocking {
+-        // gps=null so D4 stays skipped — otherwise a 20s ntp offset relative to
+-        // default gps would also exceed the D4 threshold and inflate the score.
+-        val result = probe.run(fakeCtx(gpsMs = null, ntpMs = base + 20_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.80, result.score)
+-    }
+-
+-    @Test
+-    fun `D3 skipped when NTP unavailable`() = runBlocking {
+-        val result = probe.run(fakeCtx(ntpMs = null))
+-        assertFalse(result.failed)
+-        assertTrue(result.evidence.any {
+-            it.key == "delta_wall_vs_ntp_ms" && it.value.toString().contains("skipped")
+-        })
+-    }
+-
+-    // ── D4: GPS vs NTP ────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `D4 clean — no flag when GPS and NTP agree within 5s`() = runBlocking {
+-        val result = probe.run(fakeCtx(gpsMs = base + 1_000L, ntpMs = base + 3_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    @Test
+-    fun `D4 triggered — score is 0_90 when GPS vs NTP exceeds 5s`() = runBlocking {
+-        val result = probe.run(fakeCtx(gpsMs = base, ntpMs = base + 8_000L))
+-        assertFalse(result.failed)
+-        assertEquals(0.90, result.score)
+-    }
+-
+-    @Test
+-    fun `D4 skipped when GPS unavailable`() = runBlocking {
+-        val result = probe.run(fakeCtx(gpsMs = null, ntpMs = base))
+-        assertTrue(result.evidence.any {
+-            it.key == "delta_gps_vs_ntp_ms" && it.value.toString().contains("skipped")
+-        })
+-    }
+-
+-    // ── Score priority — highest delta wins ───────────────────────────────────
+-
+-    @Test
+-    fun `max score wins when multiple deltas triggered`() = runBlocking {
+-        // Seed D1 anchor first.
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        // Second call triggers both D1 (bootEpoch jumped +1 h) and D3
+-        // (wall vs NTP > 10 s). gps=null skips D2 and D4 so we observe the
+-        // max purely between D1 (0.55) and D3 (0.80) → 0.80.
+-        val newWall = base + 3_605_000L
+-        val result = probe.run(fakeCtx(
+-            wallMs    = newWall,
+-            elapsedMs = cleanElapsed + 5_000L,
+-            gpsMs     = null,
+-            ntpMs     = newWall + 20_000L,
+-        ))
+-        assertFalse(result.failed)
+-        assertEquals(0.80, result.score)
+-    }
+-
+-    @Test
+-    fun `confidence is 0_95 when two or more deltas triggered`() = runBlocking {
+-        probe.run(fakeCtx(wallMs = base, elapsedMs = cleanElapsed))
+-        val newWall = base + 3_605_000L
+-        val result = probe.run(fakeCtx(
+-            wallMs    = newWall,
+-            elapsedMs = cleanElapsed + 5_000L,
+-            gpsMs     = null,
+-            ntpMs     = newWall + 20_000L,
+-        ))
+-        assertEquals(0.95, result.confidence)
+-    }
+-
+-    @Test
+-    fun `confidence is 0_80 when exactly one delta triggered`() = runBlocking {
+-        // gps=null skips D2 and D4, so only D3 fires.
+-        val result = probe.run(fakeCtx(gpsMs = null, ntpMs = base + 20_000L))
+-        assertEquals(0.80, result.confidence)
+-    }
+-
+-    // ── Custom thresholds via asset JSON ─────────────────────────────────────
+-
+-    @Test
+-    fun `custom threshold from asset overrides default`() = runBlocking {
+-        // Lower the wall_vs_ntp threshold to 2s; a 3s delta should now trigger.
+-        val json = """{"wall_vs_ntp_ms": 2000}"""
+-        val result = probe.run(fakeCtx(ntpMs = base + 3_000L, thresholdsJson = json))
+-        assertFalse(result.failed)
+-        assertEquals(0.80, result.score)
+-    }
+-
+-    @Test
+-    fun `default threshold used when asset absent`() = runBlocking {
+-        // Default wall_vs_ntp is 10s; a 3s delta should NOT trigger.
+-        val result = probe.run(fakeCtx(ntpMs = base + 3_000L, thresholdsJson = null))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    // ── Probe metadata ────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id is env_time_spoofing`() {
+-        assertEquals("env.time_spoofing", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is 4`() {
+-        assertEquals(4, probe.rank)
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/WifiSecurityTypeProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/WifiSecurityTypeProbeTest.kt
+deleted file mode 100644
+index 5036f24..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/WifiSecurityTypeProbeTest.kt
++++ /dev/null
+@@ -1,211 +0,0 @@
+-package com.example.detectorlab.probes.env
+-
+-import com.example.detectorlab.core.KeyguardManagerView
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import com.example.detectorlab.core.UnknownKeyguardManagerView
+-import com.example.detectorlab.core.WifiManagerView
+-import com.example.detectorlab.core.WifiSecurityRead
+-import com.example.detectorlab.core.WifiSecurityType
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertNotNull
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for WifiSecurityTypeProbe (CLO-4, A17 N6).
+- *
+- * Covers the six classification states the acceptance criterion enumerates
+- * ({none, wep, wpa, wpa2, wpa3, unknown}), the API-31-split path label
+- * propagation, and the "inert-without-permission" rule that returns
+- * `ProbeResult.skipped` rather than throwing.
+- */
+-class WifiSecurityTypeProbeTest {
+-
+-    private val probe = WifiSecurityTypeProbe()
+-
+-    private fun fakeCtx(
+-        sdkInt: Int = 33,
+-        hasPermission: Boolean = true,
+-        type: WifiSecurityType = WifiSecurityType.WPA2,
+-        apiPath: String = "WifiManager.getCurrentNetwork+NetworkCapabilities",
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = false
+-        override fun readFile(path: String, maxBytes: Int): String? = null
+-        override fun querySettingSecure(key: String): String? = null
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = false
+-            override fun listInstalledPackages() = emptyList<String>()
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-        override fun queryKeyguardManager(): KeyguardManagerView = UnknownKeyguardManagerView
+-        override fun queryWifiManager(): WifiManagerView = object : WifiManagerView {
+-            override fun sdkInt() = sdkInt
+-            override fun hasWifiAccessPermission() = hasPermission
+-            override fun currentNetworkSecurityType() = WifiSecurityRead(type, apiPath)
+-        }
+-    }
+-
+-    // ── Classification: all six AC states ────────────────────────────────────
+-
+-    @Test
+-    fun `classifies open AP as none with high detection score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.NONE))
+-        assertFalse(result.skipped)
+-        assertFalse(result.failed)
+-        assertEquals(0.90, result.score, 0.001)
+-        assertEquals("none", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    @Test
+-    fun `classifies WEP as wep with high detection score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WEP))
+-        assertEquals(0.85, result.score, 0.001)
+-        assertEquals("wep", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    @Test
+-    fun `classifies WPA as wpa with weak-medium score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WPA))
+-        assertEquals(0.30, result.score, 0.001)
+-        assertEquals("wpa", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    @Test
+-    fun `classifies WPA2 as wpa2 with near-zero score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WPA2))
+-        assertEquals(0.05, result.score, 0.001)
+-        assertEquals("wpa2", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    @Test
+-    fun `classifies WPA3 as wpa3 with zero score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WPA3))
+-        assertEquals(0.0, result.score, 0.001)
+-        assertEquals("wpa3", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    @Test
+-    fun `classifies unknown as unknown with weak confidence and zero score`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.UNKNOWN))
+-        assertEquals(0.0, result.score, 0.001)
+-        assertTrue(result.confidence <= 0.40, "expected weak confidence, got ${result.confidence}")
+-        assertEquals("unknown", result.evidence.first { it.key == "wifi.security_type" }.value)
+-    }
+-
+-    // ── (3) Inert without permission → skipped ───────────────────────────────
+-
+-    @Test
+-    fun `returns skipped when API 33+ lacks NEARBY_WIFI_DEVICES`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 34, hasPermission = false))
+-        assertTrue(result.skipped, "expected skipped, got failed=${result.failed}")
+-        assertNotNull(result.failureReason)
+-        assertTrue(result.failureReason!!.contains("NEARBY_WIFI_DEVICES"))
+-        assertEquals(0.0, result.score, 0.001)
+-        assertEquals(0.0, result.confidence, 0.001)
+-    }
+-
+-    @Test
+-    fun `returns skipped when pre-33 lacks ACCESS_FINE_LOCATION`() = runBlocking {
+-        val result = probe.run(fakeCtx(sdkInt = 31, hasPermission = false))
+-        assertTrue(result.skipped)
+-        assertTrue(result.failureReason!!.contains("ACCESS_FINE_LOCATION"))
+-    }
+-
+-    @Test
+-    fun `returns skipped when view declares UNAVAILABLE despite permission held`() = runBlocking {
+-        val result = probe.run(fakeCtx(hasPermission = true, type = WifiSecurityType.UNAVAILABLE))
+-        assertTrue(result.skipped)
+-    }
+-
+-    // ── (2) API split — propagates apiPath to evidence ────────────────────────
+-
+-    @Test
+-    fun `API 31+ path label propagates through to evidence`() = runBlocking {
+-        val result = probe.run(fakeCtx(
+-            sdkInt = 33,
+-            apiPath = "WifiManager.getCurrentNetwork+NetworkCapabilities",
+-        ))
+-        assertEquals(
+-            "WifiManager.getCurrentNetwork+NetworkCapabilities",
+-            result.evidence.first { it.key == "wifi.api_path" }.value,
+-        )
+-    }
+-
+-    @Test
+-    fun `pre-31 path label propagates through to evidence`() = runBlocking {
+-        val result = probe.run(fakeCtx(
+-            sdkInt = 28,
+-            apiPath = "WifiConfiguration.allowedKeyManagement",
+-        ))
+-        assertEquals(
+-            "WifiConfiguration.allowedKeyManagement",
+-            result.evidence.first { it.key == "wifi.api_path" }.value,
+-        )
+-    }
+-
+-    // ── Evidence completeness ────────────────────────────────────────────────
+-
+-    @Test
+-    fun `evidence always reports security_type, sdk_int, api_path, permission_granted`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WPA2))
+-        val keys = result.evidence.map { it.key }.toSet()
+-        assertTrue("wifi.security_type" in keys)
+-        assertTrue("Build.VERSION.SDK_INT" in keys)
+-        assertTrue("wifi.api_path" in keys)
+-        assertTrue("wifi.permission_granted" in keys)
+-    }
+-
+-    // ── Probe metadata ────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id matches inventory entry`() {
+-        assertEquals("env.wifi_security_type", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is in the A17 expansion range`() {
+-        assertTrue(probe.rank in 61..71)
+-    }
+-
+-    @Test
+-    fun `probe runtime fits within budget`() = runBlocking {
+-        val result = probe.run(fakeCtx(type = WifiSecurityType.WPA2))
+-        assertTrue(result.runtimeMs <= probe.budgetMs)
+-    }
+-
+-    // ── scoreFor/labelFor truth tables ───────────────────────────────────────
+-
+-    @Test
+-    fun `scoreFor truth table`() {
+-        assertEquals(0.90, probe.scoreFor(WifiSecurityType.NONE), 0.001)
+-        assertEquals(0.85, probe.scoreFor(WifiSecurityType.WEP), 0.001)
+-        assertEquals(0.30, probe.scoreFor(WifiSecurityType.WPA), 0.001)
+-        assertEquals(0.05, probe.scoreFor(WifiSecurityType.WPA2), 0.001)
+-        assertEquals(0.00, probe.scoreFor(WifiSecurityType.WPA3), 0.001)
+-        assertEquals(0.00, probe.scoreFor(WifiSecurityType.UNKNOWN), 0.001)
+-        assertEquals(0.00, probe.scoreFor(WifiSecurityType.NOT_CONNECTED), 0.001)
+-    }
+-
+-    @Test
+-    fun `labelFor truth table`() {
+-        assertEquals("none", probe.labelFor(WifiSecurityType.NONE))
+-        assertEquals("wep", probe.labelFor(WifiSecurityType.WEP))
+-        assertEquals("wpa", probe.labelFor(WifiSecurityType.WPA))
+-        assertEquals("wpa2", probe.labelFor(WifiSecurityType.WPA2))
+-        assertEquals("wpa3", probe.labelFor(WifiSecurityType.WPA3))
+-        assertEquals("unknown", probe.labelFor(WifiSecurityType.UNKNOWN))
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/kernel/CpuInfoProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/kernel/CpuInfoProbeTest.kt
+deleted file mode 100644
+index 3fd21a9..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/kernel/CpuInfoProbeTest.kt
++++ /dev/null
+@@ -1,222 +0,0 @@
+-package com.example.detectorlab.probes.kernel
+-
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for CpuInfoProbe (kernel.cpuinfo_bogomips_implementer, CLO-20).
+- */
+-class CpuInfoProbeTest {
+-
+-    private val probe = CpuInfoProbe()
+-
+-    // ── Pixel 8-like ARM cpuinfo (clean) ──────────────────────────────────────
+-
+-    private val pixel8CpuInfo = """
+-        processor       : 0
+-        BogoMIPS        : 38.40
+-        Features        : fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp
+-        CPU implementer : 0x41
+-        CPU architecture: 8
+-        CPU variant     : 0x2
+-        CPU part        : 0xd05
+-        CPU revision    : 0
+-    """.trimIndent()
+-
+-    private val pixel8HwcapArm = (CpuInfoProbe.ARM_NEON_BIT or 0x0000001L).toString()  // NEON present, no x86 FPU
+-
+-    private fun fakeCtx(
+-        cpuinfoContent: String? = pixel8CpuInfo,
+-        hwcapRaw: String? = pixel8HwcapArm,
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = true
+-        override fun readFile(path: String, maxBytes: Int): String? = when (path) {
+-            CpuInfoProbe.PROC_CPUINFO -> cpuinfoContent
+-            CpuInfoProbe.HWCAP_PATH   -> hwcapRaw
+-            else                      -> null
+-        }
+-        override fun querySettingSecure(key: String): String? = null
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = false
+-            override fun listInstalledPackages() = emptyList<String>()
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-    }
+-
+-    // ── Clean device ──────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `clean ARM device — score is 0`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    @Test
+-    fun `clean ARM device — confidence is 0_92`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertEquals(0.92, result.confidence)
+-    }
+-
+-    @Test
+-    fun `clean device — evidence contains bogomips and arch`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertTrue(result.evidence.any { it.key == "bogomips" })
+-        assertTrue(result.evidence.any { it.key == "arch" })
+-        assertTrue(result.evidence.any { it.key == "cpu_implementer" })
+-        assertTrue(result.evidence.any { it.key == "hwcap" })
+-    }
+-
+-    // ── arch mismatch: x86 HWCAP on ARM-claimed device ────────────────────────
+-
+-    @Test
+-    fun `arch mismatch — x86 FPU bit set without ARM NEON scores 0_95`() = runBlocking {
+-        // AT_HWCAP = x86 FPU bit only, no ARM NEON
+-        val hwcap = CpuInfoProbe.X86_FPU_BIT.toString()
+-        val result = probe.run(fakeCtx(hwcapRaw = hwcap))
+-        assertFalse(result.failed)
+-        assertEquals(0.95, result.score)
+-    }
+-
+-    @Test
+-    fun `arch mismatch — evidence key is set to true`() = runBlocking {
+-        val hwcap = CpuInfoProbe.X86_FPU_BIT.toString()
+-        val result = probe.run(fakeCtx(hwcapRaw = hwcap))
+-        val ev = result.evidence.find { it.key == "arch_mismatch" }
+-        assertEquals(true, ev?.value)
+-    }
+-
+-    @Test
+-    fun `arch mismatch — confidence is 0_95 when signal fires`() = runBlocking {
+-        val hwcap = CpuInfoProbe.X86_FPU_BIT.toString()
+-        val result = probe.run(fakeCtx(hwcapRaw = hwcap))
+-        assertEquals(0.95, result.confidence)
+-    }
+-
+-    // ── x86 HWCAP on ARM (no NEON, non-zero) ─────────────────────────────────
+-
+-    @Test
+-    fun `x86 hwcap on arm — non-neon hwcap scores 0_80`() = runBlocking {
+-        // Non-zero HWCAP but no ARM NEON bit — weaker signal than arch_mismatch
+-        val hwcap = "1"  // just bit 0, no FPU, no NEON
+-        val result = probe.run(fakeCtx(hwcapRaw = hwcap))
+-        // x86_hwcap_on_arm fires (no NEON, non-zero), but not arch_mismatch (no FPU bit)
+-        assertTrue(result.score >= 0.80)
+-    }
+-
+-    // ── CPU implementer mismatch ──────────────────────────────────────────────
+-
+-    @Test
+-    fun `unknown implementer — score is 0_70`() = runBlocking {
+-        val cpuinfo = pixel8CpuInfo.replace("0x41", "0xff")
+-        // Keep NEON in hwcap so no arch signal fires
+-        val hwcap = CpuInfoProbe.ARM_NEON_BIT.toString()
+-        val result = probe.run(fakeCtx(cpuinfoContent = cpuinfo, hwcapRaw = hwcap))
+-        assertFalse(result.failed)
+-        assertEquals(0.70, result.score)
+-    }
+-
+-    @Test
+-    fun `known implementer 0x51 — no implementer signal`() = runBlocking {
+-        val cpuinfo = pixel8CpuInfo.replace("0x41", "0x51")
+-        val hwcap = CpuInfoProbe.ARM_NEON_BIT.toString()
+-        val result = probe.run(fakeCtx(cpuinfoContent = cpuinfo, hwcapRaw = hwcap))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score)
+-    }
+-
+-    // ── BogoMIPS out of range ─────────────────────────────────────────────────
+-
+-    @Test
+-    fun `bogomips above max — score is 0_40`() = runBlocking {
+-        val cpuinfo = pixel8CpuInfo.replace("38.40", "999999.99")
+-        val hwcap = CpuInfoProbe.ARM_NEON_BIT.toString()
+-        val result = probe.run(fakeCtx(cpuinfoContent = cpuinfo, hwcapRaw = hwcap))
+-        assertFalse(result.failed)
+-        assertEquals(0.40, result.score)
+-    }
+-
+-    // ── cpuinfo unavailable ───────────────────────────────────────────────────
+-
+-    @Test
+-    fun `cpuinfo unavailable — probe skips`() = runBlocking {
+-        val result = probe.run(fakeCtx(cpuinfoContent = null))
+-        assertTrue(result.failed)
+-        assertTrue(result.skipped)
+-    }
+-
+-    // ── x86 device (vendor_id present) ────────────────────────────────────────
+-
+-    @Test
+-    fun `x86 device — arch reported as x86_64`() = runBlocking {
+-        val x86Cpuinfo = """
+-            processor : 0
+-            vendor_id : GenuineIntel
+-            BogoMIPS  : 1000.00
+-            CPU implementer : 0x00
+-        """.trimIndent()
+-        val result = probe.run(fakeCtx(cpuinfoContent = x86Cpuinfo, hwcapRaw = null))
+-        val archEv = result.evidence.find { it.key == "arch" }
+-        assertEquals("x86_64", archEv?.value)
+-    }
+-
+-    // ── Parser unit tests ─────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `parseCpuInfo — extracts bogomips`() {
+-        val f = parseCpuInfo(pixel8CpuInfo)
+-        assertEquals(38.40, f.bogomips)
+-    }
+-
+-    @Test
+-    fun `parseCpuInfo — extracts implementer`() {
+-        val f = parseCpuInfo(pixel8CpuInfo)
+-        assertEquals("0x41", f.cpuImplementer)
+-    }
+-
+-    @Test
+-    fun `parseCpuInfo — extracts hwcap features`() {
+-        val f = parseCpuInfo(pixel8CpuInfo)
+-        assertTrue(f.hwcap.contains("aes"))
+-        assertTrue(f.hwcap.contains("asimd"))
+-    }
+-
+-    @Test
+-    fun `parseCpuInfo — ARM device has arm64 arch`() {
+-        val f = parseCpuInfo(pixel8CpuInfo)
+-        assertEquals("arm64", f.arch)
+-    }
+-
+-    @Test
+-    fun `parseCpuInfo — x86 device has x86_64 arch`() {
+-        val f = parseCpuInfo("vendor_id : GenuineIntel\nBogoMIPS : 100.0\n")
+-        assertEquals("x86_64", f.arch)
+-    }
+-
+-    // ── Probe metadata ────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id is kernel_cpuinfo_bogomips_implementer`() {
+-        assertEquals("kernel.cpuinfo_bogomips_implementer", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is 9`() {
+-        assertEquals(9, probe.rank)
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/AutomationToolsProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/AutomationToolsProbeTest.kt
+deleted file mode 100644
+index e27bfb9..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/AutomationToolsProbeTest.kt
++++ /dev/null
+@@ -1,222 +0,0 @@
+-package com.example.detectorlab.probes.runtime
+-
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for AutomationToolsProbe (CLO-7, A17 N9).
+- *
+- * Covers the acceptance criteria:
+- *   (a) Appium accessibility service active → high-confidence detection
+- *   (b) UIAutomator package installed → moderate detection signal
+- *   (c) adb_enabled=1 + port-5555 ESTABLISHED → strong combined signal
+- *   (d) adb_enabled=1 alone (no active connection) → weak signal
+- *   (e) All signals absent → score 0.0, confidence ≥ 0.85 (clean, strong)
+- *   (f) Matcher functions usable independently (droidrun harness contract)
+- *   (g) Probe metadata invariants
+- */
+-class AutomationToolsProbeTest {
+-
+-    private val probe = AutomationToolsProbe()
+-
+-    // ── Fake context builder ──────────────────────────────────────────────────
+-
+-    private fun fakeCtx(
+-        accessibilityServices: String? = null,
+-        adbEnabled: String? = null,
+-        installedPackages: Set<String> = emptySet(),
+-        procNetTcp: String? = null,
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = false
+-        override fun readFile(path: String, maxBytes: Int): String? =
+-            if (path == AutomationToolsProbe.PROC_NET_TCP) procNetTcp else null
+-        override fun querySettingSecure(key: String): String? = when (key) {
+-            "enabled_accessibility_services" -> accessibilityServices
+-            "adb_enabled" -> adbEnabled
+-            else -> null
+-        }
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = packageName in installedPackages
+-            override fun listInstalledPackages() = installedPackages.toList()
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-    }
+-
+-    // ── (a) Appium accessibility service active ───────────────────────────────
+-
+-    @Test
+-    fun `Appium service in accessibility settings emits high score and strong confidence`() = runBlocking {
+-        val ctx = fakeCtx(
+-            accessibilityServices = "io.appium.uiautomator2.server/io.appium.uiautomator2.server.AppiumUiAutomator2Server",
+-        )
+-        val result = probe.run(ctx)
+-        assertFalse(result.failed)
+-        assertTrue(result.score >= 0.85, "expected score >= 0.85, got ${result.score}")
+-        assertTrue(result.confidence >= 0.85, "expected strong confidence, got ${result.confidence}")
+-        assertTrue(result.evidence.any { it.key == "appium.accessibility_service_enabled" && it.value == true })
+-    }
+-
+-    // ── (b) UIAutomator package installed ────────────────────────────────────
+-
+-    @Test
+-    fun `UIAutomator stub package installed emits moderate signal`() = runBlocking {
+-        val ctx = fakeCtx(installedPackages = setOf("com.github.uiautomator"))
+-        val result = probe.run(ctx)
+-        assertFalse(result.failed)
+-        assertTrue(result.score > 0.0, "expected nonzero score")
+-        assertTrue(result.evidence.any { it.key == "uiautomator.package_installed" && it.value == true })
+-    }
+-
+-    @Test
+-    fun `UIAutomator test companion package also triggers detection`() = runBlocking {
+-        val ctx = fakeCtx(installedPackages = setOf("com.github.uiautomator.test"))
+-        val result = probe.run(ctx)
+-        assertTrue(result.score > 0.0)
+-        assertTrue(result.evidence.any { it.key == "uiautomator.package_installed" && it.value == true })
+-    }
+-
+-    // ── (c) adb_enabled=1 + port-5555 ESTABLISHED ────────────────────────────
+-
+-    private val procNetTcpWithPort5555 = """
+-  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+-   0: 0100007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000   101        0 1234 1 0000000000000000 100 0 0 10 0
+-   1: 0F02000A:15B3 0F02000A:D0A6 01 00000000:00000000 00:00000000 00000000     0        0 5678 1 0000000000000000 20 4 24 10 -1
+-""".trimIndent()
+-
+-    @Test
+-    fun `adb_enabled=1 with port-5555 ESTABLISHED emits strong combined signal`() = runBlocking {
+-        val ctx = fakeCtx(
+-            adbEnabled = "1",
+-            procNetTcp = procNetTcpWithPort5555,
+-        )
+-        val result = probe.run(ctx)
+-        assertFalse(result.failed)
+-        assertTrue(result.score >= 0.60, "expected score >= 0.60, got ${result.score}")
+-        assertTrue(result.confidence >= 0.85)
+-        assertTrue(result.evidence.any { it.key == "adb_shell_active" && it.value == true })
+-        assertTrue(result.evidence.any { it.key == "proc_net_tcp.port_5555_established" && it.value == true })
+-    }
+-
+-    // ── (d) adb_enabled alone (no active connection) ─────────────────────────
+-
+-    @Test
+-    fun `adb_enabled=1 without active port-5555 connection emits weak signal`() = runBlocking {
+-        val ctx = fakeCtx(adbEnabled = "1", procNetTcp = "")
+-        val result = probe.run(ctx)
+-        assertFalse(result.failed)
+-        assertTrue(result.score > 0.0, "expected nonzero score for adb_enabled")
+-        assertTrue(result.score < 0.50, "expected weak score (< 0.50), got ${result.score}")
+-        assertTrue(result.confidence <= 0.50, "expected weak/medium confidence, got ${result.confidence}")
+-        assertTrue(result.evidence.any { it.key == "settings.adb_enabled" && it.value == true })
+-        assertTrue(result.evidence.any { it.key == "adb_shell_active" && it.value == false })
+-    }
+-
+-    // ── (e) All signals absent → clean result ────────────────────────────────
+-
+-    @Test
+-    fun `all signals absent emits score 0_0 with strong confidence`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score, 0.001)
+-        assertTrue(result.confidence >= 0.85, "expected strong confidence, got ${result.confidence}")
+-        assertTrue(result.evidence.any { it.key == "appium.accessibility_service_enabled" && it.value == false })
+-        assertTrue(result.evidence.any { it.key == "uiautomator.package_installed" && it.value == false })
+-        assertTrue(result.evidence.any { it.key == "adb_shell_active" && it.value == false })
+-    }
+-
+-    // ── (f) Matcher functions work independently (droidrun harness contract) ──
+-
+-    @Test
+-    fun `isAppiumAccessibilityServiceEnabled returns true when pkg in setting`() {
+-        val ctx = fakeCtx(accessibilityServices = "io.appium.uiautomator2.server/SomeClass")
+-        assertTrue(isAppiumAccessibilityServiceEnabled(ctx))
+-    }
+-
+-    @Test
+-    fun `isAppiumAccessibilityServiceEnabled returns false when setting absent`() {
+-        assertFalse(isAppiumAccessibilityServiceEnabled(fakeCtx()))
+-    }
+-
+-    @Test
+-    fun `isUiAutomatorInstalled returns true for stub package`() {
+-        val pm = fakeCtx(installedPackages = setOf("com.github.uiautomator")).queryPackageManager()
+-        assertTrue(isUiAutomatorInstalled(pm))
+-    }
+-
+-    @Test
+-    fun `isAdbEnabled returns true when setting is 1`() {
+-        assertTrue(isAdbEnabled(fakeCtx(adbEnabled = "1")))
+-    }
+-
+-    @Test
+-    fun `isAdbEnabled returns false when setting is 0 or absent`() {
+-        assertFalse(isAdbEnabled(fakeCtx(adbEnabled = "0")))
+-        assertFalse(isAdbEnabled(fakeCtx()))
+-    }
+-
+-    @Test
+-    fun `isPort5555Active returns true for ESTABLISHED entry with port 15B3`() {
+-        assertTrue(isPort5555Active(fakeCtx(procNetTcp = procNetTcpWithPort5555)))
+-    }
+-
+-    @Test
+-    fun `isPort5555Active returns false when proc_net_tcp absent`() {
+-        assertFalse(isPort5555Active(fakeCtx(procNetTcp = null)))
+-    }
+-
+-    @Test
+-    fun `isPort5555Active returns false for non-ESTABLISHED entry on port 5555`() {
+-        // state 06 = TIME_WAIT
+-        val tcpTimewait = "   0: 0F02000A:15B3 0F02000A:D0A6 06 00000000:00000000 00:00000000 00000000     0        0 5678 1"
+-        assertFalse(isPort5555Active(fakeCtx(procNetTcp = tcpTimewait)))
+-    }
+-
+-    // ── (g) Probe metadata invariants ────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id matches inventory entry`() {
+-        assertEquals("runtime.automation_tools", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is in A17 expansion range`() {
+-        assertTrue(probe.rank in 61..71, "rank ${probe.rank} outside A17 reservation 61..71")
+-    }
+-
+-    @Test
+-    fun `probe budget is within 5-second hard ceiling`() {
+-        assertTrue(probe.budgetMs <= 5000L)
+-    }
+-
+-    @Test
+-    fun `probe runtime fits within budget on fast path`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertTrue(result.runtimeMs <= probe.budgetMs)
+-    }
+-
+-    @Test
+-    fun `evidence set always contains all five expected keys`() = runBlocking {
+-        val result = probe.run(fakeCtx(adbEnabled = "1"))
+-        val keys = result.evidence.map { it.key }.toSet()
+-        assertTrue("appium.accessibility_service_enabled" in keys)
+-        assertTrue("uiautomator.package_installed" in keys)
+-        assertTrue("settings.adb_enabled" in keys)
+-        assertTrue("proc_net_tcp.port_5555_established" in keys)
+-        assertTrue("adb_shell_active" in keys)
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/MultiInstanceProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/MultiInstanceProbeTest.kt
+deleted file mode 100644
+index dd6d88a..0000000
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/MultiInstanceProbeTest.kt
++++ /dev/null
+@@ -1,345 +0,0 @@
+-package com.example.detectorlab.probes.runtime
+-
+-import com.example.detectorlab.core.KeyguardManagerView
+-import com.example.detectorlab.core.MediaProjectionManagerView
+-import com.example.detectorlab.core.PackageManagerView
+-import com.example.detectorlab.core.ProbeContext
+-import com.example.detectorlab.core.SensorManagerView
+-import com.example.detectorlab.core.SensorSample
+-import com.example.detectorlab.core.TelephonyField
+-import com.example.detectorlab.core.UnknownKeyguardManagerView
+-import com.example.detectorlab.core.UnknownMediaProjectionManagerView
+-import com.example.detectorlab.core.UserHandleView
+-import kotlinx.coroutines.runBlocking
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-import kotlin.test.assertFalse
+-import kotlin.test.assertNotNull
+-import kotlin.test.assertTrue
+-
+-/**
+- * Unit tests for MultiInstanceProbe (CLO-6, A17 N8, freeRASP T13).
+- *
+- * Acceptance criteria:
+- *   (1) `UserHandle.myUserId() != 0` → secondary-user signal fires.
+- *   (2) Package-name suffix patterns (`.parallel`, `.dual`, `.clone`, `.alpha`)
+- *       → clone-suffix signal fires.
+- *   (3) MIUI / Samsung Secure-Folder system-package presence → OEM-framework
+- *       signal fires.
+- *   (4) Regression: suffix matcher MUST NOT match legitimate `:remote` process
+- *       names.
+- *   (5) Talsec disclosure → confidence == CONFIDENCE_MEDIUM (0.60) always,
+- *       even when detected.
+- */
+-class MultiInstanceProbeTest {
+-
+-    private val probe = MultiInstanceProbe()
+-
+-    // ── Fake context builder ──────────────────────────────────────────────────
+-
+-    private fun fakeCtx(
+-        userId: Int? = 0,
+-        packages: List<String> = emptyList(),
+-    ): ProbeContext = object : ProbeContext {
+-        override fun getSystemProperty(key: String): String? = null
+-        override fun fileExists(path: String) = false
+-        override fun readFile(path: String, maxBytes: Int): String? = null
+-        override fun querySettingSecure(key: String): String? = null
+-        override fun queryTelephonyManager(field: TelephonyField): String? = null
+-        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = packageName in packages
+-            override fun listInstalledPackages() = packages
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-            override fun listSensorTypes() = emptyList<Int>()
+-            override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                SensorSample(LongArray(0), emptyArray())
+-        }
+-        override fun queryKeyguardManager(): KeyguardManagerView = UnknownKeyguardManagerView
+-        override fun queryMediaProjectionManager(): MediaProjectionManagerView =
+-            UnknownMediaProjectionManagerView
+-        override fun queryUserHandle(): UserHandleView = object : UserHandleView {
+-            override fun myUserId(): Int? = userId
+-        }
+-    }
+-
+-    // ── (1) UserHandle secondary-user check ───────────────────────────────────
+-
+-    @Test
+-    fun `primary user (userId=0) scores 0`() = runBlocking {
+-        val result = probe.run(fakeCtx(userId = 0))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "user_handle.is_secondary_user" }
+-        assertEquals(false, ev.value)
+-    }
+-
+-    @Test
+-    fun `secondary user (userId=10) fires with score 0_70`() = runBlocking {
+-        val result = probe.run(fakeCtx(userId = 10))
+-        assertFalse(result.failed)
+-        assertEquals(MultiInstanceProbe.SCORE_SECONDARY_USER, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "user_handle.is_secondary_user" }
+-        assertEquals(true, ev.value)
+-    }
+-
+-    @Test
+-    fun `userId null treated as unknown but does not score`() = runBlocking {
+-        val result = probe.run(fakeCtx(userId = null))
+-        assertFalse(result.failed)
+-        val ev = result.evidence.first { it.key == "user_handle.my_user_id" }
+-        assertEquals("unknown", ev.value)
+-        // unknown userId must not contribute to score on its own
+-        val secondaryEv = result.evidence.first { it.key == "user_handle.is_secondary_user" }
+-        assertEquals(false, secondaryEv.value)
+-    }
+-
+-    // ── (2) Clone-suffix package scan ─────────────────────────────────────────
+-
+-    @Test
+-    fun `parallel suffix detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.example.app.parallel")))
+-        assertFalse(result.failed)
+-        assertEquals(MultiInstanceProbe.SCORE_CLONE_SUFFIX, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "packages.clone_suffix_count" }
+-        assertEquals(1, ev.value)
+-    }
+-
+-    @Test
+-    fun `dual suffix detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.foo.dual")))
+-        assertEquals(MultiInstanceProbe.SCORE_CLONE_SUFFIX, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `clone suffix detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.bar.clone")))
+-        assertEquals(MultiInstanceProbe.SCORE_CLONE_SUFFIX, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `alpha suffix detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.baz.alpha")))
+-        assertEquals(MultiInstanceProbe.SCORE_CLONE_SUFFIX, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `no clone suffix package scores 0`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.example.app", "com.another.thing")))
+-        assertEquals(0.0, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "packages.clone_suffix_count" }
+-        assertEquals(0, ev.value)
+-    }
+-
+-    // ── (4) Regression: suffix matcher must NOT match :remote process names ───
+-
+-    @Test
+-    fun `remote process name suffix not matched - contains colon`() = runBlocking {
+-        // com.google.android.gms:remote is a process name, NOT a package name.
+-        // It must never be mistaken for a clone-suffix package.
+-        val processNames = listOf(
+-            "com.google.android.gms:remote",
+-            "com.android.systemui:remote",
+-            "com.example.app:remote",
+-        )
+-        val result = probe.run(fakeCtx(packages = processNames))
+-        assertFalse(result.failed)
+-        assertEquals(0.0, result.score, 0.001,
+-            "Process names with ':remote' suffix must not trigger the clone-suffix detector")
+-        val countEv = result.evidence.first { it.key == "packages.clone_suffix_count" }
+-        assertEquals(0, countEv.value,
+-            "No clone-suffix entries expected when input is process names with ':remote'")
+-    }
+-
+-    @Test
+-    fun `findCloneSuffixPackages filters colon entries`() {
+-        val pm = object : com.example.detectorlab.core.PackageManagerView {
+-            override fun isPackageInstalled(packageName: String) = false
+-            override fun listInstalledPackages() = listOf(
+-                "com.google.android.gms:remote",   // process name — must be filtered
+-                "com.example.app.parallel",          // real clone package — must match
+-                "com.another.app:clone",             // process name with clone keyword — must be filtered
+-            )
+-            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-        }
+-        val found = findCloneSuffixPackages(pm)
+-        assertEquals(listOf("com.example.app.parallel"), found,
+-            "Only true package names (no ':') ending with a clone suffix must be returned")
+-    }
+-
+-    // ── (3) OEM multi-instance framework detection ────────────────────────────
+-
+-    @Test
+-    fun `MIUI appclone package detected with high score`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.miui.appclone")))
+-        assertFalse(result.failed)
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "packages.oem_framework_found" }
+-        assertEquals("com.miui.appclone", ev.value)
+-    }
+-
+-    @Test
+-    fun `MIUI dualapps package detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.miui.dualapps")))
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `Samsung Knox Secure Folder package detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.samsung.knox.securefolder")))
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `Samsung Knox containeragent detected`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.samsung.android.knox.containeragent")))
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001)
+-    }
+-
+-    @Test
+-    fun `unknown OEM package not false-positive`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.unknown.vendor.appmanager")))
+-        assertEquals(0.0, result.score, 0.001)
+-        val ev = result.evidence.first { it.key == "packages.oem_framework_found" }
+-        assertEquals("none", ev.value)
+-    }
+-
+-    // ── (5) Talsec disclosure → confidence always medium ─────────────────────
+-
+-    @Test
+-    fun `clean device confidence is MEDIUM (0_60)`() = runBlocking {
+-        val result = probe.run(fakeCtx(userId = 0))
+-        assertEquals(MultiInstanceProbe.CONFIDENCE_MEDIUM, result.confidence, 0.001,
+-            "Talsec disclosure mandates confidence=medium even on clean result")
+-    }
+-
+-    @Test
+-    fun `detected secondary user confidence is still MEDIUM (0_60)`() = runBlocking {
+-        val result = probe.run(fakeCtx(userId = 10))
+-        assertEquals(MultiInstanceProbe.CONFIDENCE_MEDIUM, result.confidence, 0.001,
+-            "Talsec disclosure mandates confidence=medium even when detected")
+-    }
+-
+-    @Test
+-    fun `method string includes talsec disclosure note`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertNotNull(result.method)
+-        assertTrue(
+-            result.method!!.contains("talsec_disclosure"),
+-            "method must document the Talsec disclosure; got: ${result.method}",
+-        )
+-    }
+-
+-    // ── Score combination ─────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `score is max of signals not sum`() = runBlocking {
+-        // OEM framework (0.80) + clone suffix (0.60) → max = 0.80, not sum = 1.40
+-        val result = probe.run(fakeCtx(
+-            packages = listOf("com.miui.appclone", "com.example.app.parallel"),
+-        ))
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001,
+-            "Score must be max of signals, not sum")
+-    }
+-
+-    @Test
+-    fun `secondary user plus OEM framework uses OEM score as max`() = runBlocking {
+-        val result = probe.run(fakeCtx(
+-            userId = 5,
+-            packages = listOf("com.samsung.knox.securefolder"),
+-        ))
+-        // max(0.70, 0.80) = 0.80
+-        assertEquals(MultiInstanceProbe.SCORE_OEM_FRAMEWORK, result.score, 0.001)
+-    }
+-
+-    // ── Evidence schema invariants ────────────────────────────────────────────
+-
+-    @Test
+-    fun `evidence contains all required keys`() = runBlocking {
+-        val ev = probe.run(fakeCtx()).evidence.map { it.key }.toSet()
+-        assertTrue("user_handle.my_user_id" in ev)
+-        assertTrue("user_handle.is_secondary_user" in ev)
+-        assertTrue("packages.clone_suffix_found" in ev)
+-        assertTrue("packages.clone_suffix_count" in ev)
+-        assertTrue("packages.oem_framework_found" in ev)
+-    }
+-
+-    @Test
+-    fun `clone_suffix_found evidence is none when no clone packages`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = emptyList()))
+-        val ev = result.evidence.first { it.key == "packages.clone_suffix_found" }
+-        assertEquals("none", ev.value)
+-    }
+-
+-    @Test
+-    fun `clone_suffix_found evidence shows first matching package`() = runBlocking {
+-        val result = probe.run(fakeCtx(packages = listOf("com.example.app.dual")))
+-        val ev = result.evidence.first { it.key == "packages.clone_suffix_found" }
+-        assertEquals("com.example.app.dual", ev.value)
+-    }
+-
+-    // ── Probe metadata invariants ─────────────────────────────────────────────
+-
+-    @Test
+-    fun `probe id matches inventory entry`() {
+-        assertEquals("runtime.multi_instance", probe.id)
+-    }
+-
+-    @Test
+-    fun `probe rank is A17 N8 (68)`() {
+-        assertEquals(68, probe.rank)
+-        assertTrue(probe.rank in 61..71, "rank ${probe.rank} outside A17 reservation 61..71")
+-    }
+-
+-    @Test
+-    fun `probe budget within 5-second ceiling`() {
+-        assertTrue(probe.budgetMs <= 5000L)
+-    }
+-
+-    @Test
+-    fun `probe runtime fits within budget on clean fast path`() = runBlocking {
+-        val result = probe.run(fakeCtx())
+-        assertTrue(result.runtimeMs <= probe.budgetMs)
+-    }
+-
+-    @Test
+-    fun `probe is deterministic for identical input`() = runBlocking {
+-        val ctx = fakeCtx(userId = 10, packages = listOf("com.example.app.parallel"))
+-        val r1 = probe.run(ctx)
+-        val r2 = probe.run(ctx)
+-        assertEquals(r1.score, r2.score, 0.001)
+-        assertEquals(r1.confidence, r2.confidence, 0.001)
+-    }
+-
+-    // ── Failure path ──────────────────────────────────────────────────────────
+-
+-    @Test
+-    fun `throwing PackageManager surfaces as ProbeResult failed`() = runBlocking {
+-        val ctx = object : ProbeContext {
+-            override fun getSystemProperty(key: String): String? = null
+-            override fun fileExists(path: String) = false
+-            override fun readFile(path: String, maxBytes: Int): String? = null
+-            override fun querySettingSecure(key: String): String? = null
+-            override fun queryTelephonyManager(field: TelephonyField): String? = null
+-            override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
+-                override fun isPackageInstalled(packageName: String) = false
+-                override fun listInstalledPackages(): List<String> =
+-                    throw RuntimeException("pm exploded")
+-                override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+-            }
+-            override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
+-                override fun listSensorTypes() = emptyList<Int>()
+-                override fun sampleSensor(sensorType: Int, durationMs: Long) =
+-                    SensorSample(LongArray(0), emptyArray())
+-            }
+-            override fun queryKeyguardManager() = UnknownKeyguardManagerView
+-            override fun queryMediaProjectionManager() = UnknownMediaProjectionManagerView
+-        }
+-        val result = probe.run(ctx)
+-        assertTrue(result.failed)
+-        assertFalse(result.skipped)
+-        assertNotNull(result.failureReason)
+-        assertTrue(result.failureReason!!.contains("MultiInstanceProbe"))
+-    }
+-}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/ScreenRecordingProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/ScreenRecordingProbeTest.kt
+index 2273aac..4f5b27b 100644
+--- a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/ScreenRecordingProbeTest.kt
++++ b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/ScreenRecordingProbeTest.kt
+@@ -21,9 +21,10 @@ import kotlin.test.assertTrue
+  * Unit tests for ScreenRecordingProbe (CLO-8, A17 N10).
+  *
+  * Acceptance criteria:
+- *  (1) MediaProjectionManager callback (API 34+) and OnFrameCaptureListener
+- *      (API 35+) hooks are read; the API split is gated by `Build.VERSION.SDK_INT`.
+- *  (2) Pre-A14 (SDK_INT < 34) → `ProbeResult.skipped` with reason "api_too_low".
++ *  (1) Activity.registerScreenCaptureCallback (API 34+) and
++ *      WindowManager.addScreenRecordingCallback (API 35+) hooks are read; the
++ *      API split is gated by `Build.VERSION.SDK_INT`.
++ *  (2) Pre-A14 (SDK_INT < 34) -> `ProbeResult.skipped` with reason "api_too_low".
+  *      Never `unknown`, never `failed`.
+  *  (3) Smoke test: flipping `isMediaProjectionFrameCaptureActive()` from false
+  *      to true between two consecutive `probe.run()` calls — modelling the
+@@ -34,7 +35,7 @@ class ScreenRecordingProbeTest {
+ 
+     private val probe = ScreenRecordingProbe()
+ 
+-    // ── Fake context builder ──────────────────────────────────────────────────
++    // -- Fake context builder --------------------------------------------------
+ 
+     private class MutableMpmView(
+         var sdk: Int = 35,
+@@ -73,7 +74,7 @@ class ScreenRecordingProbeTest {
+         screenshotCapture: Boolean? = false,
+     ): ProbeContext = fakeCtx(MutableMpmView(sdk, frameCapture, screenshotCapture))
+ 
+-    // ── (2) Pre-A14 gating — must be skipped(api_too_low) ─────────────────────
++    // -- (2) Pre-A14 gating: must be skipped(api_too_low) ----------------------
+ 
+     @Test
+     fun `pre A14 (sdk 33) returns skipped with reason api_too_low`() = runBlocking {
+@@ -97,7 +98,7 @@ class ScreenRecordingProbeTest {
+ 
+     @Test
+     fun `pre A14 (sdk 0 = unknown view) returns skipped api_too_low`() = runBlocking {
+-        // UnknownMediaProjectionManagerView returns sdk=0 — this exercises the
++        // UnknownMediaProjectionManagerView returns sdk=0; this exercises the
+         // "consumer never overrode queryMediaProjectionManager()" code path.
+         val ctx = fakeCtx(UnknownMediaProjectionManagerView)
+         val result = probe.run(ctx)
+@@ -116,7 +117,7 @@ class ScreenRecordingProbeTest {
+         )
+     }
+ 
+-    // ── (1) API-34 gating — MediaProjectionManager only ───────────────────────
++    // -- (1) API-34 gating: screen-capture callback only -----------------------
+ 
+     @Test
+     fun `API 34 reads screen_capture_callback but not frame_capture`() = runBlocking {
+@@ -138,7 +139,33 @@ class ScreenRecordingProbeTest {
+             apiPath.contains("addScreenRecordingCallback"),
+             "API 34 api_path must not advertise the API-35-only addScreenRecordingCallback path",
+         )
+-        assertTrue(apiPath.contains("addScreenCaptureCallback"))
++        assertTrue(apiPath.contains("registerScreenCaptureCallback"))
++    }
++
++    @Test
++    fun `API 34 screenshot capture scores 0_50 without API 35 path`() = runBlocking {
++        for (spuriousFrameCapture in listOf<Boolean?>(null, true)) {
++            val result = probe.run(
++                ctxWith(
++                    sdk = 34,
++                    frameCapture = spuriousFrameCapture,
++                    screenshotCapture = true,
++                ),
++            )
++
++            assertFalse(result.failed)
++            assertFalse(result.skipped)
++            assertEquals(ScreenRecordingProbe.SCORE_SCREENSHOT_CAPTURE, result.score, 0.001)
++            assertEquals("unknown", result.evidence.first { it.key == "mediaProjection.frame_capture_active" }.value)
++            assertEquals(true, result.evidence.first { it.key == "window.screen_capture_callback_fired" }.value)
++
++            val apiPath = result.evidence.first { it.key == "api_path" }.value as String
++            assertFalse(
++                apiPath.contains("addScreenRecordingCallback"),
++                "API 34 api_path must not advertise API-35 recording callback for frameCapture=$spuriousFrameCapture",
++            )
++            assertTrue(apiPath.contains("registerScreenCaptureCallback"))
++        }
+     }
+ 
+     @Test
+@@ -155,7 +182,7 @@ class ScreenRecordingProbeTest {
+         assertEquals("unknown", ev.value)
+     }
+ 
+-    // ── (3) Smoke test — flip MediaProjection state across two runs ──────────
++    // -- (3) Smoke test: flip MediaProjection state across two runs ------------
+ 
+     @Test
+     fun `smoke test - launching createScreenCaptureIntent flips probe from clean to detected`() = runBlocking {
+@@ -168,8 +195,8 @@ class ScreenRecordingProbeTest {
+         assertFalse(before.failed)
+         assertEquals(0.0, before.score, 0.001, "clean baseline must be score 0.0")
+ 
+-        // Harness "launches" MediaProjection.createScreenCaptureIntent() →
+-        // WindowManager.ScreenRecordingCallback fires → frame-capture goes true.
++        // Harness "launches" MediaProjection.createScreenCaptureIntent() ->
++        // WindowManager.addScreenRecordingCallback fires -> frame-capture goes true.
+         view.frameCapture = true
+ 
+         val after = probe.run(ctx)
+@@ -185,7 +212,7 @@ class ScreenRecordingProbeTest {
+         )
+     }
+ 
+-    // ── Score table coverage ──────────────────────────────────────────────────
++    // -- Score table coverage --------------------------------------------------
+ 
+     @Test
+     fun `frame_capture active emits score 0_80`() = runBlocking {
+@@ -203,7 +230,7 @@ class ScreenRecordingProbeTest {
+     @Test
+     fun `both signals active scores as max not sum`() = runBlocking {
+         val result = probe.run(ctxWith(sdk = 35, frameCapture = true, screenshotCapture = true))
+-        // max(0.80, 0.50) = 0.80 — these surfaces are correlated, NOT independent.
++        // max(0.80, 0.50) = 0.80; these surfaces are correlated, not independent.
+         assertEquals(ScreenRecordingProbe.SCORE_FRAME_CAPTURE, result.score, 0.001)
+     }
+ 
+@@ -225,11 +252,11 @@ class ScreenRecordingProbeTest {
+         assertEquals(0.0, cleanA15.score, 0.001)
+         assertTrue(
+             cleanA14.confidence < cleanA15.confidence,
+-            "API 34 is blind to live recording — its clean-negative confidence must be < API 35; got ${cleanA14.confidence} vs ${cleanA15.confidence}",
++            "API 34 is blind to live recording; its clean-negative confidence must be < API 35; got ${cleanA14.confidence} vs ${cleanA15.confidence}",
+         )
+     }
+ 
+-    // ── Evidence schema ───────────────────────────────────────────────────────
++    // -- Evidence schema -------------------------------------------------------
+ 
+     @Test
+     fun `evidence reports all schema-stable keys regardless of API level`() = runBlocking {
+@@ -265,11 +292,11 @@ class ScreenRecordingProbeTest {
+         assertFalse(a14.contains("addScreenRecordingCallback"))
+         assertTrue(a15.contains("addScreenRecordingCallback"))
+         // Both must advertise the API-34 callback.
+-        assertTrue(a14.contains("addScreenCaptureCallback"))
+-        assertTrue(a15.contains("addScreenCaptureCallback"))
++        assertTrue(a14.contains("registerScreenCaptureCallback"))
++        assertTrue(a15.contains("registerScreenCaptureCallback"))
+     }
+ 
+-    // ── Failure path ──────────────────────────────────────────────────────────
++    // -- Failure path ----------------------------------------------------------
+ 
+     @Test
+     fun `throwing view surfaces as ProbeResult failed (not skipped)`() = runBlocking {
+@@ -286,7 +313,7 @@ class ScreenRecordingProbeTest {
+         assertTrue(result.failureReason!!.contains("ScreenRecordingProbe"))
+     }
+ 
+-    // ── Default UnknownMediaProjectionManagerView contract ────────────────────
++    // -- Default UnknownMediaProjectionManagerView contract --------------------
+ 
+     @Test
+     fun `UnknownMediaProjectionManagerView returns null for both signals`() {
+@@ -296,7 +323,7 @@ class ScreenRecordingProbeTest {
+         assertNull(v.isMediaProjectionFrameCaptureActive())
+     }
+ 
+-    // ── Probe metadata invariants ─────────────────────────────────────────────
++    // -- Probe metadata invariants --------------------------------------------
+ 
+     @Test
+     fun `probe id matches inventory entry`() {
+diff --git a/agents/orchestrator/README.md b/agents/orchestrator/README.md
+index 0132569..86f5789 100644
+--- a/agents/orchestrator/README.md
++++ b/agents/orchestrator/README.md
+@@ -39,8 +39,9 @@ matrix.plan → for each cell:
+ 
+ ## Status
+ 
+-**SPEC-only.** The actual Python implementation is not written yet.
+-SPEC.md describes the 10 modules:
++The canonical `runner journal` interface is implemented and backed by
++`results/journal.sqlite`. The rest of the Python runner remains SPEC-only.
++SPEC.md describes the full 10-module target:
+ 
+ 1. `runner.py` — Typer CLI entry point
+ 2. `config_loader.py` — YAML + JSON-Schema validation
+diff --git a/agents/stability/stack/compose/L0a.yml b/agents/stability/stack/compose/L0a.yml
+index 1464e10..38994e1 100644
+--- a/agents/stability/stack/compose/L0a.yml
++++ b/agents/stability/stack/compose/L0a.yml
+@@ -18,7 +18,7 @@
+ #   2. ✅ No forbidden keys. Grep audit (must return zero matches against this file):
+ #         rg -nE '(privileged:\s*(true|yes)|cap_add:.*\b(SYS_ADMIN|ALL)\b|pid:\s*host|network:\s*host|ipc:\s*host|userns_mode:\s*host|/var/run/docker\.sock|:/host\b)'
+ #   3. ✅ `cap_drop: [ALL]` on every service.
+-#   4. ✅ `security_opt` includes `seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json`.
++#   4. ✅ `security_opt` includes `seccomp=../seccomp/redroid-seccomp.json`.
+ #   5. ✅ `security_opt` includes `no-new-privileges:true`.
+ #   6. ✅ Image pinned by @sha256 digest from ../image-pins.yml::redroid_12_64only.
+ #
+@@ -69,7 +69,7 @@ x-l0a-hardening: &l0a-hardening
+     # NOTE: docker security_opt is KEY=VALUE; the seccomp profile MUST use `=`
+     # not `:`. The refuse-privileged-compose grep treats `seccomp:` as a
+     # missing profile.
+-    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
++    - "seccomp=../seccomp/redroid-seccomp.json"
+     # AppArmor default-docker blocks bind-mounts inside the container even
+     # when full caps are dropped; unconfined here is equivalent in scope to
+     # the cap_drop=ALL container above (a strictly safer posture than the
+@@ -124,11 +124,22 @@ services:
+ 
+     # ReDroid kernel-feature passthrough. No `privileged` shortcut; explicit
+     # device entries only.
++    #
++    # On modern Linux (kernel >= 5.4 with CONFIG_ANDROID_BINDERFS=y), the
++    # binder devices live under binderfs, not as legacy /dev/binder* nodes.
++    # The host MUST `mount -t binder none /dev/binderfs` and pre-create the
++    # three binder devices via the binder-control BINDER_CTL_ADD ioctl before
++    # docker compose up. (See agents/stability/stack/bootstrap.sh for the
++    # host-preflight script.) The host-source path /dev/binderfs/<name>
++    # below is bind-mounted INTO the container as /dev/<name> so ReDroid's
++    # init.rc sees the legacy paths it expects.
++    #
++    # ashmem: removed in kernel 5.18+. ReDroid 12 falls back to memfd
++    # automatically when /dev/ashmem is absent — no mapping required.
+     devices:
+-      - /dev/binder:/dev/binder
+-      - /dev/hwbinder:/dev/hwbinder
+-      - /dev/vndbinder:/dev/vndbinder
+-      - /dev/ashmem:/dev/ashmem
++      - /dev/binderfs/binder:/dev/binder
++      - /dev/binderfs/hwbinder:/dev/hwbinder
++      - /dev/binderfs/vndbinder:/dev/vndbinder
+ 
+     ports:
+       # ADB bound to host loopback ONLY — never 0.0.0.0. The detection
+diff --git a/agents/stability/stack/compose/L1.compose.yml b/agents/stability/stack/compose/L1.compose.yml
+index f67a8c0..0ed0520 100644
+--- a/agents/stability/stack/compose/L1.compose.yml
++++ b/agents/stability/stack/compose/L1.compose.yml
+@@ -21,7 +21,7 @@
+ #          rg -nE '(privileged:\s*(true|yes)|cap_add:.*SYS_ADMIN|pid:\s*host|network:\s*host|ipc:\s*host|userns_mode:\s*host|/var/run/docker\.sock|:/host)'
+ #      MUST return zero matches against this file.
+ #   3. ✅ `cap_drop: [ALL]` present on every service.
+-#   4. ✅ `security_opt: ["seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"]` present.
++#   4. ✅ `security_opt: ["seccomp=../seccomp/redroid-seccomp.json"]` present.
+ #   5. ✅ `security_opt: ["no-new-privileges:true"]` present.
+ #   6. ✅ Image referenced via @sha256 digest pinned in stack/image-pins.yml
+ #      (redroid_12_64only.digest_amd64).
+@@ -91,15 +91,17 @@ x-redroid-l1-base: &redroid-l1-base
+   # ---------- Sandbox hardening ----------
+   security_opt:
+     - "no-new-privileges:true"
+-    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
++    - "seccomp=../seccomp/redroid-seccomp.json"
+     - "apparmor=unconfined"
+ 
+-  # ---------- Binder + ashmem device passthrough (no privileged needed) ----------
++  # ---------- Binder device passthrough (no privileged needed) ----------
++  # Host MUST mount binderfs at /dev/binderfs and pre-create binder/hwbinder/
++  # vndbinder devices via the binder-control BINDER_CTL_ADD ioctl before
++  # docker compose up. ashmem removed in kernel 5.18+; ReDroid memfd-fallbacks.
+   devices:
+-    - /dev/binder:/dev/binder
+-    - /dev/hwbinder:/dev/hwbinder
+-    - /dev/vndbinder:/dev/vndbinder
+-    - /dev/ashmem:/dev/ashmem
++    - /dev/binderfs/binder:/dev/binder
++    - /dev/binderfs/hwbinder:/dev/hwbinder
++    - /dev/binderfs/vndbinder:/dev/vndbinder
+ 
+   # ---------- Resource bounds (CAX41-class sizing per cell) ----------
+   deploy:
+@@ -159,7 +161,9 @@ services:
+     container_name: "redroid-l1-cpuinfo-cell0"
+     hostname: "cell0"
+     ports:
+-      - "5555:5555"   # adb
++      # ADB bound to host loopback ONLY — never 0.0.0.0. Detection oracle
++      # adb-connects via 127.0.0.1:15555.
++      - "127.0.0.1:15555:5555"
+     volumes:
+       # Pre-stage the cpuinfo-overlay Magisk module so it is picked up by
+       # Magisk's module loader on first boot. The host path is a read-only
+@@ -185,7 +189,7 @@ services:
+     container_name: "redroid-l1-cpuinfo-cell1"
+     hostname: "cell1"
+     ports:
+-      - "5556:5555"
++      - "127.0.0.1:15556:5555"
+     volumes:
+       - "../modules/cpuinfo-overlay:/data/adb/modules/cpuinfo-overlay:ro"
+       - "./results/cell1:/opt/research/results:rw"
+@@ -206,7 +210,7 @@ services:
+     container_name: "redroid-l1-cpuinfo-cell2"
+     hostname: "cell2"
+     ports:
+-      - "5557:5555"
++      - "127.0.0.1:15557:5555"
+     volumes:
+       - "../modules/cpuinfo-overlay:/data/adb/modules/cpuinfo-overlay:ro"
+       - "./results/cell2:/opt/research/results:rw"
+diff --git a/agents/stability/stack/seccomp/redroid-seccomp.json b/agents/stability/stack/seccomp/redroid-seccomp.json
+index 64de20b..41a6be1 100644
+--- a/agents/stability/stack/seccomp/redroid-seccomp.json
++++ b/agents/stability/stack/seccomp/redroid-seccomp.json
+@@ -67,7 +67,7 @@
+         "newfstatat", "_newselect", "open", "openat", "openat2",
+         "pause", "pidfd_open", "pidfd_send_signal", "pipe", "pipe2",
+         "pkey_alloc", "pkey_free", "pkey_mprotect", "poll", "ppoll",
+-        "ppoll_time64", "prctl", "pread64", "preadv", "preadv2",
++        "ppoll_time64", "prctl", "arch_prctl", "pread64", "preadv", "preadv2",
+         "prlimit64", "process_mrelease", "pselect6", "pselect6_time64",
+         "pwrite64", "pwritev", "pwritev2", "read", "readahead",
+         "readlink", "readlinkat", "readv", "recv", "recvfrom",
+diff --git a/apps/detector-lab/README.md b/apps/detector-lab/README.md
+index f54f476..d1404e7 100644
+--- a/apps/detector-lab/README.md
++++ b/apps/detector-lab/README.md
+@@ -12,7 +12,7 @@ end-to-end without any manual `adb` invocation.
+ |---|---|
+ | `scripts/droidrun-cell.sh` | one-cell driver — calls droidrun, runs the probe plan, writes schema-v2 JSON |
+ | `scripts/probe_emit.py` | normalises raw probe output into a `shared/probe-schema.v2.json` record |
+-| `scripts/probe-plan.json` | default 3-probe smoke plan (auto-generated on first run) |
++| `scripts/probe-plan.json` | default 4-probe smoke plan (auto-generated on first run) |
+ | `examples/probe-result.fixture.json` | reference schema-v2 record for CI / docs |
+ | `out/matrix/` | per-cell output (gitignored; only `.gitkeep` is committed) |
+ 
+@@ -62,7 +62,8 @@ The script:
+ 
+ 1. Validates that `droidrun`, `python3`, and `jq` are on `PATH`
+    (`droidrun` check is skipped under `--dry-run`).
+-2. Reads the probe plan (default 3 probes; override with `--plan`).
++2. Reads the probe plan (default 4 probes; override with `--plan`, or
++   restrict to one entry with `--probe <id>`).
+ 3. For each probe, invokes `droidrun adb -s <serial> shell <cmd>` with a
+    per-probe timeout (default 180s, override with `--timeout`).
+ 4. Pipes the raw stdout through `probe_emit.py`, which builds a record that
+@@ -90,6 +91,24 @@ print('ok')
+ "
+ ```
+ 
++### Single-probe runs (G-LIVE-300 dual-loop verifier)
++
++`--probe <id>` restricts the cell to a single plan entry. The full schema-v2
++JSON array (length 1) is also written to stdout, so the dual-loop verifier
++can pipe it without re-reading the cell file. Stderr keeps the human log:
++
++```bash
++bash apps/detector-lab/scripts/droidrun-cell.sh \
++  --cell pixel7-a14 \
++  --probe kernel.cpuinfo_bogomips \
++  --dry-run \
++  | jq '.[0].probe_id'
++# -> "kernel.cpuinfo_bogomips"
++```
++
++Unknown `--probe` ids fail fast with a non-zero exit and a `not found in
++plan` message.
++
+ ## 4. Authoring a probe plan
+ 
+ The plan is a JSON array of objects with seven keys:
+diff --git a/apps/detector-lab/scripts/droidrun-cell.sh b/apps/detector-lab/scripts/droidrun-cell.sh
+index 92bc5f1..cd81bc9 100755
+--- a/apps/detector-lab/scripts/droidrun-cell.sh
++++ b/apps/detector-lab/scripts/droidrun-cell.sh
+@@ -41,6 +41,7 @@ dry_run=0
+ keep_partial=0
+ timeout_sec="${DROIDRUN_TIMEOUT:-180}"
+ plan_path="${PROBE_PLAN}"
++probe_filter=""
+ 
+ log() { printf '[droidrun-cell] %s\n' "$*" >&2; }
+ die() { printf '[droidrun-cell] FATAL: %s\n' "$*" >&2; exit 1; }
+@@ -57,6 +58,11 @@ Options:
+   --out-dir <path>           output dir (default: apps/detector-lab/out/matrix)
+   --plan <path>              probe plan JSON
+                              (default: apps/detector-lab/scripts/probe-plan.json)
++  --probe <id>               run only the single probe with this probe_id
++                             (must exist in the plan). The resulting schema-v2
++                             JSON array is also written to stdout so callers
++                             like the G-LIVE-300 dual-loop verifier can pipe
++                             it without re-reading the cell output file.
+   --droidrun-pin <spec>      override version spec for `droidrun --version`
+                              check (default: 0.4.*)
+   --timeout <seconds>        per-probe droidrun timeout (default: 180)
+@@ -72,6 +78,7 @@ must pass on every file produced.
+ Examples:
+   droidrun-cell.sh --cell pixel8-a15 --adb-serial emulator-5554
+   droidrun-cell.sh --cell pixel8-a15 --dry-run
++  droidrun-cell.sh --cell pixel7-a14 --probe kernel.cpuinfo_bogomips --dry-run
+ EOF
+ }
+ 
+@@ -81,6 +88,7 @@ while [[ $# -gt 0 ]]; do
+     --adb-serial)   adb_serial="$2"; shift 2 ;;
+     --out-dir)      out_dir="$2"; shift 2 ;;
+     --plan)         plan_path="$2"; shift 2 ;;
++    --probe)        probe_filter="$2"; shift 2 ;;
+     --droidrun-pin) DROIDRUN_PIN="$2"; shift 2 ;;
+     --timeout)      timeout_sec="$2"; shift 2 ;;
+     --keep-partial) keep_partial=1; shift ;;
+@@ -107,12 +115,18 @@ fi
+ mkdir -p "${out_dir}"
+ final_path="${out_dir}/${cell}.json"
+ partial_path="${out_dir}/${cell}.partial.json"
+-trap '[[ "${keep_partial}" -eq 1 ]] || rm -f "${partial_path}"' EXIT
++tmp_files=()
++cleanup() {
++  [[ "${keep_partial}" -eq 1 ]] || rm -f "${partial_path}"
++  [[ "${#tmp_files[@]}" -gt 0 ]] && rm -f "${tmp_files[@]}"
++  return 0
++}
++trap cleanup EXIT
+ 
+ # Bootstrap default probe plan if the user did not supply one. The plan stays
+ # small and probe-id-stable so that CI's schema-v2 gate can pin fixtures.
+ if [[ ! -f "${plan_path}" ]]; then
+-  log "no plan at ${plan_path}; writing default 3-probe plan"
++  log "no plan at ${plan_path}; writing default 4-probe plan"
+   cat >"${plan_path}" <<'PLAN'
+ [
+   {
+@@ -141,6 +155,15 @@ if [[ ! -f "${plan_path}" ]]; then
+     "command": "pm list packages | grep -E 'magisk|lsposed|xposed|riru|zygisk' || echo CLEAN",
+     "scoring": "negated_clean",
+     "score_pattern": "CLEAN"
++  },
++  {
++    "probe_id": "kernel.cpuinfo_bogomips",
++    "probe_name": "CpuInfoBogomipsProbe",
++    "category": "emulator",
++    "layer": "L1",
++    "command": "cat /proc/cpuinfo | grep -iE 'bogomips|implementer|features|vendor_id'",
++    "scoring": "regex_match",
++    "score_pattern": "vendor_id|BogoMIPS\\s*:\\s*([0-9]{0,2}\\.[0-9]+|[0-9]{4,})"
+   }
+ ]
+ PLAN
+@@ -165,6 +188,12 @@ run_probe_dry() {
+       printf 'mt6985\n\n' ;;  # ro.kernel.qemu empty, no /dev/qemu_pipe
+     runtime.installed_apps)
+       printf 'CLEAN\n' ;;
++    kernel.cpuinfo_bogomips)
++      # Cortex-A78-class baseline aligned with CLO-27 proposal 019e2f12.
++      # The BogoMIPS value here (38.40) is the "leak" host-like number from
++      # mutations/proposals/019e2f12-...json; the regex in the plan flags it
++      # so dry-run scoring still exercises score_from_raw end-to-end.
++      printf 'processor\t: 0\nBogoMIPS\t: 38.40\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32\nCPU implementer\t: 0x41\nCPU architecture: 8\nCPU variant\t: 0x1\nCPU part\t: 0xd49\n' ;;
+     *)
+       printf '{"dry":true,"probe":"%s"}\n' "${pid}" ;;
+   esac
+@@ -182,6 +211,26 @@ score_from_raw() {
+   esac
+ }
+ 
++# --probe <id> filters the plan down to a single entry whose probe_id matches.
++# Used by the G-LIVE-300 dual-loop verifier to exercise one probe in isolation
++# without editing the shared plan or running the full battery. Fails fast if
++# the id is absent or appears more than once.
++if [[ -n "${probe_filter}" ]]; then
++  filtered_plan="$(mktemp -t droidrun-cell.plan.XXXXXX.json)"
++  tmp_files+=("${filtered_plan}")
++  jq --arg pid "${probe_filter}" \
++    '[.[] | select(.probe_id == $pid)]' \
++    "${plan_path}" >"${filtered_plan}" \
++    || die "failed to filter ${plan_path} by probe_id=${probe_filter}"
++  match_count=$(jq 'length' "${filtered_plan}")
++  case "${match_count}" in
++    0) die "probe_id=${probe_filter} not found in plan ${plan_path}" ;;
++    1) ;;
++    *) die "probe_id=${probe_filter} matched ${match_count} entries in ${plan_path}; expected exactly 1" ;;
++  esac
++  plan_path="${filtered_plan}"
++fi
++
+ # Stream records into <cell>.partial.json, then promote to <cell>.json on
+ # successful completion of every probe. `partial` is a JSON array assembled by
+ # jq so we never write malformed JSON if a probe is killed mid-way.
+@@ -190,7 +239,7 @@ echo '[]' >"${partial_path}"
+ probe_count=$(jq 'length' "${plan_path}")
+ [[ "${probe_count}" -gt 0 ]] || die "probe plan ${plan_path} is empty"
+ 
+-log "cell=${cell} probes=${probe_count} dry_run=${dry_run} out=${final_path}"
++log "cell=${cell} probes=${probe_count} dry_run=${dry_run} probe_filter=${probe_filter:-<none>} out=${final_path}"
+ 
+ for idx in $(seq 0 $((probe_count - 1))); do
+   probe_json=$(jq ".[$idx]" "${plan_path}")
+@@ -236,3 +285,11 @@ done
+ 
+ mv "${partial_path}" "${final_path}"
+ log "wrote ${final_path} ($(jq 'length' "${final_path}") records)"
++
++# When --probe is in effect, also stream the final JSON array on stdout so
++# callers (G-LIVE-300 dual-loop verifier, ad-hoc shell pipes) can read it
++# without re-opening <cell>.json. Stderr is reserved for logs, so the stdout
++# byte stream remains a single valid JSON document.
++if [[ -n "${probe_filter}" ]]; then
++  cat "${final_path}"
++fi
+diff --git a/apps/detector-lab/scripts/probe-plan.json b/apps/detector-lab/scripts/probe-plan.json
+index 5266599..bf322bc 100644
+--- a/apps/detector-lab/scripts/probe-plan.json
++++ b/apps/detector-lab/scripts/probe-plan.json
+@@ -25,5 +25,14 @@
+     "command": "pm list packages | grep -E 'magisk|lsposed|xposed|riru|zygisk' || echo CLEAN",
+     "scoring": "negated_clean",
+     "score_pattern": "CLEAN"
++  },
++  {
++    "probe_id": "kernel.cpuinfo_bogomips",
++    "probe_name": "CpuInfoBogomipsProbe",
++    "category": "emulator",
++    "layer": "L1",
++    "command": "cat /proc/cpuinfo | grep -iE 'bogomips|implementer|features|vendor_id'",
++    "scoring": "regex_match",
++    "score_pattern": "vendor_id|BogoMIPS\\s*:\\s*([0-9]{0,2}\\.[0-9]+|[0-9]{4,})"
+   }
+ ]

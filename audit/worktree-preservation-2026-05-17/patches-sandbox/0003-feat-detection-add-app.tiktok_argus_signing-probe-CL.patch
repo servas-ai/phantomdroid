@@ -1,0 +1,432 @@
+From a6c314b10f9df3278ae59c6bf642d483d45ae005 Mon Sep 17 00:00:00 2001
+From: vibecode-vm <vcvm@servas.ai>
+Date: Sat, 16 May 2026 06:51:03 +0200
+Subject: [PATCH 3/3] feat(detection): add app.tiktok_argus_signing probe
+ (CLO-19)
+
+Detects TikTok Argus request-signing SDK via passive native library
+presence check. Ships versions.json offset table with fragility warning
+(only v5.4.1 offset 0x88ee0 arm64 validated). Probe is RUNTIME/HIGH,
+rank 66, budget 2000ms.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ .../main/assets/tiktok_argus_versions.json    |  47 ++++
+ .../src/probes/app/TikTokArgusSigningProbe.kt | 116 ++++++++++
+ .../probes/app/TikTokArgusSigningProbeTest.kt | 208 ++++++++++++++++++
+ shared/probes/inventory.yml                   |  10 +
+ 4 files changed, 381 insertions(+)
+ create mode 100644 agents/detection/src/main/assets/tiktok_argus_versions.json
+ create mode 100644 agents/detection/src/probes/app/TikTokArgusSigningProbe.kt
+ create mode 100644 agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/TikTokArgusSigningProbeTest.kt
+
+diff --git a/agents/detection/src/main/assets/tiktok_argus_versions.json b/agents/detection/src/main/assets/tiktok_argus_versions.json
+new file mode 100644
+index 0000000..545b5d2
+--- /dev/null
++++ b/agents/detection/src/main/assets/tiktok_argus_versions.json
+@@ -0,0 +1,47 @@
++{
++  "schema": "tiktok-argus-versions/1",
++  "note": "ELF offset of the X-Argus signing entry point inside libmetasec_ov.so (arm64). Offsets change with every TikTok release and MUST be re-derived via static analysis (readelf -s / objdump / Ghidra) before use. Only entries marked validated=true have been confirmed against a real APK.",
++  "fragility": "HIGH",
++  "versions": {
++    "5.4.1": {
++      "arch": "arm64",
++      "lib": "libmetasec_ov.so",
++      "offset": "0x88ee0",
++      "symbol_hint": "sub_88ee0",
++      "validated": true,
++      "notes": "Baseline reference. Validated against com.zhiliaoapp.musically 5.4.1 APK."
++    },
++    "5.5.0": {
++      "arch": "arm64",
++      "lib": "libmetasec_ov.so",
++      "offset": "unknown",
++      "symbol_hint": null,
++      "validated": false,
++      "notes": "Re-derive required. Use readelf --syms or Ghidra auto-analysis starting from 0x88ee0 ± 0x4000."
++    },
++    "5.6.0": {
++      "arch": "arm64",
++      "lib": "libmetasec_ov.so",
++      "offset": "unknown",
++      "symbol_hint": null,
++      "validated": false,
++      "notes": "Re-derive required."
++    },
++    "6.x": {
++      "arch": "arm64",
++      "lib": "libmetasec_ov.so",
++      "offset": "unknown",
++      "symbol_hint": null,
++      "validated": false,
++      "notes": "Major version boundary — Argus SDK was likely upgraded; expect non-trivial offset delta."
++    }
++  },
++  "re_derive_procedure": [
++    "1. Unpack the target APK: apktool d com.zhiliaoapp.musically-<ver>.apk",
++    "2. Locate libmetasec_ov.so under lib/arm64-v8a/",
++    "3. Run: readelf -s libmetasec_ov.so | grep -i 'argus\\|sign\\|compute_x'",
++    "4. If stripped: open in Ghidra, search for cross-references to 'X-Argus' string literal",
++    "5. Record the resolved offset and set validated=true in this table",
++    "6. Update TikTokArgusSigningProbe.VALIDATED_OFFSET_V541 companion constant if replacing the baseline"
++  ]
++}
+diff --git a/agents/detection/src/probes/app/TikTokArgusSigningProbe.kt b/agents/detection/src/probes/app/TikTokArgusSigningProbe.kt
+new file mode 100644
+index 0000000..a484d97
+--- /dev/null
++++ b/agents/detection/src/probes/app/TikTokArgusSigningProbe.kt
+@@ -0,0 +1,116 @@
++package com.example.detectorlab.probes.app
++
++import com.example.detectorlab.core.AndroidLayer
++import com.example.detectorlab.core.Evidence
++import com.example.detectorlab.core.Probe
++import com.example.detectorlab.core.ProbeCategory
++import com.example.detectorlab.core.ProbeContext
++import com.example.detectorlab.core.ProbeResult
++import com.example.detectorlab.core.ProbeSeverity
++
++/**
++ * Probe — app.tiktok_argus_signing (CLO-19, L4 + L6)
++ *
++ * Detects the Argus request-signing stack that TikTok embeds for anti-tamper and
++ * anti-bot protection. The signing chain is:
++ *
++ *   1. `libsscronet.so`      — TikTok's forked Chromium net stack (load-time marker)
++ *   2. `libmetasec_ov.so`    — Argus SDK native core; houses the X-Argus generator
++ *                              at a version-specific ELF offset (see versions.json).
++ *
++ * Acceptance criteria (CLO-19):
++ *   A. Detects `libsscronet.so` installed under the target package's lib directory.
++ *   B. Detects `libmetasec_ov.so` alongside it; documents offset `0x88ee0` for v5.4.1.
++ *   C. Passive only — no execution of TikTok code, no network requests.
++ *   D. Ships `tiktok_argus_versions.json` (asset) as a version-keyed offset table with
++ *      a fragility warning for every un-validated entry.
++ *
++ * Fragility note:
++ *   The `libmetasec_ov.so` signing function offset changes with every TikTok release.
++ *   Only v5.4.1 (offset 0x88ee0, arm64) has been manually validated. All other entries
++ *   in `tiktok_argus_versions.json` are placeholders and must be re-derived via static
++ *   analysis (`readelf -s / objdump`) before use.
++ *
++ * Score table:
++ *   Both libs present → 0.85  (Argus SDK confirmed; emulator is detectable)
++ *   One lib present   → 0.55  (partial — degraded or stripped APK variant)
++ *   TikTok installed but libs not visible → 0.10  (path mismatch / permission)
++ *   TikTok not installed → skipped
++ */
++class TikTokArgusSigningProbe : Probe {
++    override val id = "app.tiktok_argus_signing"
++    override val rank = RANK
++    override val category = ProbeCategory.RUNTIME
++    override val severity = ProbeSeverity.HIGH
++    override val androidLayer = AndroidLayer.APPLICATION
++    override val budgetMs = 2000L
++
++    companion object {
++        const val RANK = 66
++
++        val TIKTOK_PACKAGES = listOf(
++            "com.zhiliaoapp.musically",   // global TikTok
++            "com.ss.android.ugc.tiktok",  // CN / Douyin variant
++        )
++
++        val NATIVE_ARCHS = listOf("arm64", "arm", "x86_64", "x86")
++
++        // v5.4.1 validated offset; all others are undetermined until re-derived.
++        const val VALIDATED_OFFSET_V541 = "0x88ee0"
++        const val VERSIONS_ASSET = "tiktok_argus_versions.json"
++    }
++
++    override suspend fun run(ctx: ProbeContext): ProbeResult {
++        val start = System.currentTimeMillis()
++        return try {
++            val pm = ctx.queryPackageManager()
++
++            val installedPkg = TIKTOK_PACKAGES.firstOrNull { pm.isPackageInstalled(it) }
++                ?: return ProbeResult.skipped(
++                    "TikTok not installed (checked: ${TIKTOK_PACKAGES.joinToString()})",
++                    runtimeMs = System.currentTimeMillis() - start,
++                )
++
++            val evidence = mutableListOf<Evidence>()
++            evidence += Evidence("tiktok.package", installedPkg)
++
++            // Paths follow the standard AOSP data/app layout; slot suffix -1 / -2 covers
++            // typical install variants. We check both to avoid false-negative on re-installs.
++            val libDirs = NATIVE_ARCHS.flatMap { arch ->
++                listOf(1, 2).map { slot -> "/data/app/$installedPkg-$slot/lib/$arch" }
++            }
++
++            val sscronetFound = libDirs.any { ctx.fileExists("$it/libsscronet.so") }
++            val metasecFound  = libDirs.any { ctx.fileExists("$it/libmetasec_ov.so") }
++
++            evidence += Evidence("tiktok.libsscronet_present",  sscronetFound, expected = true)
++            evidence += Evidence("tiktok.libmetasec_ov_present", metasecFound,  expected = true)
++
++            // Document the validated offset and fragility warning (AC-B / AC-D).
++            evidence += Evidence("tiktok.argus_offset_v5_4_1",  VALIDATED_OFFSET_V541)
++            evidence += Evidence("tiktok.offset_fragility",
++                "offset changes per TikTok release; only v5.4.1 validated")
++            evidence += Evidence("tiktok.versions_table", VERSIONS_ASSET)
++
++            val score = when {
++                sscronetFound && metasecFound -> 0.85
++                sscronetFound || metasecFound -> 0.55
++                else -> 0.10
++            }
++            val confidence = if (sscronetFound || metasecFound) 0.90 else 0.40
++
++            ProbeResult(
++                score = score,
++                confidence = confidence,
++                evidence = evidence,
++                method = "PackageManager.isPackageInstalled + /data/app/<pkg>-N/lib/<arch>/ native library presence check",
++                runtimeMs = System.currentTimeMillis() - start,
++            )
++        } catch (e: Throwable) {
++            ProbeResult.failed(
++                "TikTokArgusSigningProbe: ${e.message ?: e.javaClass.simpleName}",
++                runtimeMs = System.currentTimeMillis() - start,
++            )
++        }
++    }
++}
+diff --git a/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/TikTokArgusSigningProbeTest.kt b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/TikTokArgusSigningProbeTest.kt
+new file mode 100644
+index 0000000..fbeb334
+--- /dev/null
++++ b/agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/TikTokArgusSigningProbeTest.kt
+@@ -0,0 +1,208 @@
++package com.example.detectorlab.probes.app
++
++import com.example.detectorlab.core.KeyguardManagerView
++import com.example.detectorlab.core.PackageManagerView
++import com.example.detectorlab.core.ProbeCategory
++import com.example.detectorlab.core.ProbeContext
++import com.example.detectorlab.core.SensorManagerView
++import com.example.detectorlab.core.SensorSample
++import com.example.detectorlab.core.TelephonyField
++import com.example.detectorlab.core.UnknownKeyguardManagerView
++import com.example.detectorlab.core.UnknownWifiManagerView
++import com.example.detectorlab.core.WifiManagerView
++import kotlinx.coroutines.runBlocking
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertFalse
++import kotlin.test.assertNotNull
++import kotlin.test.assertTrue
++
++/**
++ * Unit tests for TikTokArgusSigningProbe (CLO-19).
++ *
++ * Covers all four scoring branches, the skipped-when-not-installed path,
++ * evidence completeness, and probe metadata invariants.
++ */
++class TikTokArgusSigningProbeTest {
++
++    private val probe = TikTokArgusSigningProbe()
++
++    private fun fakeCtx(
++        installedPackages: Set<String> = emptySet(),
++        existingFiles: Set<String> = emptySet(),
++    ): ProbeContext = object : ProbeContext {
++        override fun getSystemProperty(key: String): String? = null
++        override fun fileExists(path: String): Boolean = path in existingFiles
++        override fun readFile(path: String, maxBytes: Int): String? = null
++        override fun querySettingSecure(key: String): String? = null
++        override fun queryTelephonyManager(field: TelephonyField): String? = null
++        override fun queryPackageManager(): PackageManagerView = object : PackageManagerView {
++            override fun isPackageInstalled(packageName: String) = packageName in installedPackages
++            override fun listInstalledPackages() = installedPackages.toList()
++            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
++        }
++        override fun querySensorManager(): SensorManagerView = object : SensorManagerView {
++            override fun listSensorTypes() = emptyList<Int>()
++            override fun sampleSensor(sensorType: Int, durationMs: Long) =
++                SensorSample(LongArray(0), emptyArray())
++        }
++        override fun queryKeyguardManager(): KeyguardManagerView = UnknownKeyguardManagerView
++        override fun queryWifiManager(): WifiManagerView = UnknownWifiManagerView
++    }
++
++    // ── Skipped when TikTok not installed ────────────────────────────────────
++
++    @Test
++    fun `skipped when TikTok not installed`() = runBlocking {
++        val result = probe.run(fakeCtx())
++        assertTrue(result.skipped, "expected skipped, got failed=${result.failed} reason=${result.failureReason}")
++        assertEquals(0.0, result.score, 0.001)
++        assertEquals(0.0, result.confidence, 0.001)
++    }
++
++    @Test
++    fun `skipped message references both checked package names`() = runBlocking {
++        val result = probe.run(fakeCtx())
++        assertNotNull(result.failureReason)
++        assertTrue(result.failureReason!!.contains("com.zhiliaoapp.musically"))
++        assertTrue(result.failureReason!!.contains("com.ss.android.ugc.tiktok"))
++    }
++
++    // ── Score branches ───────────────────────────────────────────────────────
++
++    @Test
++    fun `score 0_85 when both libsscronet and libmetasec_ov present`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf(
++                "/data/app/$pkg-1/lib/arm64/libsscronet.so",
++                "/data/app/$pkg-1/lib/arm64/libmetasec_ov.so",
++            ),
++        ))
++        assertFalse(result.failed)
++        assertEquals(0.85, result.score, 0.001)
++        assertEquals(0.90, result.confidence, 0.001)
++    }
++
++    @Test
++    fun `score 0_55 when only libsscronet present`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf("/data/app/$pkg-1/lib/arm64/libsscronet.so"),
++        ))
++        assertEquals(0.55, result.score, 0.001)
++        assertEquals(0.90, result.confidence, 0.001)
++    }
++
++    @Test
++    fun `score 0_55 when only libmetasec_ov present`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf("/data/app/$pkg-1/lib/arm64/libmetasec_ov.so"),
++        ))
++        assertEquals(0.55, result.score, 0.001)
++    }
++
++    @Test
++    fun `score 0_10 when TikTok installed but native libs not visible`() = runBlocking {
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf("com.zhiliaoapp.musically"),
++        ))
++        assertFalse(result.failed)
++        assertEquals(0.10, result.score, 0.001)
++        assertEquals(0.40, result.confidence, 0.001)
++    }
++
++    // ── CN package variant ───────────────────────────────────────────────────
++
++    @Test
++    fun `detects CN Douyin variant package`() = runBlocking {
++        val pkg = "com.ss.android.ugc.tiktok"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf(
++                "/data/app/$pkg-1/lib/arm64/libsscronet.so",
++                "/data/app/$pkg-1/lib/arm64/libmetasec_ov.so",
++            ),
++        ))
++        assertEquals(0.85, result.score, 0.001)
++        assertEquals(pkg, result.evidence.first { it.key == "tiktok.package" }.value)
++    }
++
++    // ── lib slot -2 fallback ────────────────────────────────────────────────
++
++    @Test
++    fun `detects libs in slot-2 install path`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf(
++                "/data/app/$pkg-2/lib/arm64/libsscronet.so",
++                "/data/app/$pkg-2/lib/arm64/libmetasec_ov.so",
++            ),
++        ))
++        assertEquals(0.85, result.score, 0.001)
++    }
++
++    // ── Evidence completeness ────────────────────────────────────────────────
++
++    @Test
++    fun `evidence includes all required keys when libs present`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(
++            installedPackages = setOf(pkg),
++            existingFiles = setOf(
++                "/data/app/$pkg-1/lib/arm64/libsscronet.so",
++                "/data/app/$pkg-1/lib/arm64/libmetasec_ov.so",
++            ),
++        ))
++        val keys = result.evidence.map { it.key }.toSet()
++        assertTrue("tiktok.package" in keys)
++        assertTrue("tiktok.libsscronet_present" in keys)
++        assertTrue("tiktok.libmetasec_ov_present" in keys)
++        assertTrue("tiktok.argus_offset_v5_4_1" in keys)
++        assertTrue("tiktok.offset_fragility" in keys)
++        assertTrue("tiktok.versions_table" in keys)
++    }
++
++    @Test
++    fun `evidence reports validated offset for v5_4_1`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(installedPackages = setOf(pkg)))
++        val offsetEvidence = result.evidence.first { it.key == "tiktok.argus_offset_v5_4_1" }
++        assertEquals("0x88ee0", offsetEvidence.value)
++    }
++
++    @Test
++    fun `evidence references versions asset filename`() = runBlocking {
++        val pkg = "com.zhiliaoapp.musically"
++        val result = probe.run(fakeCtx(installedPackages = setOf(pkg)))
++        val tableEvidence = result.evidence.first { it.key == "tiktok.versions_table" }
++        assertEquals("tiktok_argus_versions.json", tableEvidence.value)
++    }
++
++    // ── Probe metadata ───────────────────────────────────────────────────────
++
++    @Test
++    fun `probe id matches spec`() {
++        assertEquals("app.tiktok_argus_signing", probe.id)
++    }
++
++    @Test
++    fun `probe category is RUNTIME`() {
++        assertEquals(ProbeCategory.RUNTIME, probe.category)
++    }
++
++    @Test
++    fun `probe budget is within hard ceiling`() {
++        assertTrue(probe.budgetMs <= 5000L)
++    }
++
++    @Test
++    fun `probe rank is set`() {
++        assertEquals(TikTokArgusSigningProbe.RANK, probe.rank)
++    }
++}
+diff --git a/shared/probes/inventory.yml b/shared/probes/inventory.yml
+index b232e0e..c171762 100644
+--- a/shared/probes/inventory.yml
++++ b/shared/probes/inventory.yml
+@@ -589,3 +589,13 @@ probes:
+     android_layer: framework
+     description: "MediaProjection session active (Android 15+ DETECT_SCREEN_RECORDING); screenshot capture callback (Android 14+ DETECT_SCREEN_CAPTURE). freeRASP T11/T12"
+     mitigation_layer: not_spoofable
++
++  - rank: 66
++    id: app.tiktok_argus_signing
++    category: runtime
++    severity: high
++    android_layer: application
++    description: "Detects TikTok Argus signing SDK: libsscronet.so + libmetasec_ov.so presence under /data/app/<pkg>/lib/. libmetasec_ov.so offset 0x88ee0 (v5.4.1, arm64) is the X-Argus generator entry point. Offset is version-specific — see tiktok_argus_versions.json. Passive only. CLO-19."
++    mitigation_layer: L4
++    fragility: HIGH
++    versions_table: tiktok_argus_versions.json
+-- 
+2.43.0
+

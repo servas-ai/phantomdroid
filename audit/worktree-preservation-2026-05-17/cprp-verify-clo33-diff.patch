@@ -1,0 +1,275 @@
+diff --git a/.gitignore b/.gitignore
+index 954d5e3..0662c4c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -28,3 +28,6 @@ dist/
+ .env.local
+ secrets.yml
+ audit-reports/
++
++# Importer runtime state (W7 paperclip-issues import)
++docs/super-action/W7/.import-state.json
+diff --git a/agents/detection/src/core/ProbeContext.kt b/agents/detection/src/core/ProbeContext.kt
+index 1478b38..bd45485 100644
+--- a/agents/detection/src/core/ProbeContext.kt
++++ b/agents/detection/src/core/ProbeContext.kt
+@@ -15,6 +15,20 @@ interface ProbeContext {
+     fun queryTelephonyManager(field: TelephonyField): String?
+     fun queryPackageManager(): PackageManagerView
+     fun querySensorManager(): SensorManagerView
++
++    /**
++     * Default returns the "unknown" view so existing fakes that predate this
++     * method continue to compile. Production impls override with a wrapper
++     * around `android.app.KeyguardManager`.
++     */
++    fun queryKeyguardManager(): KeyguardManagerView = UnknownKeyguardManagerView
++}
++
++/** Conservative default: claims sdkInt=0 and answers `null` for every probe. */
++object UnknownKeyguardManagerView : KeyguardManagerView {
++    override fun sdkInt(): Int = 0
++    override fun isDeviceSecure(): Boolean? = null
++    override fun isKeyguardSecure(): Boolean? = null
+ }
+ 
+ /**
+@@ -53,6 +67,8 @@ enum class TelephonyField { IMEI, SERIAL, OPERATOR_NAME, MCC_MNC, SIM_SERIAL }
+ interface PackageManagerView {
+     fun isPackageInstalled(packageName: String): Boolean
+     fun listInstalledPackages(): List<String>
++    /** Returns package names that have been granted [permission] (API ≥23). */
++    fun listPackagesWithPermission(permission: String): List<String>
+ }
+ 
+ interface SensorManagerView {
+@@ -60,4 +76,34 @@ interface SensorManagerView {
+     fun sampleSensor(sensorType: Int, durationMs: Long): SensorSample
+ }
+ 
++/**
++ * Read-only view of android.app.KeyguardManager. Implementations must return
++ * `null` from the `is*` queries when the answer cannot be determined (API <23
++ * lacks `isDeviceSecure`, or the system service threw). Callers MUST treat a
++ * `null` reply as "unknown" rather than "false", per freeRASP D1 contract.
++ */
++interface KeyguardManagerView {
++    /**
++     * Android `Build.VERSION.SDK_INT` as observed by the runtime.
++     * Used by probes to gate API-version-conditional logic.
++     */
++    fun sdkInt(): Int
++
++    /**
++     * `KeyguardManager.isDeviceSecure()`. API ≥23. Returns:
++     *   true  — PIN, pattern, password, or biometric is configured
++     *   false — no secure lock configured
++     *   null  — API <23, or the system service threw / returned indeterminately
++     */
++    fun isDeviceSecure(): Boolean?
++
++    /**
++     * `KeyguardManager.isKeyguardSecure()`. Available since API 16. Returns:
++     *   true  — keyguard is secured (any non-`None` method)
++     *   false — keyguard is "Slide" / "None"
++     *   null  — system service threw / returned indeterminately
++     */
++    fun isKeyguardSecure(): Boolean?
++}
++
+ data class SensorSample(val timestamps: LongArray, val values: Array<FloatArray>)
+diff --git a/shared/probes/inventory.yml b/shared/probes/inventory.yml
+index f5ed3ce..b232e0e 100644
+--- a/shared/probes/inventory.yml
++++ b/shared/probes/inventory.yml
+@@ -1,8 +1,11 @@
+-# Probe-Inventar — 60 Detection-Punkte
++# Probe-Inventar — 71 Detection-Punkte (60 baseline + 11 A17 RASP additions)
+ # Quelle: Recherche-Synthese GPT-5.2 / Claude Opus 4.6 / Grok 4.1
+-# Format: rank, id, category, severity, layer, description, mitigation_layer
++# A17 additions (N1-N11): docs/validation-round-3/A17-rasp-defensive-probe-mining.md
++# Format: rank, id, category, severity, android_layer, description, mitigation_layer,
++#         optional: rasp_analog (none = no analog in freeRASP/RootBeer/MASTG)
++# CHANGELOG: shared/probes/CHANGELOG.md
+ 
+-schemaVersion: "1.0"
++schemaVersion: "2.0"
+ 
+ probes:
+   # ============== KRITISCH (Rank 1-10) ==============
+@@ -186,7 +189,7 @@ probes:
+   - rank: 23
+     id: ui.screen_resolution
+     category: ui
+-    severity: high
++    severity: medium  # BEST-STACK Phase 3 rerank: high -> medium (May 2026)
+     android_layer: framework
+     description: "Width x Height x DPI consistency with declared model"
+     mitigation_layer: L1
+@@ -235,7 +238,7 @@ probes:
+   - rank: 29
+     id: identity.mediadrm
+     category: identity
+-    severity: medium
++    severity: high  # BEST-STACK Phase 3 rerank: medium -> high (May 2026, MASTG MSTG-RESILIENCE-10 multi-property binding)
+     android_layer: hardware
+     description: "MediaDrm unique device ID, hard to spoof"
+     mitigation_layer: L2
+@@ -313,11 +316,11 @@ probes:
+     mitigation_layer: L6
+ 
+   - rank: 39
+-    id: env.mock_location
++    id: env.location_mock
+     category: env
+-    severity: medium
++    severity: high
+     android_layer: framework
+-    description: "isFromMockProvider flag"
++    description: "isFromMockProvider flag / ALLOW_MOCK_LOCATION setting / ACCESS_MOCK_LOCATION packages"
+     mitigation_layer: L4
+ 
+   - rank: 40
+@@ -368,6 +371,7 @@ probes:
+     android_layer: hardware
+     description: "Pressure sensor (luxury feature)"
+     mitigation_layer: L5
++    rasp_analog: none  # A17 §6 deprioritize: no RASP library checks barometer presence
+ 
+   - rank: 46
+     id: ui.refresh_rate
+@@ -404,7 +408,7 @@ probes:
+   - rank: 50
+     id: runtime.services_processes
+     category: runtime
+-    severity: low
++    severity: medium  # BEST-STACK Phase 3 rerank: low -> medium (May 2026, freeRASP T10 automation tools)
+     android_layer: framework
+     description: "Running services with automation packages visible"
+     mitigation_layer: L4
+@@ -417,6 +421,7 @@ probes:
+     android_layer: framework
+     description: "Font list as fingerprint"
+     mitigation_layer: L0
++    rasp_analog: none  # A17 §6 deprioritize: browser-canvas technique, no native RASP analog
+ 
+   - rank: 52
+     id: ui.display_cutout
+@@ -441,6 +446,7 @@ probes:
+     android_layer: application
+     description: "Audio processing differences (WebView only)"
+     mitigation_layer: not_native
++    rasp_analog: none  # A17 §6 deprioritize: WebView-only technique, no native Android RASP analog
+ 
+   - rank: 55
+     id: ui.canvas_fingerprint
+@@ -449,6 +455,7 @@ probes:
+     android_layer: application
+     description: "Canvas rendering differences (WebView)"
+     mitigation_layer: not_native
++    rasp_analog: none  # A17 §6 deprioritize: WebView-only technique, no native Android RASP analog
+ 
+   - rank: 56
+     id: ui.webgl_fingerprint
+@@ -485,7 +492,100 @@ probes:
+   - rank: 60
+     id: integrity.app_signature
+     category: integrity
+-    severity: trace
++    severity: medium  # BEST-STACK Phase 3 rerank: trace -> medium (May 2026, MASTG MSTG-RESILIENCE-3 file tamper detection)
+     android_layer: application
+     description: "Tamper/hooking detection via package signatures"
+     mitigation_layer: L4
++
++  # ============== A17 RASP-DEFENSIVE ERGAENZUNGEN (N1-N11, May 2026) ==============
++  # Source: docs/validation-round-3/A17-rasp-defensive-probe-mining.md §5
++  # Schema: BEST-STACK.md §V Phase 2 (rank, category, severity, android_layer,
++  # description, mitigation_layer). Decimal ranks denote logical priority slot
++  # between existing integer ranks; file order is append-only for diff stability.
++  - rank: 8.5
++    id: runtime.debugger_tracerpid
++    category: runtime
++    severity: high
++    android_layer: framework
++    description: "/proc/self/status TracerPid != 0 = debugger/ptrace attached (NeoZygisk window, Frida ptrace). freeRASP T2; MASTG MSTG-RESILIENCE-2 / MASTG-KNOW-0033"
++    mitigation_layer: L4
++
++  - rank: 9.0
++    id: runtime.frida_memory_maps
++    category: runtime
++    severity: high
++    android_layer: application
++    description: "/proc/self/maps for 'frida-agent', 'gum', 'frida-gadget', 'linjector'; thread names 'gum-js-loop', 'gmain', 'gdbus'; ports 27042/27043. freeRASP T6; MASTG MSTG-RESILIENCE-4 / MASTG-KNOW-0034"
++    mitigation_layer: L4
++
++  - rank: 9.7
++    id: runtime.native_prologue_hash
++    category: runtime
++    severity: critical
++    android_layer: native
++    description: "First 16-32 bytes of libc.so/libart.so functions hashed in-memory vs disk baseline -- detects inline-hook trampoline (MOV X16 / BR X16 pattern). DetectFrida reference impl. BEST-STACK §IV Hard Ceiling #1 -- UNCOUNTERED by FOSS in 2026"
++    mitigation_layer: not_spoofable
++
++  - rank: 9.8
++    id: integrity.prologue_got_hooks
++    category: integrity
++    severity: critical
++    android_layer: native
++    description: "GOT/PLT entry comparison to expected function pointer; rwxp executable segment in /proc/self/maps (write+exec = hooked text section). MASTG MSTG-RESILIENCE-6. BEST-STACK §IV Hard Ceiling #1 -- UNCOUNTERED"
++    mitigation_layer: not_spoofable
++
++  - rank: 33.5
++    id: env.time_spoofing
++    category: env
++    severity: medium
++    android_layer: framework
++    description: "SystemClock.elapsedRealtime() vs System.currentTimeMillis() cross-check; NTP delta; GPS time delta. freeRASP T15"
++    mitigation_layer: manual
++
++  - rank: 39.5
++    id: env.location_mock_rasp
++    category: env
++    severity: medium
++    android_layer: framework
++    description: "Location.isFromMockProvider(); ALLOW_MOCK_LOCATION setting; mock location app presence. freeRASP T16. Augments rank #39 (env.location_mock) with explicit RASP-API attribution"
++    mitigation_layer: L4
++
++  - rank: 40.5
++    id: env.screen_lock
++    category: env
++    severity: medium
++    android_layer: framework
++    description: "KeyguardManager.isDeviceSecure() = false -> no PIN/pattern/biometric set. freeRASP D1"
++    mitigation_layer: manual
++
++  - rank: 43.5
++    id: env.wifi_security_type
++    category: env
++    severity: low
++    android_layer: framework
++    description: "WifiInfo encryption type -- NONE/WEP = insecure; WifiConfiguration.KeyMgmt.NONE. freeRASP T14"
++    mitigation_layer: manual
++
++  - rank: 50.5
++    id: runtime.multi_instance
++    category: runtime
++    severity: medium
++    android_layer: framework
++    description: "UserHandle.myUserId() != 0; clone package suffix; Parallel Space / MIUI Dual Apps container. freeRASP T13"
++    mitigation_layer: L4
++
++  - rank: 51.5
++    id: runtime.automation_tools
++    category: runtime
++    severity: medium
++    android_layer: framework
++    description: "UIAutomator service; accessibility service Appium; adb_enabled + active shell connection. freeRASP T10"
++    mitigation_layer: L4
++
++  - rank: 52.5
++    id: runtime.screen_recording
++    category: runtime
++    severity: low
++    android_layer: framework
++    description: "MediaProjection session active (Android 15+ DETECT_SCREEN_RECORDING); screenshot capture callback (Android 14+ DETECT_SCREEN_CAPTURE). freeRASP T11/T12"
++    mitigation_layer: not_spoofable

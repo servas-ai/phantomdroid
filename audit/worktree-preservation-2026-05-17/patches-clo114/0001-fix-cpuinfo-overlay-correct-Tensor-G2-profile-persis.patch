@@ -1,0 +1,327 @@
+From 676d6c1a068f77268102e1b27f1058fe2ad592dc Mon Sep 17 00:00:00 2001
+From: vibecode-vm <vcvm@servas.ai>
+Date: Sat, 16 May 2026 22:37:39 +0200
+Subject: [PATCH] fix(cpuinfo-overlay): correct Tensor-G2 profile, persistent
+ Serial (CLO-114)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Bug: cpuinfo.spoofed had wrong CPU part codes (4×0xd42 A78AE + 4×0xd05),
+BogoMIPS=2.00 (implausible), and Serial derived from boot_id (rotates every
+container restart — detectable as fingerprint instability).
+
+Fix:
+- cpuinfo.spoofed: real Tensor-G2 (2,2,4) topology — 2×0xd44 X1 (variant 0x1),
+  2×0xd41 A78 (variant 0x1), 4×0xd05 A55 (variant 0x2). BogoMIPS=38.40 from
+  Pixel-7 Pro reference dump. Features line includes ssbs.
+- service.sh: Serial now derived once from container UUID (hostname →
+  /etc/machine-id → /proc/sys/kernel/random/uuid), sha256[:16], written to
+  /data/local/tmp/cpuinfo-overlay.serial (chmod 0400), read on all subsequent
+  boots. Eliminates per-boot rotation.
+- tests/profile-check.sh (new): acceptance gate — verifies topology, BogoMIPS
+  in [30,60], and Serial stability across two consecutive invocations.
+
+Acceptance gate:
+  bash agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh
+  PASS: 8 processors, parts d44,d44,d41,d41,d05,d05,d05,d05; BogoMIPS in [30,60]; Serial=d83ad185db8ba12f stable
+  EXIT=0 (two consecutive runs, same Serial both times)
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ .../stack/modules/cpuinfo-overlay/service.sh  |  29 +++--
+ .../system/etc/cpuinfo.spoofed                |  62 +++++-----
+ .../cpuinfo-overlay/tests/profile-check.sh    | 116 ++++++++++++++++++
+ 3 files changed, 168 insertions(+), 39 deletions(-)
+ create mode 100755 agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh
+
+diff --git a/agents/stability/stack/modules/cpuinfo-overlay/service.sh b/agents/stability/stack/modules/cpuinfo-overlay/service.sh
+index 4d63b2c..091d75a 100644
+--- a/agents/stability/stack/modules/cpuinfo-overlay/service.sh
++++ b/agents/stability/stack/modules/cpuinfo-overlay/service.sh
+@@ -14,18 +14,29 @@ set -euo pipefail
+ LOG=/data/adb/cpuinfo-overlay.log
+ SPOOFED=/system/etc/cpuinfo.spoofed
+ STAGED=/data/adb/modules/cpuinfo-overlay/cpuinfo.runtime
++SERIAL_FILE="${CPUINFO_OVERLAY_SERIAL_FILE:-/data/local/tmp/cpuinfo-overlay.serial}"
+ 
+ log() { printf '[%s] cpuinfo-overlay: %s\n' "$(date -u +%H:%M:%SZ)" "$*" >> "$LOG"; }
+ 
+-# Derive a deterministic synthetic Serial from container UUID / Android ID.
+-# Result: sha256 of /proc/sys/kernel/random/boot_id, first 16 hex chars.
+-# This is NOT a real device identifier — it changes every container boot.
+-SERIAL="$( (cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo "00000000-0000-0000-0000-000000000000") \
+-  | tr -d '-\n' | cut -c1-32 \
+-  | sha256sum 2>/dev/null | head -c 16 \
+-  || echo "0000000000000000" )"
++# Persistent synthetic Serial: written once on first boot, read thereafter.
++# Source: sha256 of the container UUID (hostname, then /etc/machine-id, then
++# /proc/sys/kernel/random/uuid as fallback), truncated to 16 hex chars.
++# This is NOT a real device identifier — it is stable across container reboots
++# so the overlay does not become its own detection signal.
++if [ ! -s "$SERIAL_FILE" ]; then
++  mkdir -p "$(dirname "$SERIAL_FILE")" 2>/dev/null || true
++  CONTAINER_UUID="$( (hostname 2>/dev/null \
++      || cat /etc/machine-id 2>/dev/null \
++      || cat /proc/sys/kernel/random/uuid 2>/dev/null \
++      || echo "00000000-0000-0000-0000-000000000000") | tr -d '\n' )"
++  if ! printf '%s' "$CONTAINER_UUID" | sha256sum 2>/dev/null | head -c 16 > "$SERIAL_FILE"; then
++    printf '%s' "0000000000000000" > "$SERIAL_FILE"
++  fi
++  chmod 0400 "$SERIAL_FILE" 2>/dev/null || true
++fi
++SERIAL="$(cat "$SERIAL_FILE" 2>/dev/null || echo "0000000000000000")"
+ 
+-# Build the runtime cpuinfo file with the dynamic Serial injected.
++# Build the runtime cpuinfo file with the persistent Serial injected.
+ sed "s/^Serial.*$/Serial\t\t: $SERIAL/" "$SPOOFED" > "$STAGED"
+ 
+ # Check if /proc/cpuinfo already shows Tensor G2 (idempotent).
+@@ -36,7 +47,7 @@ fi
+ 
+ # Bind-mount the staged file over /proc/cpuinfo.
+ mount --bind "$STAGED" /proc/cpuinfo && \
+-  log "bind-mount OK. Serial=$SERIAL Hardware=Tensor G2 BogoMIPS=2.00" || {
++  log "bind-mount OK. Serial=$SERIAL Hardware=Tensor G2 BogoMIPS=38.40" || {
+     log "ERROR: mount --bind failed (exit $?)"
+     exit 1
+   }
+diff --git a/agents/stability/stack/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed b/agents/stability/stack/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed
+index 5d04e1f..ac3e54d 100644
+--- a/agents/stability/stack/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed
++++ b/agents/stability/stack/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed
+@@ -1,77 +1,79 @@
+-Processor	: AArch64 Processor rev 14 (aarch64)
++Processor	: AArch64 Processor rev 0 (aarch64)
+ processor	: 0
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x4
+-CPU part	: 0xd42
++CPU variant	: 0x1
++CPU part	: 0xd44
+ CPU revision	: 0
+ 
+ processor	: 1
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x4
+-CPU part	: 0xd42
++CPU variant	: 0x1
++CPU part	: 0xd44
+ CPU revision	: 0
+ 
+ processor	: 2
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x4
+-CPU part	: 0xd42
++CPU variant	: 0x1
++CPU part	: 0xd41
+ CPU revision	: 0
+ 
+ processor	: 3
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x4
+-CPU part	: 0xd42
++CPU variant	: 0x1
++CPU part	: 0xd41
+ CPU revision	: 0
+ 
+ processor	: 4
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x55
++CPU variant	: 0x2
+ CPU part	: 0xd05
+ CPU revision	: 0
+ 
+ processor	: 5
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x55
++CPU variant	: 0x2
+ CPU part	: 0xd05
+ CPU revision	: 0
+ 
+ processor	: 6
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x55
++CPU variant	: 0x2
+ CPU part	: 0xd05
+ CPU revision	: 0
+ 
+ processor	: 7
+-BogoMIPS	: 2.00
+-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
++BogoMIPS	: 38.40
++Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp flagm2 frint
+ CPU implementer	: 0x41
+ CPU architecture: 8
+-CPU variant	: 0x55
++CPU variant	: 0x2
+ CPU part	: 0xd05
+ CPU revision	: 0
+ 
+ Hardware	: Tensor G2
+-# Serial is injected at runtime by service.sh from sha256(container_uuid)[:16]
++# Serial is injected at runtime by service.sh from the persistent
++# /data/local/tmp/cpuinfo-overlay.serial (sha256 of container UUID,
++# written once at first boot, read thereafter).
+ # Placeholder replaced before bind-mount — NOT a real device identifier.
+ Serial		: 0000000000000000
+diff --git a/agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh b/agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh
+new file mode 100755
+index 0000000..76df565
+--- /dev/null
++++ b/agents/stability/stack/modules/cpuinfo-overlay/tests/profile-check.sh
+@@ -0,0 +1,116 @@
++#!/usr/bin/env bash
++# profile-check.sh — CLO-114 acceptance gate for cpuinfo-overlay Tensor-G2 profile.
++#
++# Verifies:
++#   1. system/etc/cpuinfo.spoofed declares 8 processors with parts in the order
++#      d44,d44,d41,d41,d05,d05,d05,d05 (Tensor-G2 (2,2,4) topology).
++#   2. Every BogoMIPS entry lies in [30, 60].
++#   3. The persistent-Serial logic from service.sh is stable across two
++#      consecutive invocations of this script (i.e. the second call reads the
++#      file written by the first instead of regenerating).
++#
++# Exit codes: 0 = pass, non-zero = fail with diagnostic on stderr.
++umask 077
++set -euo pipefail
++
++MODULE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
++SPOOFED="$MODULE_DIR/system/etc/cpuinfo.spoofed"
++
++if [ ! -f "$SPOOFED" ]; then
++  echo "FAIL: $SPOOFED not found" >&2
++  exit 2
++fi
++
++# ---------------------------------------------------------------------------
++# 1. Topology: exactly 8 processors, parts in the required order.
++# ---------------------------------------------------------------------------
++mapfile -t parts < <(awk -F': ' '/^CPU part/ {gsub(/[ \t]/,"",$2); print $2}' "$SPOOFED")
++expected=(0xd44 0xd44 0xd41 0xd41 0xd05 0xd05 0xd05 0xd05)
++
++if [ "${#parts[@]}" -ne 8 ]; then
++  echo "FAIL: expected 8 processors, got ${#parts[@]}" >&2
++  printf '  parts: %s\n' "${parts[*]}" >&2
++  exit 3
++fi
++
++for i in 0 1 2 3 4 5 6 7; do
++  if [ "${parts[$i]}" != "${expected[$i]}" ]; then
++    echo "FAIL: processor $i part is ${parts[$i]}, expected ${expected[$i]}" >&2
++    printf '  expected order: %s\n' "${expected[*]}" >&2
++    printf '  actual order:   %s\n' "${parts[*]}" >&2
++    exit 4
++  fi
++done
++
++# Sanity: count "processor : N" lines too (must also be 8).
++proc_count=$(grep -cE '^processor[[:space:]]*:' "$SPOOFED" || true)
++if [ "$proc_count" -ne 8 ]; then
++  echo "FAIL: expected 8 'processor :' lines, got $proc_count" >&2
++  exit 5
++fi
++
++# ---------------------------------------------------------------------------
++# 2. BogoMIPS within [30, 60] for every entry.
++# ---------------------------------------------------------------------------
++bogo_count=0
++while IFS= read -r bm; do
++  bogo_count=$((bogo_count + 1))
++  if ! awk -v v="$bm" 'BEGIN { exit !(v + 0 >= 30 && v + 0 <= 60) }'; then
++    echo "FAIL: BogoMIPS '$bm' outside [30, 60]" >&2
++    exit 6
++  fi
++done < <(awk -F': ' '/^BogoMIPS/ {gsub(/[ \t]/,"",$2); print $2}' "$SPOOFED")
++
++if [ "$bogo_count" -ne 8 ]; then
++  echo "FAIL: expected 8 BogoMIPS entries, got $bogo_count" >&2
++  exit 7
++fi
++
++# ---------------------------------------------------------------------------
++# 3. Persistent-Serial stability across two consecutive invocations.
++#    Exercises the same derive-once/read-thereafter logic that service.sh uses,
++#    pointed at a host-writable temp path so the test is self-contained.
++# ---------------------------------------------------------------------------
++TMP_ROOT="$(mktemp -d)"
++trap 'rm -rf "$TMP_ROOT"' EXIT
++SERIAL_FILE="$TMP_ROOT/cpuinfo-overlay.serial"
++
++derive_serial() {
++  # Mirror of the service.sh logic, isolated to $SERIAL_FILE.
++  if [ ! -s "$SERIAL_FILE" ]; then
++    CONTAINER_UUID="$( (hostname 2>/dev/null \
++        || cat /etc/machine-id 2>/dev/null \
++        || cat /proc/sys/kernel/random/uuid 2>/dev/null \
++        || echo "00000000-0000-0000-0000-000000000000") | tr -d '\n' )"
++    if ! printf '%s' "$CONTAINER_UUID" | sha256sum 2>/dev/null | head -c 16 > "$SERIAL_FILE"; then
++      printf '%s' "0000000000000000" > "$SERIAL_FILE"
++    fi
++  fi
++  cat "$SERIAL_FILE"
++}
++
++S1="$(derive_serial)"
++S2="$(derive_serial)"
++
++if [ -z "$S1" ]; then
++  echo "FAIL: first invocation produced empty Serial" >&2
++  exit 8
++fi
++
++if [ "${#S1}" -ne 16 ]; then
++  echo "FAIL: Serial length ${#S1} != 16 (value: '$S1')" >&2
++  exit 9
++fi
++
++if [ "$S1" != "$S2" ]; then
++  echo "FAIL: Serial unstable across invocations: '$S1' != '$S2'" >&2
++  exit 10
++fi
++
++if ! printf '%s' "$S1" | grep -Eq '^[0-9a-f]{16}$'; then
++  echo "FAIL: Serial '$S1' is not 16 lowercase hex chars" >&2
++  exit 11
++fi
++
++echo "PASS: 8 processors, parts d44,d44,d41,d41,d05,d05,d05,d05; BogoMIPS in [30,60]; Serial=$S1 stable"
++exit 0
+-- 
+2.43.0
+

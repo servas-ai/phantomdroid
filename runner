@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Repository-local executable for the Orchestrator runner."""
+
+from agents.orchestrator.src.runner import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,37 @@
+ D agents/detection/src/core/Probe.kt
+ M agents/detection/src/core/ProbeContext.kt
+ D agents/detection/src/core/ProbeResult.kt
+ D agents/detection/src/core/ProbeRunner.kt
+ D agents/detection/src/core/Report.kt
+ D agents/detection/src/probes/app/IgFamilyDeviceIdHeaderProbe.kt
+ D agents/detection/src/probes/buildprop/BuildFingerprintProbe.kt
+ M agents/detection/src/probes/env/ScreenLockProbe.kt
+ D agents/detection/src/probes/env/TimeSpoofingProbe.kt
+ D agents/detection/src/probes/env/WifiSecurityTypeProbe.kt
+ D agents/detection/src/probes/kernel/CpuInfoProbe.kt
+ D agents/detection/src/probes/runtime/AutomationToolsProbe.kt
+ D agents/detection/src/probes/runtime/MultiInstanceProbe.kt
+ M agents/detection/src/probes/runtime/ScreenRecordingProbe.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/app/IgFamilyDeviceIdHeaderProbeTest.kt
+ M agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/ScreenLockProbeTest.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/TimeSpoofingProbeTest.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/WifiSecurityTypeProbeTest.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/kernel/CpuInfoProbeTest.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/AutomationToolsProbeTest.kt
+ D agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/MultiInstanceProbeTest.kt
+ M agents/detection/src/test/kotlin/com/example/detectorlab/probes/runtime/ScreenRecordingProbeTest.kt
+ M agents/orchestrator/README.md
+ M agents/stability/stack/compose/L0a.yml
+ M agents/stability/stack/compose/L1.compose.yml
+ M agents/stability/stack/seccomp/redroid-seccomp.json
+ M apps/detector-lab/README.md
+ M apps/detector-lab/scripts/droidrun-cell.sh
+ M apps/detector-lab/scripts/probe-plan.json
+?? agents/orchestrator/src/
+?? audit/
+?? docs/super-action/W7/paperclip-import/
+?? results/
+?? runner
+?? scripts/governance/
+?? shared/probe-schema.v2.json
+?? tests/
