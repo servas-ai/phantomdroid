@@ -2,6 +2,14 @@
 
 STRIDE-orientiertes Mapping der 60 Detection-Punkte auf Android-Layer.
 
+## Nutzungsgraenze
+
+Dieses Threat Model ist fuer defensive Messung und reproduzierbare Lab-Tests
+gedacht. Es darf nicht als Anleitung verwendet werden, um Erkennung,
+Attestation, Account-Integritaet oder Anti-Abuse-Systeme fremder Plattformen zu
+umgehen. Vorschlaege zu Kernel-, Root-, Sensor-, Netzwerk- oder TLS-Ebene
+werden nur als Detection-Signal, Risikoannahme oder Lab-Kontrolle aufgenommen.
+
 ## Akteure
 
 | Akteur | Rolle |

@@ -1,5 +1,24 @@
 # SpoofStack — Layer-Spezifikationen
 
+## Safety boundary
+
+This file describes lab layers for measuring detection signals in owned test
+environments. It must not be used as an operational guide for bypassing
+third-party anti-abuse, anti-bot, attestation, account-integrity, or fraud
+controls.
+
+When new architecture feedback mentions custom kernels, KernelSU/APatch,
+property rewriting, sensor injection, residential/mobile proxies, or TLS
+fingerprint shaping, classify it before implementation:
+
+- Allowed: add a detector, baseline capture, reproducibility check, or
+  compliance gate that reports the signal.
+- Allowed: document that a claim is unverified and needs a real-device or lab
+  baseline.
+- Not allowed: add code or runbooks whose purpose is hiding automation from
+  real services, defeating app attestation, masking account operations, or
+  misrepresenting network origin.
+
 ## L0 — Container Baseline
 
 | Komponente | Version | Quelle |

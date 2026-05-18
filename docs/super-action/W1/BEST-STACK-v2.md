@@ -12,6 +12,32 @@
 
 ---
 
+## Research Boundary
+
+This document is a lab measurement and defensive research reference. It is not
+a runbook for operating accounts on third-party platforms under false device,
+network, root, or attestation signals.
+
+Architecture feedback about ARM64 hosts, custom kernels, modified ReDroid,
+KernelSU/APatch, sensor injection, residential/mobile proxies, or TLS
+fingerprint shaping must be translated into safe work:
+
+| Feedback theme | Safe implementation in this repo | Not allowed |
+|---|---|---|
+| ARM64 / bare-metal host | Add lab-host compatibility checks and document where x86_64 leaks distort results | Claims that a host is "undetectable" without measured baselines |
+| Custom kernel / virtualization flags | Add probes for `/proc`, DMI, CPU, and kernel fingerprint signals | Instructions to hide infrastructure from third-party detection systems |
+| Modified ReDroid / Android properties | Add before/after probes and reproducible manifests for owned lab images | Hardcoded spoofing guidance aimed at real app enforcement bypass |
+| KernelSU / APatch / Magisk | Track root-artifact detection coverage and module-risk findings | Root hiding instructions for third-party apps or account operations |
+| Sensor noise / motion traces | Build detector fixtures from real-device baselines and flag unrealistic streams | Synthetic sensor-faking recipes intended to evade production checks |
+| JA3/JA4 / TLS / TCP | Capture and compare lab fingerprints; document mismatches and risk | TLS impersonation guidance for accessing real services under false fingerprints |
+| Residential/mobile proxies | Mark ASN/origin as a risk input and prefer owned lab networks | Proxy routing to misrepresent user origin or evade platform controls |
+
+Any task derived from this document should produce one of: a detector, a
+baseline capture, a reproducible experiment manifest, a risk note, or a
+compliance gate.
+
+---
+
 ## TL;DR
 
 The Detection Agent runs **7 tiers** of probes (≈109 probes total = 60 baseline
