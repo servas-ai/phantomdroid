@@ -151,6 +151,7 @@ class IgFamilyDeviceIdHeaderProbe(
      */
     internal fun parseCaptureFile(json: String): CaptureFile? {
         return try {
+            if (!looksLikeJsonObject(json)) return null
             CaptureFile(
                 sandboxMarker  = extractString(json, "sandbox_marker") ?: "",
                 headerPresent  = extractBoolean(json, "header_present") ?: false,
@@ -165,6 +166,47 @@ class IgFamilyDeviceIdHeaderProbe(
         } catch (_: Throwable) {
             null
         }
+    }
+
+    private fun looksLikeJsonObject(json: String): Boolean {
+        val trimmed = json.trim()
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false
+
+        var braceDepth = 0
+        var bracketDepth = 0
+        var inString = false
+        var escaped = false
+
+        for (ch in trimmed) {
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            if (ch == '\\' && inString) {
+                escaped = true
+                continue
+            }
+            if (ch == '"') {
+                inString = !inString
+                continue
+            }
+            if (inString) continue
+
+            when (ch) {
+                '{' -> braceDepth += 1
+                '}' -> {
+                    braceDepth -= 1
+                    if (braceDepth < 0) return false
+                }
+                '[' -> bracketDepth += 1
+                ']' -> {
+                    bracketDepth -= 1
+                    if (bracketDepth < 0) return false
+                }
+            }
+        }
+
+        return !inString && braceDepth == 0 && bracketDepth == 0
     }
 
     internal data class CaptureFile(

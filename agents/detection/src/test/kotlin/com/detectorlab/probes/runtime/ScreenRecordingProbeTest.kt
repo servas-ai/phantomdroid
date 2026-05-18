@@ -259,7 +259,7 @@ class ScreenRecordingProbeTest {
     }
 
     @Test
-    fun `api_path includes addScreenRecordingCallback only when sdk >= 35`() = runBlocking {
+    fun `api_path includes addScreenRecordingCallback only when sdk is at least 35`() = runBlocking {
         val a14 = probe.run(ctxWith(sdk = 34)).evidence.first { it.key == "api_path" }.value as String
         val a15 = probe.run(ctxWith(sdk = 35)).evidence.first { it.key == "api_path" }.value as String
         assertFalse(a14.contains("addScreenRecordingCallback"))
