@@ -28,6 +28,9 @@ dist/
 gradle-app.setting
 !gradle-wrapper.jar
 
+# Detection orchestrator runtime journal (CLO-115)
+results/
+
 # Secrets
 .env
 .env.local
