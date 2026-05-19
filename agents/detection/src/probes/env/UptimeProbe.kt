@@ -45,7 +45,11 @@ import java.time.format.DateTimeFormatter
  *   1.00  Uptime > [MAX_PLAUSIBLE_UPTIME_SEC] (10 years — no consumer
  *         device runs this long)
  *   1.00  Computed boot time (now - uptime) lies in the future (clock
- *         contradiction; impossible)
+ *         contradiction). Defensive sentinel — mathematically unreachable
+ *         in practice given cascade order (implausible fires first on
+ *         Long overflow); kept for hypothetical wrappers supplying garbage
+ *         wallClock or for runtimes outside the current ProbeContext
+ *         contract.
  *   0.85  Uptime == 0.0 exactly (stub or uninitialized)
  *   0.85  Uptime is a round-minute multiple AND > 60.0 (60.0/3600.0/
  *         86400.0 — exact stub values; non-multiple plausible uptimes

@@ -151,10 +151,12 @@ class UptimeProbeTest {
     }
 
     @Test
-    fun `boundary 10y exact — score is 0 (plausible)`() = runBlocking {
-        // 315360000 exactly. `>` strict inequality, so 315360000 → plausible.
-        // But 315360000 IS a 60-multiple → fires round at 0.85.
-        // Use 315360000.7 to be just plausible and non-round.
+    fun `just-below 10y non-round — score is 0 (plausible)`() = runBlocking {
+        // The boundary value 315360000.0 IS a 60-multiple → would fire
+        // round at 0.85, so it can't directly test the implausible
+        // boundary as "plausible". Use 315359999.5 (just below 10y,
+        // non-round) to confirm that uptimes just-below the implausible
+        // ceiling stay clean.
         val result = makeProbe().run(fakeCtx(firstRead = "315359999.5 100.0"))
         assertEquals(0.0, result.score)
     }
