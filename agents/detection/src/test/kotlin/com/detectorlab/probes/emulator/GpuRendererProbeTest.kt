@@ -202,6 +202,74 @@ class GpuRendererProbeTest {
         assertEquals("true", ev?.value)
     }
 
+    // ── ANGLE-wrapping-real-hardware (REGRESSION GUARD) ──────────────────────
+
+    @Test
+    fun `real Pixel 8 ANGLE wrapping Adreno via adreno EGL — score is 0_0 (no false-positive)`() = runBlocking {
+        // Real Pixel 8 / 9 / 10 on Android 14+ reports the ANGLE wrapper
+        // identity in GL_RENDERER WITH the underlying hardware vendor
+        // embedded inline. The ANGLE substring is present BUT so is "Adreno"
+        // AND ro.hardware.egl reports "adreno". A naive ANGLE rule would
+        // false-positive at 0.95 on Google's entire Pixel 8+ user base.
+        // The angleWithoutHardware guard prevents this.
+        val probe = GpuRendererProbe(
+            glRendererSupplier = {
+                "ANGLE (Qualcomm Inc., Adreno (TM) 740, Vulkan 1.3.243)"
+            },
+            glVendorSupplier = { "Google Inc." },
+            glVersionSupplier = { "OpenGL ES 3.2 ANGLE" },
+        )
+        val result = probe.run(fakeCtx("adreno"))
+        assertEquals(0.0, result.score)
+        val ev = result.evidence.find { it.key == "gpu.pattern" }
+        assertEquals(GpuRendererProbe.PATTERN_HARDWARE_GPU, ev?.value)
+    }
+
+    @Test
+    fun `Pixel 8 ANGLE — is_emulator_translator evidence is false (not a tell)`() = runBlocking {
+        val probe = GpuRendererProbe(
+            glRendererSupplier = {
+                "ANGLE (Qualcomm Inc., Adreno (TM) 740, Vulkan 1.3.243)"
+            },
+            glVendorSupplier = { "Google Inc." },
+            glVersionSupplier = { "OpenGL ES 3.2 ANGLE" },
+        )
+        val result = probe.run(fakeCtx("adreno"))
+        val ev = result.evidence.find { it.key == "gpu.is_emulator_translator" }
+        // ANGLE-wrapping-real-hardware on Pixel 8 is the official Google
+        // GLES→Vulkan translator path, NOT an emulator tell. The forensic
+        // flag should reflect that distinction.
+        assertEquals("false", ev?.value)
+    }
+
+    @Test
+    fun `ANGLE plus Mali in renderer plus mali EGL — score is 0_0 (Samsung S22 with ANGLE)`() = runBlocking {
+        // Hypothetical Samsung S22 with ANGLE on Android 14+. Mali hardware
+        // vendor is present in renderer string AND EGL property.
+        val probe = GpuRendererProbe(
+            glRendererSupplier = { "ANGLE (ARM, Mali-G715-Immortalis)" },
+            glVendorSupplier = { "Google Inc." },
+        )
+        val result = probe.run(fakeCtx("mali"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `ANGLE plus hardware-in-renderer but null EGL plus Google vendor — score is 0_85`() = runBlocking {
+        // Edge case the angleWithoutHardware guard does NOT cover: the EGL
+        // property is null (older Android, or stripped) AND the vendor is
+        // Google Inc. The Google-vendor-without-hw-EGL rule (0.85) fires
+        // because we can't kernel-confirm the hardware claim. The renderer
+        // string CLAIMS Adreno but on a stripped-EGL device we treat that
+        // claim with suspicion. Locks in the conservative behavior.
+        val probe = GpuRendererProbe(
+            glRendererSupplier = { "ANGLE (Qualcomm Inc., Adreno (TM) 730)" },
+            glVendorSupplier = { "Google Inc." },
+        )
+        val result = probe.run(fakeCtx(roHardwareEgl = null))
+        assertEquals(0.85, result.score)
+    }
+
     // ── Mesa EGL (score 0.85) ────────────────────────────────────────────────
 
     @Test

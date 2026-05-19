@@ -164,12 +164,22 @@ class GpuRendererProbe(
             val googleVendor = glVendor?.trim()?.lowercase() == GOOGLE_INC_VENDOR
             val googleVendorWithoutHwEgl = googleVendor && !isEglKnownHardware
 
+            // ANGLE on a real Pixel 8+ device legitimately appears in
+            // GL_RENDERER as "ANGLE (Qualcomm Inc., Adreno (TM) 740, ...)" —
+            // the wrapper substring is present BUT the real hardware vendor
+            // is also reported. Real-device users would false-positive at
+            // 0.95 without this guard. The ANGLE rule only fires when no
+            // hardware vendor is observable anywhere — i.e. genuine
+            // stripped-hardware ANGLE-over-software case.
+            val angleWithoutHardware = angleInRenderer &&
+                !rendererHardware && !isEglKnownHardware
+
             val (pattern, score) = when {
                 isEglSwiftshader ->
                     PATTERN_SWIFTSHADER_EGL to SCORE_SOFTWARE_RENDERER
                 anySoftwareMarker ->
                     PATTERN_SOFTWARE_RENDERER to SCORE_SOFTWARE_RENDERER
-                angleInRenderer ->
+                angleWithoutHardware ->
                     PATTERN_ANGLE to SCORE_ANGLE
                 isEglMesa ->
                     PATTERN_MESA_EGL to SCORE_MESA_OR_GOOGLE_VENDOR
@@ -182,7 +192,12 @@ class GpuRendererProbe(
             }
 
             val isSoftwareRenderer = isEglSwiftshader || anySoftwareMarker || isEglMesa
-            val isEmulatorTranslator = angleInRenderer
+            // Same guard as the ANGLE scoring rule: real Pixel 8+ devices
+            // ship ANGLE as the official GLES→Vulkan translator on TOP of
+            // real Adreno hardware. The is_emulator_translator forensic
+            // flag should reflect "ANGLE-as-emulator-tell" — not "ANGLE
+            // is present anywhere".
+            val isEmulatorTranslator = angleWithoutHardware
 
             val anySignalReadable = glRenderer != null || glVendor != null ||
                 glVersion != null || roHardwareEgl != null
