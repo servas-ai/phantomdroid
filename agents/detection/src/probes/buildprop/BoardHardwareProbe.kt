@@ -58,7 +58,16 @@ class BoardHardwareProbe : Probe {
         const val PROP_RO_PRODUCT_BOARD = "ro.product.board"
         const val PROP_RO_BOARD_PLATFORM = "ro.board.platform"
         const val PROP_RO_HARDWARE = "ro.hardware"
+
+        /**
+         * OEM-OPTIONAL property. Pixel devices don't always populate this;
+         * Samsung/Xiaomi/MediaTek typically do. Empty/missing chipname is
+         * NOT diagnostic on its own — never load-bearing for scoring.
+         * Included in the [readable] confidence tally but other surfaces
+         * (board/platform/hardware/manufacturer) dominate the count.
+         */
         const val PROP_RO_HARDWARE_CHIPNAME = "ro.hardware.chipname"
+
         const val PROP_RO_BOARD_MANUFACTURER = "ro.board.manufacturer"
         const val PROP_RO_PRODUCT_MODEL = "ro.product.model"
 
@@ -67,13 +76,30 @@ class BoardHardwareProbe : Probe {
          * and `ro.product.board`. Extends rank-1's fingerprint marker list
          * with the board-layer specifics (`goldfish_arm64`, `vbox86`,
          * `cancro` test-image marker).
+         *
+         * **NOTE: Distinct from rank-42 [ProximityProbe.EMU_NAME_SUBSTRINGS].**
+         * Both lists target emulator detection but on different surfaces:
+         *   - [ProximityProbe.EMU_NAME_SUBSTRINGS] scans sensor vendor/name
+         *     strings (where `avd` and `genymotion` appear naturally as
+         *     `"AVD Generic"` / `"Genymotion Proximity"`)
+         *   - [EMULATOR_BOARD_MARKERS] scans board/hardware system properties
+         *     (where `vbox86` is the specific Genymotion board name and plain
+         *     `vbox` alone would false-positive on Android-x86 host strings)
+         *
+         * Lists intentionally diverge; **DO NOT consolidate**. Differences from
+         * rank-1's fingerprint set `{redroid, generic, ranchu, vbox, goldfish}`:
+         *   - Added `cancro` (Xiaomi test-image / CI marker on synthetic builds)
+         *   - Used `vbox86` (Genymotion-specific) instead of generic `vbox`
+         *   - Omitted `generic` — too broad; many real custom AOSP ROMs contain
+         *     `generic` in fingerprint strings but have pinned board codenames
          */
         val EMULATOR_BOARD_MARKERS: List<String> = listOf(
             "goldfish",      // covers goldfish + goldfish_arm64
             "ranchu",
             "redroid",
-            "vbox86",
-            "cancro",
+            "vbox86",        // specific Genymotion board name (NOT plain "vbox" —
+                             // benign Android-x86 host strings contain "vbox")
+            "cancro",        // Xiaomi test-image / CI marker on synthetic builds
         )
 
         /**
