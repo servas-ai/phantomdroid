@@ -39,16 +39,19 @@ import com.detectorlab.core.ProbeSeverity
  * Reuses **NO** existing flagship-model lists. `KNOWN_CUTOUT_MODELS` is a
  * NEW list because the semantic is again distinct from rank-28/45/46/48
  * lists:
- *   - rank-28 `FLAGSHIP_MODEL_SUBSTRINGS` includes Pixel 4a/5 (no cutout)
- *   - rank-45 `KNOWN_BAROMETER_MODELS` is Pixel 6+ (overlap, but Galaxy
- *     S22+ has different cutout boundary)
- *   - rank-46 `KNOWN_120HZ_MODELS` is Pixel 7+ (Pixel 6 has cutout but no
- *     120 Hz)
+ *   - rank-28 `FLAGSHIP_MODEL_SUBSTRINGS` is broad flagship-family
+ *     (different selection criteria)
+ *   - rank-45 `KNOWN_BAROMETER_MODELS` is Pixel 6+ (Pixel 5 has cutout
+ *     but no barometer)
+ *   - rank-46 `KNOWN_120HZ_MODELS` is Pixel 7+ (Pixel 5/6 have cutouts
+ *     but no 120 Hz)
  *
- * The cutout-vs-120Hz distinction is critical: Pixel 6 has a hole-punch
- * cutout but only 90 Hz refresh. Same surface (model string), different
- * semantic (cutout-equipped vs 120Hz-capable), different list. Drift-alarm
- * invariant test pins IN/OUT membership.
+ * The cutout-vs-120Hz distinction is critical: Pixel 5 and Pixel 6 have
+ * hole-punch cutouts but only 90 Hz refresh. Same surface (model string),
+ * different semantic (cutout-equipped vs 120Hz-capable), different list.
+ * Three distinct cutoffs across three lists — Pixel 5 (cutout), Pixel 6
+ * (barometer), Pixel 7 (120Hz). Drift-alarm invariant test pins IN/OUT
+ * membership and cross-rank semantic separation.
  *
  * Scoring (max wins; first-match cascade in source order — strong rule
  * first per rank-49/51 partition pattern):
@@ -99,9 +102,13 @@ class DisplayCutoutProbe(
          *
          * **Selection criteria** (team-lead's `≤30 entries OR ≥3 variants
          * each` rule):
-         *   • Pixel 6 and later (note: Pixel 6 has hole-punch with 90 Hz;
-         *     this is the cutout-vs-120Hz semantic difference from rank-46
-         *     `KNOWN_120HZ_MODELS` which requires Pixel 7+)
+         *   • Pixel 5 and later (Pixel 5 / 5a have top-left hole-punch per
+         *     Google spec — coverage-gap closure recommended by reviewer
+         *     at rank-52 approval; note that this is BROADER than rank-46
+         *     `KNOWN_120HZ_MODELS` which starts at Pixel 7+, and ALSO
+         *     broader than rank-45 `KNOWN_BAROMETER_MODELS` which starts
+         *     at Pixel 6+ — three distinct cutoffs across three lists,
+         *     each verified per OEM spec)
          *   • Galaxy S22 and later (hole-punch on all S22+ family)
          *   • Galaxy Note 20 and later (hole-punch)
          *   • Galaxy Z Fold 4 and later
@@ -110,13 +117,13 @@ class DisplayCutoutProbe(
          *
          * **Negative exclusions** [NON_CUTOUT_VARIANTS]:
          *   • Pixel 6a — hole-punch (NOT excluded; included via `pixel 6`)
-         *   • Note: Pixel 6/7/8 a-variants ALL have hole-punch cutouts,
-         *     so unlike rank-46's NON_120HZ_PIXEL_A_VARIANTS, this list
-         *     is currently empty. Kept as forward-looking infrastructure
+         *   • Note: Pixel 5/5a/6a/7a/8a ALL have hole-punch cutouts, so
+         *     unlike rank-46's NON_120HZ_PIXEL_A_VARIANTS, this list is
+         *     currently empty. Kept as forward-looking infrastructure
          *     in case a future positive-substring match needs narrowing.
          */
         val KNOWN_CUTOUT_MODELS: List<String> = listOf(
-            "pixel 6", "pixel 7", "pixel 8", "pixel 9", "pixel fold",
+            "pixel 5", "pixel 6", "pixel 7", "pixel 8", "pixel 9", "pixel fold",
             "sm-s901", "sm-s906", "sm-s908",   // Galaxy S22 family
             "sm-s911", "sm-s916", "sm-s918",   // Galaxy S23 family
             "sm-s921", "sm-s926", "sm-s928",   // Galaxy S24 family

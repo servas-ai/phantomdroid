@@ -96,13 +96,23 @@ class DisplayCutoutProbeTest {
     }
 
     @Test
-    fun `Pixel 5 with null cutout — score is 0 (NOT in cutout list)`() = runBlocking {
-        // Pixel 5 has a hole-punch but is NOT in KNOWN_CUTOUT_MODELS (list
-        // starts at Pixel 6). Documented limitation — Pixel 5 missing-cutout
-        // doesn't fire. Acceptable for TRACE severity.
+    fun `null cutout on Pixel 5 — score is 0_5 (coverage-gap closure)`() = runBlocking {
+        // Pixel 5 has a top-left hole-punch per Google spec. Added to
+        // KNOWN_CUTOUT_MODELS per reviewer's rank-52-approval coverage-gap
+        // closure recommendation — was previously documented limitation,
+        // now firing per spec.
         val result = makeProbe(cutoutPresent = false, safeInsetTopDp = null)
             .run(fakeCtx(model = "Pixel 5"))
-        assertEquals(0.0, result.score)
+        assertEquals(0.5, result.score)
+    }
+
+    @Test
+    fun `null cutout on Pixel 5a — score is 0_5`() = runBlocking {
+        // Pixel 5a also has top-left hole-punch per Google spec. Caught
+        // by `pixel 5` substring (also matches Pixel 5a).
+        val result = makeProbe(cutoutPresent = false, safeInsetTopDp = null)
+            .run(fakeCtx(model = "Pixel 5a"))
+        assertEquals(0.5, result.score)
     }
 
     @Test
@@ -366,7 +376,11 @@ class DisplayCutoutProbeTest {
     // ── Helper unit tests ────────────────────────────────────────────────────
 
     @Test
-    fun `isCutoutCapableModel detects Pixel 6+`() {
+    fun `isCutoutCapableModel detects Pixel 5 onward`() {
+        // Pixel 5 added per reviewer's rank-52-approval coverage-gap
+        // closure (Pixel 5 has top-left hole-punch per Google spec).
+        assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 5"))
+        assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 5a"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 6"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 6 Pro"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 7"))
@@ -375,9 +389,10 @@ class DisplayCutoutProbeTest {
     }
 
     @Test
-    fun `isCutoutCapableModel detects Pixel 6a 7a 8a (all have hole-punch)`() {
+    fun `isCutoutCapableModel detects Pixel 5a 6a 7a 8a (all have hole-punch)`() {
         // Unlike rank-46 KNOWN_120HZ_MODELS where Pixel 6a/7a are excluded,
-        // ALL Pixel a-variants from 6a forward have hole-punch cutouts.
+        // ALL Pixel a-variants from 5a forward have hole-punch cutouts.
+        assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 5a"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 6a"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 7a"))
         assertTrue(DisplayCutoutProbe.isCutoutCapableModel("Pixel 8a"))
@@ -424,10 +439,11 @@ class DisplayCutoutProbeTest {
 
     @Test
     fun `isCutoutCapableModel false for pre-cutout Pixel`() {
-        // Pixel 4a/5 have hole-punch but are NOT in the list (cutoff at
-        // Pixel 6). Documented narrow scope.
+        // Pixel 4 and earlier use teardrop notches or no cutout. List
+        // cutoff now at Pixel 5 (hole-punch generation start per Google
+        // spec — coverage-gap closure from rank-52 review).
         assertFalse(DisplayCutoutProbe.isCutoutCapableModel("Pixel 4a"))
-        assertFalse(DisplayCutoutProbe.isCutoutCapableModel("Pixel 5"))
+        assertFalse(DisplayCutoutProbe.isCutoutCapableModel("Pixel 4"))
         assertFalse(DisplayCutoutProbe.isCutoutCapableModel("Pixel 3"))
         assertFalse(DisplayCutoutProbe.isCutoutCapableModel("Pixel 2"))
     }
@@ -457,10 +473,12 @@ class DisplayCutoutProbeTest {
     fun `KNOWN_CUTOUT_MODELS list pinned (drift alarm with IN OUT membership)`() {
         // Future maintainer changing this list must update this test
         // deliberately. The list is intentionally distinct from rank-46
-        // KNOWN_120HZ_MODELS (Pixel 6 has cutout but no 120Hz; both lists
-        // start Galaxy at S22 but diverge on Pixel cutoff).
+        // KNOWN_120HZ_MODELS (Pixel 5/6 have cutouts but no 120Hz; both
+        // lists start Galaxy at S22 but diverge on Pixel cutoff).
         val list = DisplayCutoutProbe.KNOWN_CUTOUT_MODELS
-        // IN: cutoff at Pixel 6 (has hole-punch, 90Hz max)
+        // IN: cutoff at Pixel 5 (hole-punch generation start per Google
+        // spec — coverage-gap closure from rank-52 review).
+        assertTrue("pixel 5" in list)
         assertTrue("pixel 6" in list)
         assertTrue("pixel 7" in list)
         assertTrue("pixel 8" in list)
@@ -469,9 +487,9 @@ class DisplayCutoutProbeTest {
         assertTrue("sm-f936" in list)  // Z Fold 4
         assertTrue("oneplus 11" in list)
         assertTrue("xiaomi 14" in list)
-        // OUT: pre-cutout Pixels NOT in list
-        assertFalse("pixel 5" in list)
+        // OUT: pre-hole-punch Pixels (notch or no cutout) NOT in list
         assertFalse("pixel 4a" in list)
+        assertFalse("pixel 4" in list)
         assertFalse("pixel 3" in list)
     }
 
@@ -490,9 +508,12 @@ class DisplayCutoutProbeTest {
     @Test
     fun `KNOWN_CUTOUT_MODELS distinct from rank-46 KNOWN_120HZ_MODELS`() {
         // Both lists target flagship-Pixel-family models, but semantics
-        // differ: cutout starts at Pixel 6 (has hole-punch even at 90Hz),
-        // 120Hz starts at Pixel 7. `pixel 6` is in cutout list but NOT
-        // in 120Hz list. Locks the cross-rank-different-semantic decision.
+        // differ: cutout starts at Pixel 5 (hole-punch generation), 120Hz
+        // starts at Pixel 7. `pixel 5` and `pixel 6` are in cutout list
+        // but NOT in 120Hz list. Locks the cross-rank-different-semantic
+        // decision across two list cutoffs.
+        assertTrue("pixel 5" in DisplayCutoutProbe.KNOWN_CUTOUT_MODELS)
+        assertFalse("pixel 5" in RefreshRateProbe.KNOWN_120HZ_MODELS)
         assertTrue("pixel 6" in DisplayCutoutProbe.KNOWN_CUTOUT_MODELS)
         assertFalse("pixel 6" in RefreshRateProbe.KNOWN_120HZ_MODELS)
     }
