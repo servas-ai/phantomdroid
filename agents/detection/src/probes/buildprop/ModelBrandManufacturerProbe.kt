@@ -180,7 +180,8 @@ class ModelBrandManufacturerProbe : Probe {
             "huawei" to "huawei",
             "redmi" to "xiaomi",            // Redmi-branded SKUs report manufacturer=Xiaomi
             "poco" to "xiaomi",             // POCO sub-brand of Xiaomi
-            "honor" to "honor",             // post-2020 split from Huawei
+            "honor" to "honor",             // post-2020 independent Honor
+            "honor" to "huawei",            // pre-2020 legacy Honor (brand=Honor, manufacturer=HUAWEI)
         )
 
         const val PATTERN_MODEL_EMULATOR_KEYWORD = "model_emulator_keyword"
@@ -291,16 +292,21 @@ class ModelBrandManufacturerProbe : Probe {
 
             val confidence = if (observed >= 2) CONFIDENCE_FULL else CONFIDENCE_DEGRADED
 
-            // Tri-state alignment evidence — distinguish:
+            // Tri-state alignment evidence — three values currently
+            // emitted:
             //   "true"          both observed AND aligned
             //   "false"         both observed AND not aligned (mismatch)
-            //   "unknown_oem"   both observed AND alignment indeterminate
-            //                   (treated same as "false" by the scoring
-            //                   rule above, but the evidence label
-            //                   leaves room for a future tri-state
-            //                   alias-extension)
             //   "unknown"       at least one is null/empty — cannot
             //                   compute alignment honestly
+            //
+            // Forward-looking planning anchor (NOT currently emitted): a
+            // future tri-state alias-extension could surface
+            // `"unknown_oem"` for the case where both inputs are
+            // observed but the alias-table doesn't recognize either
+            // OEM. Today, that case collapses to "false" because the
+            // mismatch rule already fires at 0.85. The four-valued
+            // evidence would let a downstream consumer distinguish
+            // "definitely-wrong" from "unrecognized-but-possibly-new-OEM".
             val alignmentDisplay = when {
                 brand.isNullOrEmpty() || manufacturer.isNullOrEmpty() -> "unknown"
                 isBrandManufacturerAligned(brand, manufacturer) -> "true"

@@ -111,6 +111,18 @@ class ModelBrandManufacturerProbeTest {
     }
 
     @Test
+    fun `legacy Honor pre-2020 (brand=Honor, manufacturer=HUAWEI) — score is 0 via alias`() =
+        runBlocking {
+            // Pre-2020 Honor devices reported brand=Honor + manufacturer=HUAWEI.
+            // Alias added per reviewer's rank-9-approval suggestion #2 to
+            // prevent legacy-Honor false-positives at 0.85 mismatch.
+            val result = probe.run(
+                fakeCtx(brand = "Honor", model = "ANE-LX1", manufacturer = "HUAWEI")
+            )
+            assertEquals(0.0, result.score)
+        }
+
+    @Test
     fun `case difference Google_google — score is 0 via lowercase equality`() = runBlocking {
         val result = probe.run(fakeCtx(brand = "Google", manufacturer = "google"))
         assertEquals(0.0, result.score)
@@ -499,6 +511,8 @@ class ModelBrandManufacturerProbeTest {
         assertTrue(("samsung" to "samsung") in pairs)
         assertTrue(("redmi" to "xiaomi") in pairs)
         assertTrue(("poco" to "xiaomi") in pairs)
+        assertTrue(("honor" to "honor") in pairs)
+        assertTrue(("honor" to "huawei") in pairs)
     }
 
     // ── Cross-rank distinct-list invariants ──────────────────────────────────
