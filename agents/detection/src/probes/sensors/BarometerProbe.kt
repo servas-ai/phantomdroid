@@ -134,6 +134,9 @@ class BarometerProbe(
          *   • OnePlus 9 and later
          *   • Xiaomi 13 and later (Mi 13, Xiaomi 13, 14)
          */
+        // 28 substring entries cover ~80 retail SKU variants (e.g. "sm-s901" matches
+        // SM-S901B/U/E/N regional Galaxy S22 codes). Lab approximation — real-device
+        // telemetry required.
         val KNOWN_BAROMETER_MODELS: List<String> = listOf(
             "pixel 6", "pixel 7", "pixel 8", "pixel 9", "pixel fold",
             "sm-s901", "sm-s906", "sm-s908",   // Galaxy S22 family
