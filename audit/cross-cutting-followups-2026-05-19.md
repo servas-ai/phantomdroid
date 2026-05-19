@@ -1,0 +1,115 @@
+# Cross-cutting Follow-ups — 2026-05-19
+
+**Source**: builder/reviewer observations during `detector-build-2026-05-19` team session (rank 3 → rank 24, 10 probes).
+**Purpose**: track issues that span multiple probes or touch core contracts. Out of scope for any single probe task; need either an owner decision or a dedicated cross-cutting PR.
+
+---
+
+## #1 Evidence-key namespace collision across probes
+
+**Observation**: Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 10 (`InstalledAppsProbe`) all emit `Evidence("pkg.<id>", …)` rows for overlapping package IDs (Magisk Manager, SuperSU, LSPosed, Xposed installer).
+
+**Why this matters**: A human reading the consolidated probe report cannot tell at a glance whether the same observation is triple-counted or whether the three probes are independent signals from different surfaces. JSON structure (`ProbeRecord.id`) makes it unambiguous to a parser, but the reading-friendly evidence labels collide.
+
+**Proposed fix**:
+- Rename evidence keys to `installed_apps.pkg.<id>` (rank 10), `su_search.pkg.<id>` (rank 3), `xposed.pkg.<id>` (rank 8).
+- Single cross-probe refactor, ~30 LOC across the three probes + tests.
+
+**Acceptance**:
+- No two probes emit the same evidence key for the same package ID across their evidence lists.
+- Consolidated JSON report (when implemented) renders unambiguously.
+
+**Owner action**: confirm namespacing convention preferred, or pick alternative (e.g. nested keys, `probe_id_pkg.<id>`).
+
+---
+
+## #2 Unverified package IDs in rank 10 marker list
+
+**Observation**: 5 entries in the rank 10 (`runtime.installed_apps`) marker lists could not be verified as canonical published Android package IDs:
+- Group B: `com.frida.frida`, `org.proxyman.NSPlist`, `com.adb.kit`
+- Group C: `com.android.virtualspace`
+- Group D: `mods.autoui`
+
+**Why this matters**: The probe scores 0.85/0.7 if any of these is installed. If they're not real package IDs, they'll never fire → dead code, but no false positives.
+
+**Proposed fix**: On the first real-device telemetry pass, ground-truth these against actual Play Store / sideload-installable APKs. Either replace with canonical IDs or remove from marker list.
+
+**Acceptance**: All marker IDs in rank 10 trace to a real, publicly-installable Android package.
+
+**Owner action**: prioritize relative to real-device validation budget.
+
+---
+
+## #3 ProbeContext lacks `querySettingGlobal`
+
+**Observation**: 3 probes now (`AutomationToolsProbe`, `DeveloperOptionsProbe`, future Settings.Global-class probes) use `querySettingSecure` for keys that semantically live in `Settings.Global`. The KDoc says "assumes production wrapper handles namespace fallback" — but if it doesn't, every Global key these probes read returns null.
+
+**Why this matters**: Silent false negatives on every Settings.Global probe.
+
+**Proposed fix**: Add `fun querySettingGlobal(key: String): String?` to the `ProbeContext` interface. ~10 LOC interface change + production implementation update.
+
+**Acceptance**:
+- `ProbeContext.querySettingGlobal(key)` exists.
+- Production wrapper reads from `Settings.Global` namespace specifically.
+- The 3 affected probes migrate from `querySettingSecure` to `querySettingGlobal` where appropriate.
+
+**Owner action**: approve core-contract change (this is one of the only no-touch zones during single-probe tasks).
+
+---
+
+## #4 inventory.yml rank 20 description divergence
+
+**Observation**: `shared/probes/inventory.yml:170` says rank 20 description is `"Timezone vs IP geolocation mismatch"`. The implemented probe substitutes locale-country for IP geolocation (per the no-live-network research boundary).
+
+**Why this matters**: Inventory is meant to be authoritative metadata. Description divergence makes the inventory misleading for anyone reading it without the probe.
+
+**Proposed fix**: Update line 170 to `"Timezone vs locale-country consistency (network-free proxy for IP geolocation)"` or similar.
+
+**Acceptance**: Inventory description matches what the probe actually measures.
+
+**Owner action**: one-line inventory.yml edit; can be done in next session.
+
+---
+
+## #5 Pixel 8 Pro density telemetry needed
+
+**Observation**: The rank 23 `ScreenResolutionProbe.kt` device-profile table uses 480dpi for Pixel 8 Pro, but Google's spec is 489 PPI (Pixel 7 already proved Google doesn't always quantize to standard buckets — Pixel 7 reports 420 not 480). If real Pixel 8 Pro reports 489 (not 480), the profile false-positives at score=0.9 (model_mismatch).
+
+**Why this matters**: Real-device false positive on the latest flagship.
+
+**Proposed fix**: First real-device pass: capture `DisplayMetrics.densityDpi` from a Pixel 8 Pro and update the profile.
+
+**Acceptance**: Pixel 8 Pro profile matches actual reported density on at least one real device.
+
+**Owner action**: real-device telemetry pass when a Pixel 8 Pro is available.
+
+---
+
+## #6 SensorSample ragged-array contract gap
+
+**Observation**: `SensorSample.values: Array<FloatArray>` allows ragged arrays (different axis counts per frame); `AccelerometerGyroProbe` assumes uniform axis count via `sample.values[0].size`. If the production wrapper ever produces ragged arrays, the outer try/catch catches it (`ProbeResult.failed`), but `SensorSample` doesn't document uniform-axis-count as a contract.
+
+**Why this matters**: Silent failure path if a future wrapper produces ragged arrays.
+
+**Proposed fix**: Add a KDoc invariant to `SensorSample`: "All `values[i]` must have the same length; the wrapper guarantees uniform axis count per sensor type."
+
+**Acceptance**: `SensorSample` data class KDoc documents the invariant.
+
+**Owner action**: ~3 LOC docstring change in `agents/detection/src/core/SensorManagerView.kt` (or wherever SensorSample lives).
+
+---
+
+## Status
+
+| # | Item | Owner action needed | Workaround in place? | Severity |
+|---|---|---|---|---|
+| 1 | pkg.* evidence-key collision | yes (naming convention) | no (only confusing, not wrong) | low |
+| 2 | rank 10 marker-list verification | yes (telemetry budget) | yes (no false positives) | low |
+| 3 | querySettingGlobal missing | yes (core-contract change) | yes (3 probes assume bridge) | medium |
+| 4 | inventory.yml rank 20 description | yes (inventory.yml edit) | yes (probe behavior correct) | low |
+| 5 | Pixel 8 Pro density | yes (telemetry budget) | yes (lab approximation flagged) | low |
+| 6 | SensorSample axis-count invariant | yes (KDoc change) | yes (try/catch fallback) | low |
+
+All items are **tracked, not blocking** the current Power-1 acceptance criteria.
+
+Next session can pick any of these up; #3 (querySettingGlobal) has the highest ROI because it directly affects probe correctness, not just documentation/false-positive hygiene.
