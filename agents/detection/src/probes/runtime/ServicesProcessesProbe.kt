@@ -124,6 +124,23 @@ class ServicesProcessesProbe(
          * test runs (e.g. CI Espresso/UIAutomator suites) produce these
          * processes — they're a lab/dev signal, not a production attack
          * tell.
+         *
+         * **Consumer guidance**: this 0.5 score should be combined with the
+         * debug-state signal (`ro.build.type` from rank-28
+         * [com.detectorlab.probes.buildprop.BoardHardwareProbe], or
+         * `ApplicationInfo.FLAG_DEBUGGABLE` / `ro.debuggable` from rank-19
+         * `EnvDeveloperOptionsProbe`) before high-confidence rejection.
+         *   - On a `user` (production) build the 0.5 is high-signal — a
+         *     UIAutomator process on a retail Android build is anomalous.
+         *   - On `userdebug` / `eng` builds the same processes are routinely
+         *     present from CI test runs and the score should be discounted
+         *     further (e.g. multiplied by ~0.3 in the consumer-side
+         *     aggregator) or suppressed entirely.
+         *
+         * Gating is intentionally consumer-side: doing it inside the probe
+         * would require either a new ProbeContext surface or duplicating
+         * property reads from rank-1/19/28, neither of which fits this
+         * probe's single-purpose scope.
          */
         val AUTOMATION_MARKERS: List<String> = listOf(
             "uiautomator",
@@ -168,6 +185,13 @@ class ServicesProcessesProbe(
                     }
                 }
             }
+            // ASCII lex sort, NOT case-insensitive. Matching is case-insensitive
+            // (haystack lowercased above) but evidence output preserves original
+            // case and sorts by ASCII (`"FRIDA-SERVER"` < `"Magiskd"` because
+            // uppercase F < lowercase M). Test
+            // `findMatches case-insensitive` asserts this exact ordering;
+            // do NOT change to `sortedBy { it.lowercase() }` without updating
+            // that test and any downstream consumer parsing the evidence row.
             return hits.toList().sorted()
         }
     }
