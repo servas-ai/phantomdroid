@@ -284,11 +284,11 @@ class NfcStateProbeTest {
 
     @Test
     fun `Pixel 4a with null adapter — score is 0_5 (Pixel family)`() = runBlocking {
-        // Pixel 4a/5a ALSO have NFC. The flagship-substring rule fires for
-        // any "pixel " prefix, so Pixel 4a with null adapter is flagged at
-        // 0.5. (This is more aggressive than strictly necessary — Pixel 4a
-        // is "budget" but ships with NFC. The substring rule errs on the
-        // side of including the Pixel family.)
+        // Pixel 4a/5a ARE flagship-with-NFC family despite being "budget
+        // Pixels" — they ship with NFC, so a null adapter is structurally
+        // suspicious for them too. The flagship-substring rule fires
+        // correctly here (this is not a false-positive — it's the same
+        // diagnostic class as null adapter on Pixel 8 Pro).
         val result = makeProbe(
             adapterPresent = false,
             nfcEnabled = null,
@@ -524,14 +524,39 @@ class NfcStateProbeTest {
     }
 
     @Test
-    fun `is_consistent evidence — true when one null`() = runBlocking {
-        // Cannot claim inconsistency without both observations.
+    fun `is_consistent evidence — partial when one null`() = runBlocking {
+        // Tri-state: exactly one of (adapter, feature) observed → cannot
+        // confirm consistency, but cannot claim contradiction either.
+        // "partial" is more honest than "true" for a downstream consumer
+        // scanning evidence — they know to cross-check the individual rows.
         val result = makeProbe(
             adapterPresent = true,
             featureNfc = null,
         ).run(fakeCtx())
         val ev = result.evidence.find { it.key == "nfc.is_consistent" }
-        assertEquals("true", ev?.value)
+        assertEquals("partial", ev?.value)
+    }
+
+    @Test
+    fun `is_consistent evidence — unknown when both null`() = runBlocking {
+        // Tri-state: neither observed → vacuous "true" would mislead.
+        // "unknown" makes the no-observation case explicit.
+        val result = makeProbe(
+            adapterPresent = null,
+            featureNfc = null,
+        ).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "nfc.is_consistent" }
+        assertEquals("unknown", ev?.value)
+    }
+
+    @Test
+    fun `is_consistent evidence — partial when only feature observed`() = runBlocking {
+        val result = makeProbe(
+            adapterPresent = null,
+            featureNfc = true,
+        ).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "nfc.is_consistent" }
+        assertEquals("partial", ev?.value)
     }
 
     @Test

@@ -33,6 +33,16 @@ import com.detectorlab.probes.buildprop.BoardHardwareProbe
  * "model where empty board is structurally impossible", so the list is
  * shared (not duplicated). Anchored by an invariant test.
  *
+ * **Contingent reuse note.** The reuse holds as long as no flagship SKU
+ * ships without NFC. Every current entry in `FLAGSHIP_MODEL_SUBSTRINGS`
+ * is a flagship-with-NFC family by coincidence — both signals happen to
+ * partition the same way. If a future flagship variant ships without NFC
+ * (niche regional SKU, ultra-budget Pixel-branded entry), rank-48 will
+ * need to narrow to its own list (mirroring how rank-45's
+ * `KNOWN_BAROMETER_MODELS` narrows rank-28's flagship list to the
+ * barometer-equipped subset). For now, same-semantic-same-surface reuse
+ * is correct.
+ *
  * **`NfcAdapter` / `PackageManager.hasSystemFeature` accessor gap.**
  * `ProbeContext` exposes no `queryNfcAdapter()` view and
  * `PackageManagerView.hasSystemFeature(...)` does not exist on the current
@@ -130,8 +140,18 @@ class NfcStateProbe(
                 // already fires (more specific signal). Only fire this
                 // weaker rule when feature flag is false or unobservable.
                 featureNfc != true
-            val consistent = adapterPresent == null || featureNfc == null ||
-                adapterPresent == featureNfc
+            // Tri-state consistency:
+            //   "true"     — both observed AND agree
+            //   "false"    — both observed AND disagree (contradiction)
+            //   "partial"  — exactly one observed; cannot claim consistency
+            //   "unknown"  — neither observed; vacuous consistency would
+            //                mislead a downstream consumer scanning evidence
+            val consistentDisplay = when {
+                adapterPresent == null && featureNfc == null -> "unknown"
+                adapterPresent == null || featureNfc == null -> "partial"
+                adapterPresent == featureNfc -> "true"
+                else -> "false"
+            }
 
             val (pattern, score) = when {
                 contradiction ->
@@ -172,7 +192,7 @@ class NfcStateProbe(
                 ),
                 Evidence(
                     key = "nfc.is_consistent",
-                    value = consistent.toString(),
+                    value = consistentDisplay,
                     expected = "true",
                 ),
                 Evidence(
