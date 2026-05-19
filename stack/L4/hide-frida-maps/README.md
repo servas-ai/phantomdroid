@@ -1,8 +1,22 @@
 # hide-frida-maps — L4 Xposed module
 
+**Safety boundary.** This module is for lab measurement of detection
+resistance in owned test environments. It is not for evading anti-abuse
+controls on real services. See `agents/stability/stack/layers.md`
+§"Safety boundary".
+
+**Status:** Skeleton only. The Kotlin source under
+`src/main/java/dev/cloudphone/hide/` is a scaffold; the hook is not yet
+wired into a functional release APK. Measurement of the rank-8
+`runtime.xposed_lsposed` probe is deferred until the hook lands.
+
 **Mutation proposal:** `019e2f10-37cb-7c8b-bbfb-90e573cfe302`
 **Layer:** L4 (runtime anti-instrumentation)
-**Probe targeted:** `runtime.frida_memory_maps`
+**Probe targeted:** rank-8 `runtime.xposed_lsposed` (acceptance: `<0.5`
+once the hook is wired), and `runtime.frida_memory_maps`
+**Threat-model alignment:** `shared/threat-model.md` §Kernel Layer
+`/proc/self/maps (Hooks, Frida) (#8)` — mitigable by L4 per
+`agents/stability/stack/layers.md` §L4 — Runtime Hiding
 **Framework:** Vector (JingMatrix/Vector v2.0) atop NeoZygisk (JingMatrix/NeoZygisk v2.3)
 **Version:** 0.1.0
 
