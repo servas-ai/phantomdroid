@@ -32,6 +32,18 @@ import com.detectorlab.core.ProbeSeverity
  * This is freeRASP T2 (Debug Detection) and OWASP MASTG MSTG-RESILIENCE-2
  * (MASTG-KNOW-0033 dynamic-analysis-tools detection).
  *
+ * **FP class acknowledgment** (per the rank-51 honest-framing pattern):
+ * a legitimate Android developer running their own app via Android
+ * Studio with `android:debuggable="true"` AND an attached debugger
+ * session will fire this rule at 1.0 — the kernel's `TracerPid` field
+ * is a structural signal that cannot distinguish "Frida ptrace-attach"
+ * from "legitimate developer debugging session". HIGH severity + 1.0
+ * dispositive is internally consistent: production deployments
+ * targeted by this probe are NOT developer environments, so the FP
+ * class is out-of-scope. Consumer-side aggregator should ignore the
+ * rule when the target is a known-developer device (e.g. via
+ * `Build.TYPE != "user"` cross-check with rank-7 TagsAndTypeProbe).
+ *
  * **Note on the Int-vs-Fractional rank divergence**: inventory.yml lists
  * this probe at fractional rank 8.5 (its "natural" priority slot between
  * rank 8 XposedLsposed and rank 9 ModelBrandManufacturer). The
