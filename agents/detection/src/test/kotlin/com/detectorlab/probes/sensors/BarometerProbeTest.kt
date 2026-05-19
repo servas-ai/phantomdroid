@@ -870,6 +870,26 @@ class BarometerProbeTest {
         assertFalse(BarometerProbe.matchesConstantStub(emptyList()))
     }
 
+    @Test
+    fun `matchesConstantStub misses one-ULP-drifted 1013_25 — known fragility`() {
+        // KDoc on STUB_PRESSURE_SEA_LEVEL documents this: `1013.25` is not
+        // exactly representable in IEEE 754 single precision. If an upstream
+        // wrapper applies ANY arithmetic to the Goldfish stub value before
+        // passing it through, the bit pattern can drift by one ULP and the
+        // `==` equality silently fails. This test locks in that contract so
+        // a future change that "improves" the comparison to use `abs(diff)
+        // < epsilon` causes a deliberate review of the false-positive
+        // surface that change would create.
+        val drifted = Math.nextUp(BarometerProbe.STUB_PRESSURE_SEA_LEVEL)
+        assertFalse(
+            BarometerProbe.matchesConstantStub(listOf(drifted, drifted)),
+            "One-ULP drift from 1013.25f silently bypasses the stub rule. " +
+                "If this test breaks because matchesConstantStub now uses " +
+                "tolerance-based comparison, audit the false-positive impact " +
+                "on real sensors emitting values close to 1013.25.",
+        )
+    }
+
     // ── Cross-rank reuse invariants (rank-17/31/32/42/43/44 pattern) ─────────
 
     @Test
@@ -1033,9 +1053,9 @@ class BarometerProbeTest {
         val result = makeProbe().run(fakeCtx())
         assertEquals(
             "Check SensorManager for TYPE_PRESSURE presence + emulator vendor " +
-                "names + plausibility (300-1100 hPa range, non-zero) + sample " +
-                "variance. Score 'missing sensor' lower than other sensor probes " +
-                "since barometer is not universal.",
+                "names + plausibility (300-1100 hPa range) + AVD-stub-value " +
+                "detection (1013.25 / 1000.0 / 0.0). Score 'missing sensor' " +
+                "lower than other sensor probes since barometer is not universal.",
             result.method,
         )
     }

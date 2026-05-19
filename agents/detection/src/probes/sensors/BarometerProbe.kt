@@ -91,6 +91,20 @@ class BarometerProbe(
         const val MIN_PLAUSIBLE_HPA = 300.0f
         const val MAX_PLAUSIBLE_HPA = 1100.0f
 
+        /**
+         * AVD/Goldfish historical sea-level constant.
+         *
+         * **NOTE on Float precision.** `1013.25` is not exactly representable
+         * in IEEE 754 single precision (rounds to `1013.25006103515625`).
+         * The `==` comparison in [matchesConstantStub] only works because both
+         * sides use the same `1013.25f` literal which compiles to identical
+         * bits. If an upstream Sensor wrapper applies ANY arithmetic to the
+         * Goldfish stub value before passing it through (unit conversion,
+         * calibration coefficient, FIR filter), the bit pattern can drift by
+         * one ULP and the equality silently fails — false negative on the
+         * stub rule. The rule is correct for the typical clean passthrough
+         * path that AVD's Goldfish actually uses.
+         */
         const val STUB_PRESSURE_SEA_LEVEL = 1013.25f
         const val STUB_PRESSURE_ROUND = 1000.0f
         const val STUB_PRESSURE_ZERO = 0.0f
@@ -101,6 +115,11 @@ class BarometerProbe(
          * `ro.product.model` (case-insensitive). Conservative list —
          * better to under-flag a flagship than to false-positive every
          * budget device.
+         *
+         * **Source**: GSMArena spec sheets cross-referenced against Android
+         * source. Lab approximation — real-device telemetry required to
+         * validate (joins the rank 22 MCC / rank 23 device-profile / rank
+         * 31 OUI / cross-cutting follow-up #5 family).
          *
          * Selection criteria:
          *   • Pixel 6 and later (Pixel 6/7/8 + Pro variants + Fold)
@@ -135,9 +154,9 @@ class BarometerProbe(
 
         const val METHOD =
             "Check SensorManager for TYPE_PRESSURE presence + emulator vendor " +
-                "names + plausibility (300-1100 hPa range, non-zero) + sample " +
-                "variance. Score 'missing sensor' lower than other sensor probes " +
-                "since barometer is not universal."
+                "names + plausibility (300-1100 hPa range) + AVD-stub-value " +
+                "detection (1013.25 / 1000.0 / 0.0). Score 'missing sensor' " +
+                "lower than other sensor probes since barometer is not universal."
 
         /**
          * True iff [model] is in [KNOWN_BAROMETER_MODELS] (case-insensitive
@@ -261,7 +280,7 @@ class BarometerProbe(
                 Evidence(
                     key = "barometer.sample_summary",
                     value = sampleSummary,
-                    expected = "dynamic value in 950-1050 hPa",
+                    expected = "dynamic value in 300-1100 hPa",
                 ),
                 Evidence(
                     key = "barometer.out_of_range",
