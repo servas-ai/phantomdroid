@@ -121,6 +121,13 @@ class BarometerProbe(
          * validate (joins the rank 22 MCC / rank 23 device-profile / rank
          * 31 OUI / cross-cutting follow-up #5 family).
          *
+         * **Size note**: 28 substring entries cover ~80 device variants
+         * because OEM model codes are family-prefixed (e.g. `sm-s901`
+         * matches every regional Galaxy S22 SKU: S901B/U/N/W/E/etc.).
+         * This exceeds the team-lead's ≤10 entry budget heuristic, but
+         * the substring-to-variant ratio (~2.9x) makes the larger list
+         * the cheaper representation. Approved by team-lead.
+         *
          * Selection criteria:
          *   • Pixel 6 and later (Pixel 6/7/8 + Pro variants + Fold)
          *   • Galaxy S22 and later (model codes SM-S901..SM-S938)
