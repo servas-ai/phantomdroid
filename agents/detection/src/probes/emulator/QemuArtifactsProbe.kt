@@ -26,6 +26,15 @@ import com.detectorlab.core.ProbeSeverity
  *     empty value indicates the host-GPU-passthrough AVD configuration.
  *     Same source as the canonical marker but a separate property — kits
  *     that mask `ro.kernel.qemu` sometimes leak `.gles` independently.
+ *     **Asymmetry vs `ro.kernel.qemu`**: this rule fires on ANY non-empty
+ *     value (including `"0"`) because real Android devices do not set
+ *     the `.gles` property at all — its mere presence is the signature.
+ *     The `ro.kernel.qemu` rule is DIFFERENT: it uses exact-equality
+ *     against `"1"` so AOSP builds that legitimately pin the parent
+ *     property to `"0"` score clean. Do NOT "consistency-fix" the two
+ *     rules to use the same semantic — the asymmetry is intentional and
+ *     locked by tests (`real device with ro_kernel_qemu == 0 — score is 0`
+ *     and `ro_kernel_qemu_gles any non-empty value — score is 1_0`).
  *   • **QEMU device node (1.0)**: any of `/dev/qemu_pipe`, `/dev/qemu_trace`
  *     present. These are kernel-side device files exposed by QEMU's
  *     paravirtualization layer — they don't exist on real silicon.
