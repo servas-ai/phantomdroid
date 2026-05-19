@@ -52,7 +52,7 @@ class ImeiSerialProbe : Probe {
     override val id = "identity.imei_serial"
     override val rank = 12
     override val category = ProbeCategory.IDENTITY
-    override val severity = ProbeSeverity.CRITICAL
+    override val severity = ProbeSeverity.HIGH
     override val androidLayer = AndroidLayer.FRAMEWORK
     override val budgetMs = 200L
 

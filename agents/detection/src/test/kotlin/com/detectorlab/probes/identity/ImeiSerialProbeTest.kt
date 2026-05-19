@@ -404,8 +404,12 @@ class ImeiSerialProbeTest {
     }
 
     @Test
-    fun `probe severity is CRITICAL`() {
-        assertEquals(ProbeSeverity.CRITICAL, probe.severity)
+    fun `probe severity is HIGH`() {
+        // Matches shared/probes/inventory.yml rank-12 severity=high.
+        // Team-lead's verbal brief said "critical", but the authoritative
+        // yaml is HIGH; this probe defers to the yaml so Report.aggregate's
+        // criticalFailures filter doesn't misclassify.
+        assertEquals(ProbeSeverity.HIGH, probe.severity)
     }
 
     @Test
