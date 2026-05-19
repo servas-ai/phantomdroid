@@ -28,6 +28,14 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *     phones since ~2010 ship with ≥2 cameras (front + rear). Strong
  *     signal because the FP class is ultra-budget Android Go devices
  *     which are vanishingly rare on cloud-phone infra.
+ *   • **Missing direction on phone-class (0.85)**: `facings` non-null
+ *     AND model is phone-class AND either front-facing count == 0 OR
+ *     back-facing count == 0. Real phones always have BOTH front and
+ *     back cameras since ~2011 (front-camera ubiquity post-Android-2.3).
+ *     The "count >= 2 but all same direction" case is a structural
+ *     impossibility this rule catches that the zero-cameras rule misses.
+ *     Tablets ARE excluded via the phone-class gate (Lenovo Tab P11
+ *     base legitimately ships without back camera).
  *   • **Single camera on multi-camera flagship (0.85)**: `cameraIdList`
  *     size == 1 AND model is in [KNOWN_MULTI_CAMERA_FLAGSHIPS]. Pixel
  *     6+ / Galaxy S22+ / OnePlus 9+ / Xiaomi 13+ all expose 3-6 camera
@@ -42,12 +50,18 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *     strip a real flagship's Camera HAL to LEGACY — rare but possible.
  *     Score stays at 0.85 (strong) per team-lead's brief; consumer-side
  *     aggregator should combine with other camera signals for high-
- *     confidence reject.
- *   • **Implausible sensor size (0.85)**: minimum physical-sensor
- *     diagonal == 0.0f OR > 100mm. Real Android sensors are 2-15mm
- *     (smartphone) up to 35-40mm (rare medium-format add-ons). 0.0 means
- *     the supplier returned a stub value; >100mm is structurally
- *     impossible on any phone form factor. Strong rule (model-agnostic).
+ *     confidence reject. The empty-list guard at the rule predicate
+ *     prevents Kotlin's `emptyList.all { }` from vacuously firing — a
+ *     pitfall worth noting as a reusable defensive pattern.
+ *   • **Implausible sensor width (0.85)**: minimum physical-sensor
+ *     **width** < 2mm OR > 15mm. Reads `SizeF.getWidth()` from
+ *     `SENSOR_INFO_PHYSICAL_SIZE` per team-lead's spec (NOT diagonal).
+ *     Real Android smartphone sensors are 2-15mm wide; even large
+ *     1-inch sensors (Sony Xperia Pro-I, Xiaomi 13 Ultra) cap near
+ *     13mm width. < 2mm catches the sub-physical-size stub case
+ *     (including the supplier-returns-0.0f sentinel as a special case
+ *     of the lower bound); > 15mm catches the implausibly-large stub.
+ *     Strong rule (model-agnostic structural impossibility).
  *
  * **`CameraManager` accessor gap.** Same gap-handling shape as rank
  * 23/31-49/51/52. `ProbeContext` exposes no `queryCameraManager()` view.
@@ -58,8 +72,9 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *   - `cameraHardwareLevelsSupplier: () -> List<Int>?` — per-camera
  *     `INFO_SUPPORTED_HARDWARE_LEVEL` (0=LEGACY, 1=LIMITED, 2=FULL,
  *     3=LEVEL_3, 4=EXTERNAL)
- *   - `cameraMinSensorSizeMmSupplier: () -> Float?` — smallest diagonal
- *     from `SENSOR_INFO_PHYSICAL_SIZE` across all cameras, in mm
+ *   - `cameraMinSensorWidthMmSupplier: () -> Float?` — smallest WIDTH
+ *     value from `SENSOR_INFO_PHYSICAL_SIZE.getWidth()` across all
+ *     cameras, in mm (per team-lead spec — NOT diagonal)
  *   - `cameraVendorStringSupplier: () -> String?` — concatenated vendor
  *     metadata (`INFO_VERSION`, `INFO_VENDOR_ID`, manufacturer strings)
  *     for substring scanning
@@ -89,18 +104,23 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *   1.0   PATTERN_VENDOR_EMULATOR_KEYWORD — dispositive; emulator
  *         identifiers in Camera HAL vendor metadata
  *   0.9   PATTERN_NO_CAMERAS_ON_PHONE — count == 0 AND phone-class
+ *   0.85  PATTERN_MISSING_DIRECTION_ON_PHONE — phone-class AND facings
+ *         missing either FRONT or BACK direction entirely (placed AFTER
+ *         no_cameras so the latter wins on the all-empty case which is
+ *         the more specific signal)
  *   0.85  PATTERN_SINGLE_CAMERA_ON_FLAGSHIP — count == 1 AND model in
  *         [KNOWN_MULTI_CAMERA_FLAGSHIPS]
  *   0.85  PATTERN_ALL_LEGACY_ON_FLAGSHIP — every level == 0 AND model
  *         in [KNOWN_MULTI_CAMERA_FLAGSHIPS]
- *   0.85  PATTERN_IMPLAUSIBLE_SENSOR_SIZE — min diagonal == 0.0 OR
- *         > 100mm (model-agnostic structural impossibility)
+ *   0.85  PATTERN_IMPLAUSIBLE_SENSOR_WIDTH — min sensor width < 2mm
+ *         OR > 15mm (model-agnostic structural impossibility; catches
+ *         both stub-zero and stub-out-of-range)
  *   0.0   PATTERN_CLEAN — multi-camera with FULL+ levels + reasonable
  *         sensor size + clean vendor strings
  *
  * Confidence:
- *   0.95  Any of (count, facings, levels, sensor, vendor) returned
- *         non-null
+ *   0.95  Any of (count, facings, levels, sensor width, vendor)
+ *         returned non-null
  *   0.50  All five returned null (no observation possible)
  *
  * Reference: shared/probes/inventory.yml rank 53 (mitigation_layer L1).
@@ -109,7 +129,7 @@ class CameraInfoProbe(
     private val cameraCountSupplier: () -> Int? = { null },
     private val cameraFacingsSupplier: () -> List<Int>? = { null },
     private val cameraHardwareLevelsSupplier: () -> List<Int>? = { null },
-    private val cameraMinSensorSizeMmSupplier: () -> Float? = { null },
+    private val cameraMinSensorWidthMmSupplier: () -> Float? = { null },
     private val cameraVendorStringSupplier: () -> String? = { null },
 ) : Probe {
     override val id = "env.camera_info"
@@ -135,15 +155,21 @@ class CameraInfoProbe(
         const val HARDWARE_LEVEL_EXTERNAL = 4
 
         /**
-         * Maximum plausible physical sensor diagonal in mm. Smartphone
-         * sensors are 2-15mm; even large 1-inch sensors (Sony Xperia
-         * Pro-I, Xiaomi 13 Ultra) top out near 16mm diagonal. Some
-         * external/medium-format cinema attachments reach 35-40mm. Above
-         * 100mm is structurally impossible on any phone form factor —
-         * exceeds the height of the device itself. Anything > 100mm is
-         * a stub value from a broken emulator HAL.
+         * Plausible smartphone sensor width range in mm, per team-lead's
+         * spec read of `SizeF.getWidth()` from
+         * `SENSOR_INFO_PHYSICAL_SIZE`. Smartphone main sensors are
+         * 5-10mm wide; ultrawide / depth / monochrome sensors run
+         * smaller (2-4mm); the largest 1-inch type-1 sensors (Sony
+         * Xperia Pro-I, Xiaomi 13 Ultra) cap near 13mm width. The
+         * bounds catch both:
+         *   • sub-2mm widths — stub `0.0f` and tiny-stub values; a real
+         *     sensor below 2mm is structurally smaller than any current
+         *     smartphone module
+         *   • > 15mm widths — anything in medium-format territory;
+         *     no Android phone ships such a sensor as of 2026
          */
-        const val MAX_PLAUSIBLE_SENSOR_DIAGONAL_MM = 100.0f
+        const val MIN_PLAUSIBLE_SENSOR_WIDTH_MM = 2.0f
+        const val MAX_PLAUSIBLE_SENSOR_WIDTH_MM = 15.0f
 
         /**
          * Models that ship with multi-camera (multi-lens-rear) arrays.
@@ -196,16 +222,18 @@ class CameraInfoProbe(
 
         const val PATTERN_VENDOR_EMULATOR_KEYWORD = "vendor_emulator_keyword"
         const val PATTERN_NO_CAMERAS_ON_PHONE = "no_cameras_on_phone"
+        const val PATTERN_MISSING_DIRECTION_ON_PHONE = "missing_direction_on_phone"
         const val PATTERN_SINGLE_CAMERA_ON_FLAGSHIP = "single_camera_on_flagship"
         const val PATTERN_ALL_LEGACY_ON_FLAGSHIP = "all_legacy_on_flagship"
-        const val PATTERN_IMPLAUSIBLE_SENSOR_SIZE = "implausible_sensor_size"
+        const val PATTERN_IMPLAUSIBLE_SENSOR_WIDTH = "implausible_sensor_width"
         const val PATTERN_CLEAN = "clean"
 
         const val SCORE_VENDOR_EMULATOR_KEYWORD = 1.0
         const val SCORE_NO_CAMERAS_ON_PHONE = 0.9
+        const val SCORE_MISSING_DIRECTION_ON_PHONE = 0.85
         const val SCORE_SINGLE_CAMERA_ON_FLAGSHIP = 0.85
         const val SCORE_ALL_LEGACY_ON_FLAGSHIP = 0.85
-        const val SCORE_IMPLAUSIBLE_SENSOR_SIZE = 0.85
+        const val SCORE_IMPLAUSIBLE_SENSOR_WIDTH = 0.85
         const val SCORE_CLEAN = 0.0
 
         const val CONFIDENCE_FULL = 0.95
@@ -271,8 +299,8 @@ class CameraInfoProbe(
             } catch (_: Throwable) {
                 null
             }
-            val minSensorMm: Float? = try {
-                cameraMinSensorSizeMmSupplier()
+            val minSensorWidthMm: Float? = try {
+                cameraMinSensorWidthMmSupplier()
             } catch (_: Throwable) {
                 null
             }
@@ -296,19 +324,39 @@ class CameraInfoProbe(
 
             val noCamerasOnPhone = count == 0 && phoneClass
 
+            // Missing-direction rule per team-lead watch #4. Predicate
+            // requires phoneClass (tablets legitimately ship without back
+            // cam — Lenovo Tab P11 base) AND facings observed AND at
+            // least one of FRONT / BACK direction entirely absent. The
+            // empty-list case where ALL facings are missing is also
+            // caught here, but the more-specific no_cameras_on_phone
+            // rule fires first when count == 0 (placed earlier in the
+            // cascade).
+            val missingDirectionOnPhone = facings != null && phoneClass && facings.isNotEmpty() && (
+                facings.count { it == LENS_FACING_FRONT } == 0 ||
+                    facings.count { it == LENS_FACING_BACK } == 0
+            )
+
             val singleCameraOnFlagship = count == 1 && multiCameraFlagship
 
             // `levels` empty list collapses to true vacuously under `all { }`
-            // which would mis-fire when a downstream wrapper returned an
-            // empty list for an emulator with no cameras. Guard with
-            // explicit isNotEmpty() so the rule only fires on observed
-            // levels.
+            // (Kotlin stdlib behavior: emptyList.all{} returns true). Guard
+            // with explicit isNotEmpty() so the rule only fires on
+            // observed levels. Reusable defensive pattern — applies any
+            // time a probe predicates on "every element satisfies X" on
+            // a list whose emptiness is possible from a degraded supplier.
             val allLegacyOnFlagship = levels != null && levels.isNotEmpty() &&
                 levels.all { it == HARDWARE_LEVEL_LEGACY } &&
                 multiCameraFlagship
 
-            val implausibleSensorSize = minSensorMm != null && (
-                minSensorMm == 0.0f || minSensorMm > MAX_PLAUSIBLE_SENSOR_DIAGONAL_MM
+            // Width-based implausible-sensor rule per team-lead watch #3:
+            // reads SizeF.getWidth() (NOT diagonal). Strict-inequality
+            // boundaries `< 2mm OR > 15mm` catch stub-zero (0.0 < 2.0
+            // fires lower bound), sub-physical stub values, and
+            // implausibly-large stubs in one rule.
+            val implausibleSensorWidth = minSensorWidthMm != null && (
+                minSensorWidthMm < MIN_PLAUSIBLE_SENSOR_WIDTH_MM ||
+                    minSensorWidthMm > MAX_PLAUSIBLE_SENSOR_WIDTH_MM
             )
 
             val (pattern, score) = when {
@@ -316,18 +364,20 @@ class CameraInfoProbe(
                     PATTERN_VENDOR_EMULATOR_KEYWORD to SCORE_VENDOR_EMULATOR_KEYWORD
                 noCamerasOnPhone ->
                     PATTERN_NO_CAMERAS_ON_PHONE to SCORE_NO_CAMERAS_ON_PHONE
+                missingDirectionOnPhone ->
+                    PATTERN_MISSING_DIRECTION_ON_PHONE to SCORE_MISSING_DIRECTION_ON_PHONE
                 singleCameraOnFlagship ->
                     PATTERN_SINGLE_CAMERA_ON_FLAGSHIP to SCORE_SINGLE_CAMERA_ON_FLAGSHIP
                 allLegacyOnFlagship ->
                     PATTERN_ALL_LEGACY_ON_FLAGSHIP to SCORE_ALL_LEGACY_ON_FLAGSHIP
-                implausibleSensorSize ->
-                    PATTERN_IMPLAUSIBLE_SENSOR_SIZE to SCORE_IMPLAUSIBLE_SENSOR_SIZE
+                implausibleSensorWidth ->
+                    PATTERN_IMPLAUSIBLE_SENSOR_WIDTH to SCORE_IMPLAUSIBLE_SENSOR_WIDTH
                 else ->
                     PATTERN_CLEAN to SCORE_CLEAN
             }
 
             val anyObserved = count != null || facings != null || levels != null ||
-                minSensorMm != null || vendorString != null
+                minSensorWidthMm != null || vendorString != null
             val confidence = if (anyObserved) CONFIDENCE_FULL else CONFIDENCE_DEGRADED
 
             val facingBackCount = facings?.count { it == LENS_FACING_BACK }
@@ -361,8 +411,8 @@ class CameraInfoProbe(
                     expected = "FULL+ on flagship",
                 ),
                 Evidence(
-                    key = "camera.sensor_size_min_mm",
-                    value = minSensorMm?.toString() ?: "<unavailable>",
+                    key = "camera.sensor_width_min_mm",
+                    value = minSensorWidthMm?.toString() ?: "<unavailable>",
                     expected = "2-15 mm",
                 ),
                 Evidence(

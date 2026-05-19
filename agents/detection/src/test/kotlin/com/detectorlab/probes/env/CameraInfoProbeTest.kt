@@ -37,13 +37,13 @@ class CameraInfoProbeTest {
             CameraInfoProbe.HARDWARE_LEVEL_3,
             CameraInfoProbe.HARDWARE_LEVEL_3,
         ),
-        minSensorMm: Float? = 7.06f,
+        minSensorWidthMm: Float? = 7.06f,
         vendorString: String? = "Google Pixel Camera HAL v2",
     ): CameraInfoProbe = CameraInfoProbe(
         cameraCountSupplier = { cameraCount },
         cameraFacingsSupplier = { facings },
         cameraHardwareLevelsSupplier = { levels },
-        cameraMinSensorSizeMmSupplier = { minSensorMm },
+        cameraMinSensorWidthMmSupplier = { minSensorWidthMm },
         cameraVendorStringSupplier = { vendorString },
     )
 
@@ -109,7 +109,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_FULL,
                 CameraInfoProbe.HARDWARE_LEVEL_FULL,
             ),
-            minSensorMm = 6.4f,
+            minSensorWidthMm = 6.4f,
             vendorString = "Samsung Galaxy Camera HAL",
         ).run(fakeCtx(model = "SM-S921B"))
         assertEquals(0.0, result.score)
@@ -130,7 +130,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_LIMITED,
                 CameraInfoProbe.HARDWARE_LEVEL_LIMITED,
             ),
-            minSensorMm = 5.0f,
+            minSensorWidthMm = 5.0f,
             vendorString = "Xiaomi Camera HAL",
         ).run(fakeCtx(model = "Redmi Note 12"))
         assertEquals(0.0, result.score)
@@ -187,7 +187,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.9, result.score)
@@ -199,7 +199,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = "SM-S921B"))
         assertEquals(0.9, result.score)
@@ -215,7 +215,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = "Redmi Note 12"))
         assertEquals(0.9, result.score)
@@ -229,7 +229,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = "Lenovo Tab P11"))
         assertEquals(0.0, result.score)
@@ -241,7 +241,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = null))
         assertEquals(0.0, result.score)
@@ -253,22 +253,181 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx(model = "Pixel 7"))
         val ev = result.evidence.find { it.key == "camera.pattern" }
         assertEquals(CameraInfoProbe.PATTERN_NO_CAMERAS_ON_PHONE, ev?.value)
     }
 
+    // ── Missing direction on phone-class (0.85) ──────────────────────────────
+
+    @Test
+    fun `phone with only back cameras (no front) — score is 0_85`() = runBlocking {
+        // 3 back cameras, 0 front. Phone-class. Real phones always have
+        // both — this is a structural impossibility the rule catches.
+        val result = makeProbe(
+            cameraCount = 3,
+            facings = listOf(
+                CameraInfoProbe.LENS_FACING_BACK,
+                CameraInfoProbe.LENS_FACING_BACK,
+                CameraInfoProbe.LENS_FACING_BACK,
+            ),
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+            ),
+            minSensorWidthMm = 7.0f,
+            vendorString = "Google HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `phone with only front cameras (no back) — score is 0_85`() = runBlocking {
+        val result = makeProbe(
+            cameraCount = 2,
+            facings = listOf(
+                CameraInfoProbe.LENS_FACING_FRONT,
+                CameraInfoProbe.LENS_FACING_FRONT,
+            ),
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_FULL,
+                CameraInfoProbe.HARDWARE_LEVEL_FULL,
+            ),
+            minSensorWidthMm = 4.0f,
+            vendorString = "Samsung HAL",
+        ).run(fakeCtx(model = "SM-S921B"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `phone-class with only EXTERNAL facing — score is 0_85`() = runBlocking {
+        // EXTERNAL is neither FRONT nor BACK; both direction counts are
+        // 0, so the rule fires.
+        val result = makeProbe(
+            cameraCount = 1,
+            facings = listOf(CameraInfoProbe.LENS_FACING_EXTERNAL),
+            levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_EXTERNAL),
+            minSensorWidthMm = 5.0f,
+            vendorString = "Generic HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `tablet with only back facings — score is 0 (not phone-class)`() = runBlocking {
+        // Lenovo Tab P11 base legitimately ships without back camera in
+        // some SKUs. Tablets are excluded from the phone-class gate.
+        val result = makeProbe(
+            cameraCount = 1,
+            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_LIMITED),
+            minSensorWidthMm = 5.0f,
+            vendorString = "Lenovo HAL",
+        ).run(fakeCtx(model = "Lenovo Tab P11"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `phone with both front and back — score is 0`() = runBlocking {
+        val result = makeProbe(
+            cameraCount = 2,
+            facings = listOf(
+                CameraInfoProbe.LENS_FACING_BACK,
+                CameraInfoProbe.LENS_FACING_FRONT,
+            ),
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_LIMITED,
+                CameraInfoProbe.HARDWARE_LEVEL_LIMITED,
+            ),
+            minSensorWidthMm = 5.0f,
+            vendorString = "MediaTek HAL",
+        ).run(fakeCtx(model = "Redmi Note 12"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `phone with empty facings list — score is 0 (isNotEmpty guard, not vacuous)`() = runBlocking {
+        // Empty facings list does NOT vacuously fire the missing-
+        // direction rule. Same defensive-emptiness-guard pattern as
+        // the all_legacy_on_flagship rule. count==0 case fires the
+        // (more specific) no_cameras_on_phone rule instead, but THIS
+        // test isolates count >= 1 with empty facings (anomalous
+        // supplier state — possible if count enumerator returned but
+        // facing iteration crashed silently).
+        val result = makeProbe(
+            cameraCount = 4,
+            facings = emptyList(),
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+            ),
+            minSensorWidthMm = 7.0f,
+            vendorString = "Google HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `null facings — missing_direction rule does not fire`() = runBlocking {
+        // Predicate gates on `facings != null`. Null means "didn't
+        // observe", not "observed empty". No rule fires.
+        val result = makeProbe(
+            cameraCount = 4,
+            facings = null,
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+            ),
+            minSensorWidthMm = 7.0f,
+            vendorString = "Google HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `missing direction — pattern is missing_direction_on_phone`() = runBlocking {
+        val result = makeProbe(
+            cameraCount = 3,
+            facings = listOf(
+                CameraInfoProbe.LENS_FACING_BACK,
+                CameraInfoProbe.LENS_FACING_BACK,
+                CameraInfoProbe.LENS_FACING_BACK,
+            ),
+            levels = listOf(
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+                CameraInfoProbe.HARDWARE_LEVEL_3,
+            ),
+            minSensorWidthMm = 7.0f,
+            vendorString = "Google HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        val ev = result.evidence.find { it.key == "camera.pattern" }
+        assertEquals(CameraInfoProbe.PATTERN_MISSING_DIRECTION_ON_PHONE, ev?.value)
+    }
+
     // ── Single camera on multi-camera flagship (0.85) ────────────────────────
+    //
+    // Note: these tests use `facings = null` to isolate the
+    // single_camera_on_flagship rule from the (cascade-earlier)
+    // missing_direction_on_phone rule. A count==1 with both facings
+    // missing would also fire missing_direction at 0.85; testing the
+    // single_camera rule independently requires the facings predicate
+    // to not fire (predicate gates on `facings != null`).
 
     @Test
     fun `single camera on Pixel 7 — score is 0_85`() = runBlocking {
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_3),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google Camera HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.85, result.score)
@@ -278,9 +437,9 @@ class CameraInfoProbeTest {
     fun `single camera on Galaxy S22 (SM-S901B) — score is 0_85`() = runBlocking {
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_FULL),
-            minSensorMm = 6.4f,
+            minSensorWidthMm = 6.4f,
             vendorString = "Samsung Camera HAL",
         ).run(fakeCtx(model = "SM-S901B"))
         assertEquals(0.85, result.score)
@@ -290,23 +449,25 @@ class CameraInfoProbeTest {
     fun `single camera on OnePlus 11 — score is 0_85`() = runBlocking {
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_FULL),
-            minSensorMm = 7.5f,
+            minSensorWidthMm = 7.5f,
             vendorString = "OnePlus Camera HAL",
         ).run(fakeCtx(model = "OnePlus 11"))
         assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `single camera on Redmi Note 12 (not flagship) — score is 0`() = runBlocking {
-        // Redmi Note 12 is NOT in KNOWN_MULTI_CAMERA_FLAGSHIPS. Some
-        // budget phones do ship with a single rear cam — rule does not fire.
+    fun `single camera on Redmi Note 12 (not flagship, facings null) — score is 0`() = runBlocking {
+        // Redmi Note 12 is NOT in KNOWN_MULTI_CAMERA_FLAGSHIPS, so the
+        // single_camera rule does not fire. With facings=null the
+        // missing_direction rule's predicate is also not satisfied
+        // (gated on `facings != null`). Clean.
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_LIMITED),
-            minSensorMm = 5.0f,
+            minSensorWidthMm = 5.0f,
             vendorString = "Xiaomi HAL",
         ).run(fakeCtx(model = "Redmi Note 12"))
         assertEquals(0.0, result.score)
@@ -318,12 +479,13 @@ class CameraInfoProbeTest {
         // is legitimate. Pixel 5 is INTENTIONALLY NOT in
         // KNOWN_MULTI_CAMERA_FLAGSHIPS (rank-53 cutoff is Pixel 6+,
         // distinct from rank-52 KNOWN_CUTOUT_MODELS which starts at
-        // Pixel 5 — different semantic).
+        // Pixel 5 — different semantic). Facings null isolates from
+        // missing_direction.
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_FULL),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google Camera HAL",
         ).run(fakeCtx(model = "Pixel 5"))
         assertEquals(0.0, result.score)
@@ -333,9 +495,9 @@ class CameraInfoProbeTest {
     fun `single camera — pattern is single_camera_on_flagship`() = runBlocking {
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_3),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google Camera HAL",
         ).run(fakeCtx(model = "Pixel 8"))
         val ev = result.evidence.find { it.key == "camera.pattern" }
@@ -360,7 +522,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
             ),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google Camera HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.85, result.score)
@@ -380,7 +542,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
             ),
-            minSensorMm = 6.4f,
+            minSensorWidthMm = 6.4f,
             vendorString = "Samsung Camera HAL",
         ).run(fakeCtx(model = "SM-S921B"))
         assertEquals(0.85, result.score)
@@ -402,7 +564,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_FULL,
                 CameraInfoProbe.HARDWARE_LEVEL_FULL,
             ),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.0, result.score)
@@ -422,7 +584,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
             ),
-            minSensorMm = 4.5f,
+            minSensorWidthMm = 4.5f,
             vendorString = "MediaTek HAL",
         ).run(fakeCtx(model = "Redmi Note 12"))
         assertEquals(0.0, result.score)
@@ -442,7 +604,7 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.LENS_FACING_FRONT,
             ),
             levels = emptyList(),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.0, result.score)
@@ -464,65 +626,85 @@ class CameraInfoProbeTest {
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
                 CameraInfoProbe.HARDWARE_LEVEL_LEGACY,
             ),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         val ev = result.evidence.find { it.key == "camera.pattern" }
         assertEquals(CameraInfoProbe.PATTERN_ALL_LEGACY_ON_FLAGSHIP, ev?.value)
     }
 
-    // ── Implausible sensor size (0.85) ───────────────────────────────────────
+    // ── Implausible sensor width (0.85) ──────────────────────────────────────
 
     @Test
-    fun `sensor size 0_0 mm — score is 0_85`() = runBlocking {
-        val result = makeProbe(minSensorMm = 0.0f).run(fakeCtx())
+    fun `sensor width 0_0 mm — score is 0_85 (stub-zero under lower bound)`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 0.0f).run(fakeCtx())
         assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `sensor size 150 mm — score is 0_85 (above ceiling)`() = runBlocking {
-        val result = makeProbe(minSensorMm = 150.0f).run(fakeCtx())
+    fun `sensor width 0_5mm — score is 0_85 (sub-2mm stub catches the gap)`() = runBlocking {
+        // This is the FP class that diagonal-with-only-zero-bound missed.
+        // Width-based <2mm catches sub-physical stub values that aren't
+        // exactly 0.0 but are still implausibly small.
+        val result = makeProbe(minSensorWidthMm = 0.5f).run(fakeCtx())
         assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `sensor size 1000 mm — score is 0_85`() = runBlocking {
-        val result = makeProbe(minSensorMm = 1000.0f).run(fakeCtx())
+    fun `sensor width 1_99mm — score is 0_85 (just under lower bound)`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 1.99f).run(fakeCtx())
         assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `sensor size 100 mm boundary — score is 0 (ceiling is strict)`() = runBlocking {
-        // MAX_PLAUSIBLE_SENSOR_DIAGONAL_MM check is `>` strict.
-        val result = makeProbe(minSensorMm = 100.0f).run(fakeCtx())
+    fun `sensor width 2_0mm boundary — score is 0 (lower bound strict)`() = runBlocking {
+        // MIN_PLAUSIBLE_SENSOR_WIDTH_MM check is `<` strict; 2.0 exactly passes.
+        val result = makeProbe(minSensorWidthMm = 2.0f).run(fakeCtx())
         assertEquals(0.0, result.score)
     }
 
     @Test
-    fun `sensor size 101 mm — score is 0_85 (just above ceiling)`() = runBlocking {
-        val result = makeProbe(minSensorMm = 101.0f).run(fakeCtx())
+    fun `sensor width 15_0mm boundary — score is 0 (upper bound strict)`() = runBlocking {
+        // MAX_PLAUSIBLE_SENSOR_WIDTH_MM check is `>` strict; 15.0 exactly passes.
+        val result = makeProbe(minSensorWidthMm = 15.0f).run(fakeCtx())
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `sensor width 15_01mm — score is 0_85 (just above upper bound)`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 15.01f).run(fakeCtx())
         assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `sensor size 16mm (Sony 1-inch) — score is 0 (real large sensor)`() = runBlocking {
-        val result = makeProbe(minSensorMm = 16.0f).run(fakeCtx())
+    fun `sensor width 16mm — score is 0_85 (medium-format territory)`() = runBlocking {
+        // Original test (diagonal-based) had 16mm pass as "real large
+        // sensor". Under width-based rule, 16mm width exceeds even the
+        // largest 1-inch type-1 (~13mm width) — no Android phone ships
+        // a >15mm-width sensor as of 2026.
+        val result = makeProbe(minSensorWidthMm = 16.0f).run(fakeCtx())
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `sensor width 13mm (Sony 1-inch real width) — score is 0`() = runBlocking {
+        // Sony Xperia Pro-I, Xiaomi 13 Ultra 1-inch sensors: ~13mm width.
+        // Real, in-range, no rule fires.
+        val result = makeProbe(minSensorWidthMm = 13.0f).run(fakeCtx())
         assertEquals(0.0, result.score)
     }
 
     @Test
-    fun `sensor size 0_01mm — score is 0 (small but nonzero is plausible)`() = runBlocking {
-        // Only 0.0 exactly fires the implausible rule; any nonzero
-        // positive value below the ceiling is plausible.
-        val result = makeProbe(minSensorMm = 0.01f).run(fakeCtx())
-        assertEquals(0.0, result.score)
+    fun `sensor width 1000mm — score is 0_85 (absurd stub)`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 1000.0f).run(fakeCtx())
+        assertEquals(0.85, result.score)
     }
 
     @Test
-    fun `implausible sensor size — pattern is implausible_sensor_size`() = runBlocking {
-        val result = makeProbe(minSensorMm = 150.0f).run(fakeCtx())
+    fun `implausible sensor width — pattern is implausible_sensor_width`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 0.0f).run(fakeCtx())
         val ev = result.evidence.find { it.key == "camera.pattern" }
-        assertEquals(CameraInfoProbe.PATTERN_IMPLAUSIBLE_SENSOR_SIZE, ev?.value)
+        assertEquals(CameraInfoProbe.PATTERN_IMPLAUSIBLE_SENSOR_WIDTH, ev?.value)
     }
 
     // ── Cascade ordering ─────────────────────────────────────────────────────
@@ -533,7 +715,7 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = "goldfish HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(1.0, result.score)
@@ -547,19 +729,23 @@ class CameraInfoProbeTest {
             cameraCount = 0,
             facings = emptyList(),
             levels = emptyList(),
-            minSensorMm = 0.0f,
+            minSensorWidthMm = 0.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.9, result.score)
     }
 
     @Test
-    fun `single camera wins over implausible sensor (0_85 first)`() = runBlocking {
+    fun `single camera wins over implausible sensor (cascade source order)`() = runBlocking {
+        // facings null isolates the single_camera rule from
+        // missing_direction. With facings observed, missing_direction
+        // would fire FIRST (cascade-earlier rule) — see separate test
+        // `missing direction fires before single camera`.
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_3),
-            minSensorMm = 200.0f,
+            minSensorWidthMm = 200.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.85, result.score)
@@ -572,16 +758,35 @@ class CameraInfoProbeTest {
         // Both single_camera and all_legacy require flagship; both
         // could predicate true (single camera AND its only level is
         // LEGACY). Source-order cascade — single_camera fires first.
+        // facings=null isolates from missing_direction (cascade-earlier).
         val result = makeProbe(
             cameraCount = 1,
-            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            facings = null,
             levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_LEGACY),
-            minSensorMm = 7.0f,
+            minSensorWidthMm = 7.0f,
             vendorString = "Google HAL",
         ).run(fakeCtx(model = "Pixel 7"))
         assertEquals(0.85, result.score)
         val ev = result.evidence.find { it.key == "camera.pattern" }
         assertEquals(CameraInfoProbe.PATTERN_SINGLE_CAMERA_ON_FLAGSHIP, ev?.value)
+    }
+
+    @Test
+    fun `missing direction fires before single camera (cascade order)`() = runBlocking {
+        // count=1 + facings=[BACK] on a multi-camera flagship: both
+        // missing_direction_on_phone AND single_camera_on_flagship
+        // predicate true. missing_direction is earlier in source order
+        // and wins.
+        val result = makeProbe(
+            cameraCount = 1,
+            facings = listOf(CameraInfoProbe.LENS_FACING_BACK),
+            levels = listOf(CameraInfoProbe.HARDWARE_LEVEL_3),
+            minSensorWidthMm = 7.0f,
+            vendorString = "Google HAL",
+        ).run(fakeCtx(model = "Pixel 7"))
+        assertEquals(0.85, result.score)
+        val ev = result.evidence.find { it.key == "camera.pattern" }
+        assertEquals(CameraInfoProbe.PATTERN_MISSING_DIRECTION_ON_PHONE, ev?.value)
     }
 
     // ── Confidence tiers ─────────────────────────────────────────────────────
@@ -598,7 +803,7 @@ class CameraInfoProbeTest {
             cameraCount = 4,
             facings = null,
             levels = null,
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx())
         assertEquals(0.95, result.confidence)
@@ -610,7 +815,7 @@ class CameraInfoProbeTest {
             cameraCount = null,
             facings = null,
             levels = null,
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = "Google HAL",
         ).run(fakeCtx())
         assertEquals(0.95, result.confidence)
@@ -622,7 +827,7 @@ class CameraInfoProbeTest {
             cameraCount = null,
             facings = null,
             levels = null,
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx())
         assertEquals(0.50, result.confidence)
@@ -634,7 +839,7 @@ class CameraInfoProbeTest {
             cameraCount = null,
             facings = null,
             levels = null,
-            minSensorMm = null,
+            minSensorWidthMm = null,
             vendorString = null,
         ).run(fakeCtx())
         assertEquals(0.0, result.score)
@@ -657,7 +862,7 @@ class CameraInfoProbeTest {
             cameraCountSupplier = { throw RuntimeException("simulated") },
             cameraFacingsSupplier = { listOf(CameraInfoProbe.LENS_FACING_BACK) },
             cameraHardwareLevelsSupplier = { listOf(CameraInfoProbe.HARDWARE_LEVEL_3) },
-            cameraMinSensorSizeMmSupplier = { 7.0f },
+            cameraMinSensorWidthMmSupplier = { 7.0f },
             cameraVendorStringSupplier = { "Google HAL" },
         )
         val result = probe.run(fakeCtx())
@@ -670,7 +875,7 @@ class CameraInfoProbeTest {
             cameraCountSupplier = { 4 },
             cameraFacingsSupplier = { throw RuntimeException("simulated") },
             cameraHardwareLevelsSupplier = { listOf(CameraInfoProbe.HARDWARE_LEVEL_3) },
-            cameraMinSensorSizeMmSupplier = { 7.0f },
+            cameraMinSensorWidthMmSupplier = { 7.0f },
             cameraVendorStringSupplier = { "Google HAL" },
         )
         val result = probe.run(fakeCtx())
@@ -683,7 +888,7 @@ class CameraInfoProbeTest {
             cameraCountSupplier = { throw RuntimeException("a") },
             cameraFacingsSupplier = { throw RuntimeException("b") },
             cameraHardwareLevelsSupplier = { throw RuntimeException("c") },
-            cameraMinSensorSizeMmSupplier = { throw RuntimeException("d") },
+            cameraMinSensorWidthMmSupplier = { throw RuntimeException("d") },
             cameraVendorStringSupplier = { throw RuntimeException("e") },
         )
         val result = probe.run(fakeCtx())
@@ -890,7 +1095,7 @@ class CameraInfoProbeTest {
                 "camera.facing_back_count",
                 "camera.facing_front_count",
                 "camera.hardware_levels",
-                "camera.sensor_size_min_mm",
+                "camera.sensor_width_min_mm",
                 "camera.has_emulator_keyword",
                 "camera.pattern",
             ),
@@ -974,16 +1179,16 @@ class CameraInfoProbeTest {
     }
 
     @Test
-    fun `sensor_size_min_mm evidence reflects supplier`() = runBlocking {
-        val result = makeProbe(minSensorMm = 7.06f).run(fakeCtx())
-        val ev = result.evidence.find { it.key == "camera.sensor_size_min_mm" }
+    fun `sensor_width_min_mm evidence reflects supplier`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = 7.06f).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "camera.sensor_width_min_mm" }
         assertEquals("7.06", ev?.value)
     }
 
     @Test
-    fun `sensor_size_min_mm evidence unavailable when null`() = runBlocking {
-        val result = makeProbe(minSensorMm = null).run(fakeCtx())
-        val ev = result.evidence.find { it.key == "camera.sensor_size_min_mm" }
+    fun `sensor_width_min_mm evidence unavailable when null`() = runBlocking {
+        val result = makeProbe(minSensorWidthMm = null).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "camera.sensor_width_min_mm" }
         assertEquals("<unavailable>", ev?.value)
     }
 
