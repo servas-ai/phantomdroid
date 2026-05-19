@@ -52,8 +52,20 @@ class ScreenLockProbe : Probe {
     override val budgetMs = 500L
 
     companion object {
-        /** A17 N7. Inventory expansion (META-22) reserves 61..71 for A17 N1..N11. */
-        const val RANK = 66
+        /**
+         * A17 N7 RASP addition (freeRASP D1 ScreenLock).
+         * META-22 reserves 61..71 for A17 N1..N11; this probe occupies slot 61.
+         *
+         * Note: inventory.yml lists `env.screen_lock` at fractional rank 40.5 (its
+         * "natural" position adjacent to other env probes). The Probe interface uses
+         * `Int`, which can't represent 40.5, so this code uses the META-22 reserved
+         * A17 slot 61 instead. This is a rank-system Int-vs-fractional divergence
+         * tracked in audit/cross-cutting-followups-2026-05-19.md.
+         *
+         * Previous value: 66 (collided with `app.tiktok_argus_signing` which is
+         * also rank 66 per inventory + probe code). Fixed 2026-05-20.
+         */
+        const val RANK = 61
 
         const val STATE_PIN_SET = "pin_set"
         const val STATE_NONE = "none"

@@ -109,7 +109,63 @@
 | 4 | inventory.yml rank 20 description | yes (inventory.yml edit) | yes (probe behavior correct) | low |
 | 5 | Pixel 8 Pro density | yes (telemetry budget) | yes (lab approximation flagged) | low |
 | 6 | SensorSample axis-count invariant | yes (KDoc change) | yes (try/catch fallback) | low |
+| 7 | Probe.rank Int vs inventory Double mismatch | yes (core-contract change) | yes (collisions handled ad-hoc) | medium |
+| 8 | TikTokArgusSigningProbe broken on Android 10+ | yes (path rewrite) | NO (probe scores 0.10 on all A10+ devices) | high |
 
 All items are **tracked, not blocking** the current Power-1 acceptance criteria.
 
-Next session can pick any of these up; #3 (querySettingGlobal) has the highest ROI because it directly affects probe correctness, not just documentation/false-positive hygiene.
+Next session can pick any of these up; **#8 (TikTokArgus A10+ broken) has the highest urgency** because the probe is silently broken on all real-world Android 10+ devices (scores 0.10 always). #3 (querySettingGlobal) has the highest correctness-ROI for the broader probe family.
+
+---
+
+## #7 Probe.rank Int vs inventory Double mismatch
+
+**Observation**: `agents/detection/src/core/Probe.kt:?` defines `val rank: Int`, but `shared/probes/inventory.yml` contains 11 fractional ranks (8.5, 9.0, 9.7, 9.8, 33.5, 39.5, 40.5, 43.5, 50.5, 51.5, 52.5).
+
+**Why this matters**: Probe code can't represent its inventory rank correctly. `ScreenLockProbe` inventory=`40.5`, code-rank had to be the A17 reserved slot `61` instead. The `41` slot (env.gps_coordinates) and `40` slot (env.accounts) are both taken. Half-ranks can't round.
+
+**Proposed fix**: change `Probe.rank` from `Int` to `Double`. 54 probe files need their `override val rank = N` → `override val rank = N.0`. Tests already assert `assertEquals(N, probe.rank)` which Kotlin auto-promotes.
+
+**Acceptance**: Probe.rank type matches inventory; ScreenLockProbe can move from `61` to `40.5`.
+
+**Owner action**: approve core-contract change.
+
+---
+
+## #8 TikTokArgusSigningProbe broken on Android 10+ (HIGH urgency)
+
+**Observation**: `agents/detection/src/probes/app/TikTokArgusSigningProbe.kt` builds lib paths as `/data/app/<pkg>-1/lib/<arch>/` and `/data/app/<pkg>-2/lib/<arch>/`. This layout was retired in Android 10 (API 29). Since A10, the path is `/data/app/~~<random-base64>/com.package.name-<N>/lib/<arch>/`.
+
+**Why this matters**: On all Android 10+ devices (essentially all real-world TikTok users), the probe finds neither `.so`, falls through to score `0.10` ("path mismatch / permission"), and emits a misleading evidence entry. The probe is **silently broken** since Android 10.
+
+**Proposed fix**: rewrite path-construction:
+```kotlin
+// Old (A9 and earlier only):
+val basePaths = listOf("/data/app/$pkg-1/lib/", "/data/app/$pkg-2/lib/")
+
+// New (A10+; falls back to A9 paths if A10 paths absent):
+val basePaths = buildList {
+    // A10+ random-base64-prefixed parent
+    val installerRoot = ctx.fileExists("/data/app/") // need listDir accessor
+    // ... pattern: /data/app/~~XX==/<pkg>-N/lib/<arch>/
+    // Pre-A10 fallback
+    add("/data/app/$pkg-1/lib/")
+    add("/data/app/$pkg-2/lib/")
+}
+```
+
+Requires: a `listDirectory(path)` accessor on ProbeContext (cross-cutting #3 + this addition).
+
+**Acceptance**: probe scores 1.0 / 0.85 / 0.0 correctly on a real Android 10+ device with TikTok installed.
+
+**Owner action**: prioritize fix — probe is providing no signal on the actual target population.
+
+---
+
+## #9 Rank-66 collision (FIXED 2026-05-20)
+
+**Observation**: `TikTokArgusSigningProbe.RANK = 66` matched inventory. `ScreenLockProbe.RANK = 66` was incorrect (inventory `env.screen_lock` is rank 40.5; the probe comment said A17 N7 = reserved 66, but inventory's TikTok already occupied 66).
+
+**Fix**: `ScreenLockProbe.RANK` changed from 66 to 61 (first slot in the META-22 A17 reservation range 61..71). Probe metadata test asserts `rank in 61..71` (range check) — still passes. KDoc updated to explain the deviation from inventory's 40.5.
+
+**Status**: closed. Follow-up #7 (Int-vs-Double) is the underlying issue that would let this probe move to its "natural" rank 40.5.
