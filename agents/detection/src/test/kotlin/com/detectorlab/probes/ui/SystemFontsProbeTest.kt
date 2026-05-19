@@ -109,12 +109,15 @@ class SystemFontsProbeTest {
     // ── Missing NotoColorEmoji (0.85) ────────────────────────────────────────
 
     @Test
-    fun `NotoColorEmoji missing from supplier list — score is 0_85`() = runBlocking {
+    fun `NotoColorEmoji missing from supplier list — score is 0_5 (weak signal)`() = runBlocking {
+        // Weak signal per reviewer's watch #3: CalyxOS/GrapheneOS/Android Go
+        // legitimately strip NotoColorEmoji. Score calibrated to 0.5 (not
+        // 0.85) so a privacy-conscious real user isn't false-positive'd.
         val list = realisticFontList().filterNot {
             it == SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI
         }
         val result = makeProbe(fontFilenames = list).run(fakeCtx())
-        assertEquals(0.85, result.score)
+        assertEquals(0.5, result.score)
     }
 
     @Test
@@ -128,15 +131,15 @@ class SystemFontsProbeTest {
     }
 
     @Test
-    fun `NotoColorEmoji missing via fileExists fallback (supplier null) — score is 0_85`() =
+    fun `NotoColorEmoji missing via fileExists fallback (supplier null) — score is 0_5`() =
         runBlocking {
             // supplier null + fileExists returns false for NotoColorEmoji
-            // but true for everything else.
+            // but true for everything else. Weak signal per watch #3.
             val presentFonts = SystemFontsProbe.WELL_KNOWN_FONT_NAMES.toSet() -
                 SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI
             val result = makeProbe(fontFilenames = null)
                 .run(fakeCtx(presentFonts = presentFonts))
-            assertEquals(0.85, result.score)
+            assertEquals(0.5, result.score)
         }
 
     @Test
@@ -154,22 +157,24 @@ class SystemFontsProbeTest {
             assertEquals(0.0, result.score)
         }
 
-    // ── Low total font count (0.85) ──────────────────────────────────────────
+    // ── Low total font count (0.5 weak signal) ───────────────────────────────
 
     @Test
-    fun `40 fonts in supplier list — score is 0_85`() = runBlocking {
+    fun `40 fonts in supplier list — score is 0_5 (weak signal)`() = runBlocking {
+        // CalyxOS/GrapheneOS minimal/Android Go ship ~30-40 fonts legitimately;
+        // 0.5 calibration prevents false-positive on privacy ROMs.
         val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
             (1..39).map { "Roboto-Variant$it.ttf" }
         val result = makeProbe(fontFilenames = list).run(fakeCtx())
-        assertEquals(0.85, result.score)
+        assertEquals(0.5, result.score)
     }
 
     @Test
-    fun `49 fonts — score is 0_85 (just below threshold)`() = runBlocking {
+    fun `49 fonts — score is 0_5 (just below threshold, weak signal)`() = runBlocking {
         val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
             (1..48).map { "Roboto-Variant$it.ttf" }
         val result = makeProbe(fontFilenames = list).run(fakeCtx())
-        assertEquals(0.85, result.score)
+        assertEquals(0.5, result.score)
     }
 
     @Test
@@ -237,16 +242,17 @@ class SystemFontsProbeTest {
         assertEquals(0.0, result.score)
     }
 
-    // ── Low Roboto variant count (0.7) ───────────────────────────────────────
+    // ── Low Roboto variant count (0.5 weak signal) ───────────────────────────
 
     @Test
-    fun `15 Roboto variants — score is 0_7`() = runBlocking {
+    fun `15 Roboto variants — score is 0_5 (weak signal)`() = runBlocking {
         // 50 fonts total (passes count rule), Roboto count 15 < 20.
+        // Custom AOSP ROMs ship reduced Roboto — weak signal at 0.5.
         val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
             (1..15).map { "Roboto-Variant$it.ttf" } +
             (1..34).map { "OtherFont$it.ttf" }  // 1 + 15 + 34 = 50
         val result = makeProbe(fontFilenames = list).run(fakeCtx())
-        assertEquals(0.7, result.score)
+        assertEquals(0.5, result.score)
     }
 
     @Test
@@ -260,12 +266,12 @@ class SystemFontsProbeTest {
     }
 
     @Test
-    fun `19 Roboto variants — score is 0_7 (just below threshold)`() = runBlocking {
+    fun `19 Roboto variants — score is 0_5 (just below threshold, weak signal)`() = runBlocking {
         val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
             (1..19).map { "Roboto-Variant$it.ttf" } +
             (1..30).map { "OtherFont$it.ttf" }  // 1+19+30=50
         val result = makeProbe(fontFilenames = list).run(fakeCtx())
-        assertEquals(0.7, result.score)
+        assertEquals(0.5, result.score)
     }
 
     @Test
@@ -314,31 +320,50 @@ class SystemFontsProbeTest {
     // ── Cascade ordering ─────────────────────────────────────────────────────
 
     @Test
-    fun `missing NotoEmoji + low count + non-standard family — NotoEmoji wins`() = runBlocking {
-        // Emulator scenario: 30 fonts, no NotoColorEmoji, DroidSans default.
-        // NotoColorEmoji rule fires first.
-        val list = (1..30).map { "Roboto-Variant$it.ttf" }
-        val result = makeProbe(fontFilenames = list, defaultFamily = "DroidSans")
-            .run(fakeCtx())
-        assertEquals(0.85, result.score)
-        val ev = result.evidence.find { it.key == "fonts.pattern" }
-        assertEquals(SystemFontsProbe.PATTERN_NO_NOTO_EMOJI, ev?.value)
-    }
-
-    @Test
-    fun `low count + non-standard family (with NotoEmoji present) — low_count wins`() =
+    fun `non-standard family + missing NotoEmoji + low count — non_standard wins (0_85 over weak 0_5)`() =
         runBlocking {
-            val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
-                (1..30).map { "Roboto-Variant$it.ttf" }
+            // Post-calibration: non_standard_default fires FIRST in the
+            // cascade as the only strong rule. Privacy ROMs / Android Go
+            // keep stock typeface registry → non_standard rule isn't tripped
+            // by minimal-build FP class, so 0.85 stays load-bearing.
+            // The weak rules (NotoEmoji missing, low-count) at 0.5 lose to
+            // non_standard at 0.85.
+            val list = (1..30).map { "Roboto-Variant$it.ttf" }
             val result = makeProbe(fontFilenames = list, defaultFamily = "DroidSans")
                 .run(fakeCtx())
             assertEquals(0.85, result.score)
+            val ev = result.evidence.find { it.key == "fonts.pattern" }
+            assertEquals(SystemFontsProbe.PATTERN_NON_STANDARD_DEFAULT, ev?.value)
+        }
+
+    @Test
+    fun `missing NotoEmoji + low count (NO non-standard) — NotoEmoji wins (0_5 source-order)`() =
+        runBlocking {
+            // With standard default family present, the strong rule doesn't
+            // fire. Among the weak 0.5 rules, NotoEmoji-missing fires first
+            // in cascade source order.
+            val list = (1..30).map { "Roboto-Variant$it.ttf" }
+            val result = makeProbe(fontFilenames = list, defaultFamily = "sans-serif")
+                .run(fakeCtx())
+            assertEquals(0.5, result.score)
+            val ev = result.evidence.find { it.key == "fonts.pattern" }
+            assertEquals(SystemFontsProbe.PATTERN_NO_NOTO_EMOJI, ev?.value)
+        }
+
+    @Test
+    fun `low count + NotoEmoji present (standard family) — low_count wins (0_5)`() =
+        runBlocking {
+            val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
+                (1..30).map { "Roboto-Variant$it.ttf" }
+            val result = makeProbe(fontFilenames = list, defaultFamily = "sans-serif")
+                .run(fakeCtx())
+            assertEquals(0.5, result.score)
             val ev = result.evidence.find { it.key == "fonts.pattern" }
             assertEquals(SystemFontsProbe.PATTERN_LOW_COUNT, ev?.value)
         }
 
     @Test
-    fun `non-standard family + low Roboto — non_standard wins (0_85 over 0_7)`() = runBlocking {
+    fun `non-standard family + low Roboto — non_standard wins (0_85 over weak 0_5)`() = runBlocking {
         val list = listOf(SystemFontsProbe.FILENAME_NOTO_COLOR_EMOJI) +
             (1..10).map { "Roboto-Variant$it.ttf" } +
             (1..39).map { "OtherFont$it.ttf" }  // 50 total, 10 Roboto < 20
@@ -390,9 +415,10 @@ class SystemFontsProbeTest {
         )
         val result = probe.run(fakeCtx())
         assertFalse(result.failed)
-        // defaultFamily null + 1 font (low count, but NotoEmoji is the only
-        // entry so NotoColorEmoji rule doesn't fire; low_count fires).
-        assertEquals(0.85, result.score)
+        // defaultFamily threw → null + 1 font (low count, but NotoEmoji is
+        // the only entry so NotoColorEmoji rule doesn't fire; low_count
+        // fires at 0.5 weak signal per watch #3 calibration).
+        assertEquals(0.5, result.score)
     }
 
     @Test

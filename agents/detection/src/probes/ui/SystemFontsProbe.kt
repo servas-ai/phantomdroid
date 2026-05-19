@@ -35,22 +35,42 @@ import com.detectorlab.core.ProbeSeverity
  * list provides a meaningful approximation but the actual
  * directory-count rule cannot fire without the full list.
  *
+ * **Weak-signal calibration on minimal-build false-positives.** This is a
+ * TRACE-severity probe, which already signals "weak fingerprinting noise,
+ * not high-confidence rejection". Two rules that the brief suggested at
+ * 0.85 are calibrated DOWN to 0.5 here because they have a real FP class
+ * on privacy/minimal Android builds:
+ *   - **CalyxOS** strips `NotoColorEmoji.ttf` and reduces font set for
+ *     privacy (fingerprint surface reduction)
+ *   - **GrapheneOS** minimal builds same
+ *   - **Android Go** SKUs (Pixel 5a Go, entry-level OEM) ship ~30 fonts
+ *
+ * A 0.85-score-on-TRACE-severity is internally inconsistent and would
+ * false-positive privacy-conscious real users. The 0.5 calibration treats
+ * these rules as "contributing signal — combine with other probes via the
+ * downstream aggregator before any rejection decision" (same consumer-side
+ * gating pattern as rank-50 AUTOMATION_MARKERS). KDoc honesty correction
+ * per reviewer's pre-emptive watch #3.
+ *
  * Scoring (max wins; first-match cascade in source order):
- *   0.85  Directory observed AND `NotoColorEmoji.ttf` missing (real
- *         devices always ship it for emoji rendering)
- *   0.85  Full filename list available AND total count < 50 (real Pixel
- *         has 150+; emulator stripped builds <50)
  *   0.85  `defaultFamilySupplier` returns non-null AND value is not in
  *         [STANDARD_DEFAULT_FAMILIES] (Typeface.DEFAULT.family on real
- *         devices is `sans-serif` or `sans-serif-condensed`; stripped
- *         emulator builds may report `null`-displaying-as-empty or
- *         non-standard values)
- *   0.70  Full filename list available AND Roboto variant count < 20
- *         (real devices have 50+; emulator <20 is suspicious — capped
- *         lower than 0.85 because some custom AOSP ROMs ship reduced
- *         Roboto sets)
- *   0.50  No filename list AND no font file from [WELL_KNOWN_FONT_NAMES]
- *         observed via fileExists (degraded — can't observe the surface)
+ *         devices is `sans-serif` or one of its variants; non-standard
+ *         values are a stripped/custom-build tell that CalyxOS et al
+ *         don't trip — privacy ROMs keep standard default-family
+ *         registration)
+ *   0.50  Directory observed AND `NotoColorEmoji.ttf` missing (real
+ *         retail Android since 2017 ships it; CalyxOS / GrapheneOS
+ *         minimal / Android Go can legitimately omit — weak signal)
+ *   0.50  Full filename list available AND total count < 50 (real Pixel/
+ *         Galaxy/Xiaomi retail has 150+; CalyxOS/GrapheneOS minimal also
+ *         <50 — weak signal indistinguishable from emulator AOSP without
+ *         additional evidence)
+ *   0.50  No observation possible (no supplier, zero fileExists hits, no
+ *         defaultFamily)
+ *   0.50  Full filename list available AND Roboto variant count < 20
+ *         (real devices have 50+; reduced Roboto on custom AOSP ROMs is
+ *         legitimate — weak signal)
  *   0.00  Real font set: NotoColorEmoji present + (no list OR
  *         count ≥ 50 + Roboto variants ≥ 20) + standard default family
  *
@@ -166,10 +186,22 @@ class SystemFontsProbe(
         const val PATTERN_NO_OBSERVATION = "no_observation"
         const val PATTERN_CLEAN = "clean"
 
-        const val SCORE_NO_NOTO_EMOJI = 0.85
-        const val SCORE_LOW_COUNT = 0.85
+        // Non-standard default family stays at 0.85 — CalyxOS / GrapheneOS
+        // / Android Go all keep `Typeface.DEFAULT.family == "sans-serif"`,
+        // so this rule isn't tripped by the minimal-build FP class. It IS
+        // tripped by stripped/custom builds that rewrite the typeface
+        // registry, which is the load-bearing emulator/synthetic signal.
         const val SCORE_NON_STANDARD_DEFAULT = 0.85
-        const val SCORE_LOW_ROBOTO_COUNT = 0.70
+
+        // Other rules calibrated to 0.5 weak-signal per reviewer's watch
+        // #3: CalyxOS/GrapheneOS/Android Go can legitimately strip
+        // NotoColorEmoji and reduce font count. The signal is contributing
+        // but not dispositive — consumer must combine with other probes
+        // for high-confidence rejection. TRACE severity + 0.5 score is
+        // the internally-consistent calibration.
+        const val SCORE_NO_NOTO_EMOJI = 0.5
+        const val SCORE_LOW_COUNT = 0.5
+        const val SCORE_LOW_ROBOTO_COUNT = 0.5
         const val SCORE_NO_OBSERVATION = 0.50
         const val SCORE_CLEAN = 0.0
 
@@ -185,9 +217,19 @@ class SystemFontsProbe(
         internal fun countRobotoVariants(filenames: List<String>): Int =
             filenames.count { it.startsWith(ROBOTO_PREFIX) }
 
-        /** True iff [defaultFamily] is in [STANDARD_DEFAULT_FAMILIES]. */
+        /**
+         * Returns true for valid stock-Android default-family values
+         * (members of [STANDARD_DEFAULT_FAMILIES]) OR for null/empty input
+         * (which we can't claim is non-standard without observation —
+         * anti-false-positive: missing observation MUST NOT be scored as
+         * a non-standard finding).
+         *
+         * In other words: a `false` return means "definitely observed AND
+         * not in the standard set" — load-bearing for the
+         * `nonStandardDefault` scoring predicate.
+         */
         internal fun isStandardDefaultFamily(defaultFamily: String?): Boolean {
-            if (defaultFamily.isNullOrEmpty()) return true  // can't claim non-standard
+            if (defaultFamily.isNullOrEmpty()) return true
             return defaultFamily in STANDARD_DEFAULT_FAMILIES
         }
     }
@@ -243,14 +285,21 @@ class SystemFontsProbe(
                 !isStandardDefaultFamily(defaultFamily)
 
             val (pattern, score) = when {
+                // Strong rule first: non-standard default family is not
+                // tripped by privacy ROMs / Android Go (they keep stock
+                // typeface registry) — it's the load-bearing emulator/
+                // synthetic-build signal at 0.85.
+                nonStandardDefault ->
+                    PATTERN_NON_STANDARD_DEFAULT to SCORE_NON_STANDARD_DEFAULT
                 !accessorObserved && defaultFamily == null ->
                     PATTERN_NO_OBSERVATION to SCORE_NO_OBSERVATION
+                // Weak rules below at 0.5 — CalyxOS / GrapheneOS / Android Go
+                // can legitimately trip these. Consumer must combine with
+                // other probes for high-confidence rejection.
                 accessorObserved && !notoColorEmojiPresent ->
                     PATTERN_NO_NOTO_EMOJI to SCORE_NO_NOTO_EMOJI
                 lowFontCount ->
                     PATTERN_LOW_COUNT to SCORE_LOW_COUNT
-                nonStandardDefault ->
-                    PATTERN_NON_STANDARD_DEFAULT to SCORE_NON_STANDARD_DEFAULT
                 lowRobotoCount ->
                     PATTERN_LOW_ROBOTO_COUNT to SCORE_LOW_ROBOTO_COUNT
                 else ->
