@@ -19,16 +19,25 @@ import com.detectorlab.core.ProbeSeverity
  *
  *   1. **Installation artifacts on the filesystem** — `XposedBridge.jar`,
  *      `app_process32/64_xposed`, libxposed_art, `/data/adb/lspd/`,
- *      `/data/adb/modules/zygisk_lsposed/`, `/data/adb/modules/riru_edxposed/`,
- *      etc. This is the strongest signal.
+ *      `/data/adb/modules/zygisk_lsposed/`, `/data/adb/modules/riru_edxposed/`.
+ *      Runtime-active dirs only; package-data leftovers like
+ *      `/data/data/de.robv.android.xposed.installer/` are intentionally excluded
+ *      because they double-count against the manager-package signal and can
+ *      persist after manager uninstall.
  *   2. **Manager packages installed via PackageManager** — `de.robv.android.xposed.installer`,
  *      `org.lsposed.manager`, `org.meowcat.edxposed.manager`, etc. Weaker than
  *      artifacts because the manager APK can be present without an active
  *      runtime (e.g. uninstalled magisk module).
- *   3. **`/proc/self/maps` hook libraries** — `libxposed`, `libsandhook`,
- *      `liblspd`, `libriru`, `libzygisk` mapped into the current process.
- *      Weaker than artifacts because non-Xposed frameworks (Riru loaders for
- *      unrelated modules) can produce the same map.
+ *   3. **`/proc/self/maps` Xposed-family hook libraries** — `libxposed_art`,
+ *      `libxposed_dalvik`, `liblspd`, `libriru_lsposed`, `libriru_edxposed`
+ *      mapped into the current process. Markers are deliberately narrow:
+ *      generic `libriru`, `libzygisk`, and `libsandhook` are NOT used because
+ *      they fire on benign Riru modules, every Magisk-zygisk install, and
+ *      unrelated RASP/anti-cheat frameworks. Riru modules follow the
+ *      `libriru_<modulename>.so` convention so the `libriru_{lsposed,edxposed}`
+ *      substrings disambiguate Xposed-family modules from benign ones.
+ *      LSPosed-via-zygisk surfaces through `liblspd`, so no separate zygisk
+ *      marker is needed.
  *
  * Scoring:
  *   - 1.00  any installation artifact present
@@ -59,7 +68,6 @@ class XposedLsposedProbe : Probe {
             "/system/lib64/libxposed_art.so",
             "/system/bin/app_process32_xposed",
             "/system/bin/app_process64_xposed",
-            "/data/data/de.robv.android.xposed.installer/",
             "/data/adb/lspd/",
             "/data/adb/modules/zygisk_lsposed/",
             "/data/adb/modules/riru_edxposed/",
@@ -73,20 +81,33 @@ class XposedLsposedProbe : Probe {
             "com.solohsu.android.edxp.manager",
         )
 
-        /** Substrings to look for inside `/proc/self/maps`. */
+        /**
+         * Substrings to look for inside `/proc/self/maps`. Deliberately narrow
+         * to Xposed-family-specific names: generic `libriru`, `libzygisk`, and
+         * `libsandhook` are excluded because they fire on benign Riru modules,
+         * every Magisk-zygisk install, and unrelated hook frameworks.
+         */
         val HOOK_LIB_MARKERS: List<String> = listOf(
-            "libxposed",
-            "libsandhook",
+            "libxposed_art",
+            "libxposed_dalvik",
             "liblspd",
-            "libriru",
-            "libzygisk",
+            "libriru_lsposed",
+            "libriru_edxposed",
         )
 
         const val PROC_SELF_MAPS = "/proc/self/maps"
 
+        /**
+         * Empirically /proc/self/maps on modern Android apps is 80-250 KiB.
+         * 512 KiB covers the 99th percentile and avoids silent truncation of
+         * late-mapped hook libraries (modules load late in the zygote-fork
+         * lifecycle).
+         */
+        const val PROC_SELF_MAPS_MAX_BYTES = 524_288
+
         const val METHOD =
-            "Class-loader probe + filesystem path + package-list scan + " +
-                "/proc/self/maps hook-library detection"
+            "Filesystem path + package-list scan + /proc/self/maps " +
+                "hook-library detection (classloader signal class deferred — see KDoc)"
 
         /**
          * Confidence cap when the classloader signal class is unavailable
@@ -152,7 +173,7 @@ class XposedLsposedProbe : Probe {
 
             // ── Signal 3: /proc/self/maps hook libraries ──────────────────────
             val mapsContent = try {
-                ctx.readFile(PROC_SELF_MAPS, maxBytes = 65_536)
+                ctx.readFile(PROC_SELF_MAPS, maxBytes = PROC_SELF_MAPS_MAX_BYTES)
             } catch (_: Throwable) {
                 null
             }

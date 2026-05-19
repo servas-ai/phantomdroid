@@ -201,21 +201,40 @@ class XposedLsposedProbeTest {
     }
 
     @Test
-    fun `libsandhook in proc maps only — score is 0_70`() = runBlocking {
-        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libsandhook")))
+    fun `libxposed_dalvik in proc maps only — score is 0_70`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libxposed_dalvik")))
         assertEquals(0.70, result.score)
     }
 
     @Test
-    fun `libriru in proc maps only — score is 0_70`() = runBlocking {
-        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libriru_core")))
+    fun `libriru_lsposed in proc maps only — score is 0_70`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libriru_lsposed")))
         assertEquals(0.70, result.score)
     }
 
     @Test
-    fun `libzygisk in proc maps only — score is 0_70`() = runBlocking {
+    fun `libriru_edxposed in proc maps only — score is 0_70`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libriru_edxposed")))
+        assertEquals(0.70, result.score)
+    }
+
+    @Test
+    fun `generic libriru without xposed suffix — no signal fires`() = runBlocking {
+        // libriru_storage_isolation is a benign Riru module; should NOT fire.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libriru_storage_isolation")))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `generic libzygisk — no signal fires (Magisk-zygisk is not Xposed)`() = runBlocking {
         val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libzygisk")))
-        assertEquals(0.70, result.score)
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `generic libsandhook — no signal fires (not Xposed-family)`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libsandhook")))
+        assertEquals(0.0, result.score)
     }
 
     @Test
@@ -349,11 +368,11 @@ class XposedLsposedProbeTest {
     // ── Method string ─────────────────────────────────────────────────────────
 
     @Test
-    fun `method string matches spec`() = runBlocking {
+    fun `method string is honest about deferred classloader signal`() = runBlocking {
         val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
         assertEquals(
-            "Class-loader probe + filesystem path + package-list scan + " +
-                "/proc/self/maps hook-library detection",
+            "Filesystem path + package-list scan + /proc/self/maps " +
+                "hook-library detection (classloader signal class deferred — see KDoc)",
             result.method,
         )
     }
