@@ -125,15 +125,30 @@ def journal_main(argv: list[str]) -> int:
     return 0
 
 
+USAGE = (
+    "usage: runner <command> [options]\n"
+    "\n"
+    "commands:\n"
+    "  journal list     [--status STATUS]... [--limit N] [--journal-path PATH]\n"
+    "  journal seed     --config ID --run-index N --layer-set SETS [--journal-path PATH]\n"
+    "  journal claim    --config ID --run-index N [--parent-issue-id ID] [--build-issue-id ID] [--probe-issue-id ID]\n"
+    "  journal complete --config ID --run-index N --status STATUS [--error MSG]\n"
+    "\n"
+    "options:\n"
+    "  -h, --help       Show this help and exit\n"
+)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv:
-        print("usage: runner journal [seed|claim|complete] ...", file=sys.stderr)
-        return 64
+    if not argv or argv[0] in {"-h", "--help", "help"}:
+        print(USAGE)
+        return 0
     command = argv.pop(0)
     if command == "journal":
         return journal_main(argv)
     print(f"unknown runner command: {command}", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
     return 64
 
 
