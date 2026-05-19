@@ -37,12 +37,19 @@ import com.detectorlab.core.ProbeSeverity
  * Studio with `android:debuggable="true"` AND an attached debugger
  * session will fire this rule at 1.0 — the kernel's `TracerPid` field
  * is a structural signal that cannot distinguish "Frida ptrace-attach"
- * from "legitimate developer debugging session". HIGH severity + 1.0
- * dispositive is internally consistent: production deployments
- * targeted by this probe are NOT developer environments, so the FP
- * class is out-of-scope. Consumer-side aggregator should ignore the
- * rule when the target is a known-developer device (e.g. via
- * `Build.TYPE != "user"` cross-check with rank-7 TagsAndTypeProbe).
+ * from "legitimate developer debugging session".
+ *
+ * **Consumer guidance** (per the rank-50 / rank-51 / rank-52
+ * consumer-gating-pattern family): the dispositive 1.0 score is
+ * calibrated for production-device evaluation. On developer/QA
+ * environments, downstream consumers should combine with the
+ * `ro.build.type` signal from rank-7 [TagsAndTypeProbe] to discount
+ * the score when `type == "userdebug"` or `type == "eng"`. The
+ * dispositive 1.0 is correct per team-lead's brief (production targets
+ * are NOT developer environments) — the gating responsibility is
+ * consumer-side, not probe-side. HIGH severity + 1.0 dispositive is
+ * internally consistent: the FP class is out-of-scope for the
+ * production-target evaluation surface.
  *
  * **Note on the Int-vs-Fractional rank divergence**: inventory.yml lists
  * this probe at fractional rank 8.5 (its "natural" priority slot between
@@ -73,6 +80,24 @@ import com.detectorlab.core.ProbeSeverity
  *         the calling thread — failure indicates either an exotic
  *         security policy (rare) or accessor-layer failure.
  *   0.00  PATTERN_CLEAN — `TracerPid: 0`
+ *
+ * **Negative TracerPid handling** (kernel-impossible case): a parsed
+ * value < 0 (e.g. `TracerPid: -1`) does NOT fire the
+ * `debugger_attached` rule (predicate is `tracerPid > 0`); it falls
+ * through to CLEAN. Real Linux kernels never emit a negative PID for
+ * this field, so the case is academic — accepted per reviewer's
+ * rank-80-approval option (a). If a future kernel build ever leaks a
+ * negative value, the `tracerpid_field_missing` rule could be
+ * extended to catch it as tampering.
+ *
+ * **Evidence tri-state shapes**: this probe emits TWO complementary
+ * tri-states. `debugger.attached` is the predicate-form tri-state
+ * (`true` / `false` / `unknown`) per the rank-48/49/52/53/9 pattern.
+ * `proc_self_status.tracer_pid` is the value-form tri-state (parsed-
+ * int string / `"absent"` when field missing / `"<unavailable>"`
+ * when file unreadable). The dual encoding lets downstream consumers
+ * route on the predicate (clean rejection logic) OR inspect the
+ * parsed PID (forensic detail showing WHICH process is attached).
  *
  * Confidence:
  *   0.95  `/proc/self/status` was read non-null AND parsing succeeded
