@@ -66,6 +66,18 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *         but some Android Go entry-level builds legitimately don't)
  *   0.00  PATTERN_CLEAN — adapter present + valid state + features OK
  *
+ * **Cascade structure note.** The four scoring rules partition along the
+ * `adapterPresent` axis:
+ *   - `contradiction` / `missing_on_phone` require `adapter == false`
+ *   - `invalid_state` / `no_le_on_modern` require `adapter == true`
+ *
+ * The two halves are mutually exclusive at the predicate level, so cross-
+ * half rules cannot fire simultaneously. Cross-half cascade ordering
+ * (e.g. `missing_on_phone` at 0.85 vs `invalid_state` at 0.70) is academic
+ * since they can't both predicate true. Same-half rules DO need explicit
+ * ordering — `contradiction` is checked before `missing_on_phone` so the
+ * more-specific signal wins when both same-half predicates match.
+ *
  * Confidence:
  *   0.95  At least one of (adapterPresent, featureBluetooth) returned
  *         non-null
@@ -212,6 +224,11 @@ class BluetoothStateProbe(
                     key = "bluetooth.state",
                     value = stateName(adapterState),
                     expected = "ON|OFF|TURNING_ON|TURNING_OFF",
+                ),
+                Evidence(
+                    key = "bluetooth.state_raw",
+                    value = adapterState?.toString() ?: "<unavailable>",
+                    expected = "10|11|12|13",
                 ),
                 Evidence(
                     key = "bluetooth.has_system_feature",

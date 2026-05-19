@@ -632,9 +632,9 @@ class BluetoothStateProbeTest {
     // ── Evidence row coverage ────────────────────────────────────────────────
 
     @Test
-    fun `evidence has exactly 6 keys`() = runBlocking {
+    fun `evidence has exactly 7 keys`() = runBlocking {
         val result = makeProbe().run(fakeCtx())
-        assertEquals(6, result.evidence.size)
+        assertEquals(7, result.evidence.size)
     }
 
     @Test
@@ -645,6 +645,7 @@ class BluetoothStateProbeTest {
             setOf(
                 "bluetooth.adapter_present",
                 "bluetooth.state",
+                "bluetooth.state_raw",
                 "bluetooth.has_system_feature",
                 "bluetooth.has_le_feature",
                 "bluetooth.is_consistent",
@@ -652,6 +653,29 @@ class BluetoothStateProbeTest {
             ),
             keys,
         )
+    }
+
+    @Test
+    fun `state_raw evidence reflects int value (ON=12)`() = runBlocking {
+        val result = makeProbe(adapterState = BluetoothStateProbe.STATE_ON).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "bluetooth.state_raw" }
+        assertEquals("12", ev?.value)
+    }
+
+    @Test
+    fun `state_raw evidence reflects invalid int (99)`() = runBlocking {
+        // Consumer-parseability: raw int is in its own row, separate from
+        // the human-readable `INVALID(99)` in bluetooth.state.
+        val result = makeProbe(adapterState = 99).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "bluetooth.state_raw" }
+        assertEquals("99", ev?.value)
+    }
+
+    @Test
+    fun `state_raw evidence is unavailable when null`() = runBlocking {
+        val result = makeProbe(adapterState = null).run(fakeCtx())
+        val ev = result.evidence.find { it.key == "bluetooth.state_raw" }
+        assertEquals("<unavailable>", ev?.value)
     }
 
     @Test
