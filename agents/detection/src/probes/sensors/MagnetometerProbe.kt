@@ -27,8 +27,14 @@ import kotlin.math.sqrt
  *   • Live-sample magnitude implausibly high (`> 200 µT`) — Earth's field
  *     never exceeds ~65 µT and even strong local magnets (speakers, motors)
  *     cap below 200 µT at sensor distance.
- *   • Exact AVD constants: `(0, 0, 0)`, `(0, 0, -42)`, and `(1, 1, 1)` —
- *     known Goldfish/AVD stub triples that no real sensor ever emits.
+ *   • Exact AVD constants: `(0, 0, 0)` (uninitialized stub),
+ *     `(0, 0, -42)` (Goldfish historical magnetic-field default;
+ *     `external/qemu/.../sensors/sensors_qemu.c` shipped this triple as the
+ *     hardcoded magnetic-vector reply on early AVD images), and
+ *     `(1, 1, 1)` (Genymotion/ranchu sentinel) — known emulator stub triples
+ *     that no real MEMS sensor ever emits. Note `(1, 1, 1)` also has
+ *     magnitude ~1.73 µT and so *would* trigger the implausible-low rule
+ *     too; the cascade order guarantees AVD-stub (1.0) fires first.
  *
  * Reuses rank-24 [AccelerometerGyroProbe.TYPE_MAGNETIC_FIELD] constant via
  * direct companion reference, with an invariant test anchoring the
@@ -117,8 +123,8 @@ class MagnetometerProbe(
 
         const val METHOD =
             "Check SensorManager for TYPE_MAGNETIC_FIELD presence + emulator " +
-                "vendor names + 3-axis magnitude plausibility (20-100 µT range, " +
-                "non-zero) + sample variance"
+                "vendor names + 3-axis magnitude plausibility (5-200 µT range) + " +
+                "AVD-stub-triple detection"
 
         /** Computes √(x² + y² + z²) for a 3-axis sample. */
         internal fun magnitude(x: Float, y: Float, z: Float): Double {

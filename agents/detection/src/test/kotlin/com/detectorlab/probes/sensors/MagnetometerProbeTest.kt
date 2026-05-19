@@ -464,24 +464,29 @@ class MagnetometerProbeTest {
     // ── Implausibly low magnitude (0.85) — Faraday-cage-like ─────────────────
 
     @Test
-    fun `all 2uT magnitude across 2 samples — score is 0_85`() = runBlocking {
-        // Each magnitude ~2 µT, well below 5 µT floor.
-        val result = makeProbe().run(
-            fakeCtx(
-                sensorManager = sensorManagerWith(
-                    sensorTypes = listOf(AccelerometerGyroProbe.TYPE_MAGNETIC_FIELD),
-                    magSamples = listOf(
-                        Triple(1.0f, 1.0f, 1.0f).run { Triple(1.0f, 1.0f, 1.0f) },
-                        // (1,1,1) is in AVD_STUB_TRIPLES — would fire 1.0. Use
-                        // distinct sub-5 values that aren't stubs.
-                        Triple(1.5f, 1.0f, -0.5f),  // mag ≈ 1.87
-                        Triple(2.0f, 0.5f, -1.0f),  // mag ≈ 2.29
+    fun `(1,1,1) in stream of sub-5 samples — AVD stub wins over implausible_low (1_0)`() =
+        runBlocking {
+            // Cascade verification: `(1,1,1)` has magnitude ~1.73 µT so it
+            // ALSO satisfies the implausible_low predicate. But AVD-stub
+            // fires earlier in the cascade at score 1.0; implausible_low
+            // at 0.85 would lose. Genuine implausible_low coverage is in
+            // the next test below.
+            val result = makeProbe().run(
+                fakeCtx(
+                    sensorManager = sensorManagerWith(
+                        sensorTypes = listOf(AccelerometerGyroProbe.TYPE_MAGNETIC_FIELD),
+                        magSamples = listOf(
+                            Triple(1.0f, 1.0f, 1.0f),    // stub triple
+                            Triple(1.5f, 1.0f, -0.5f),   // mag ≈ 1.87
+                            Triple(2.0f, 0.5f, -1.0f),   // mag ≈ 2.29
+                        ),
                     ),
                 ),
-            ),
-        )
-        assertEquals(1.0, result.score)  // (1,1,1) is stub triple → AVD wins
-    }
+            )
+            assertEquals(1.0, result.score)
+            val ev = result.evidence.find { it.key == "magnetometer.pattern" }
+            assertEquals(MagnetometerProbe.PATTERN_AVD_STUB_TRIPLE, ev?.value)
+        }
 
     @Test
     fun `all sub-5uT non-stub across 2 samples — score is 0_85`() = runBlocking {
@@ -1050,8 +1055,8 @@ class MagnetometerProbeTest {
         val result = makeProbe().run(fakeCtx())
         assertEquals(
             "Check SensorManager for TYPE_MAGNETIC_FIELD presence + emulator " +
-                "vendor names + 3-axis magnitude plausibility (20-100 µT range, " +
-                "non-zero) + sample variance",
+                "vendor names + 3-axis magnitude plausibility (5-200 µT range) + " +
+                "AVD-stub-triple detection",
             result.method,
         )
     }
