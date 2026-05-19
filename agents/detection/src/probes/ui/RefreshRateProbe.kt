@@ -56,8 +56,16 @@ import com.detectorlab.probes.network.NetworkTypeProbe
  *
  * Confidence:
  *   0.95  Both refreshRate AND supportedModes returned non-null
- *   0.60  Exactly one of the two returned
+ *   0.60  Exactly one of the two returned (partial observation)
  *   0.30  Both null (no observation possible)
+ *
+ * **3-tier confidence vs 2-tier session pattern**: most env/sensor probes
+ * in this codebase use a 2-tier `0.95 / 0.50` graduation (single primary
+ * surface). This probe has TWO independent surfaces (refreshRate AND
+ * supportedModes) that can each be observed or absent independently, so
+ * a 3-tier graduation captures the "partial observation" middle case
+ * honestly. Same pattern as rank-23 ScreenResolutionProbe (multi-surface
+ * display probe).
  *
  * Reference: shared/probes/inventory.yml rank 46 (mitigation_layer L1).
  */
@@ -100,13 +108,11 @@ class RefreshRateProbe(
          *   • OnePlus 9 Pro and later
          *   • Xiaomi 13 and later
          *
-         * Pixel 4a/5a/6a base (no 120 Hz) are intentionally NOT in this
-         * list. Pixel 7a is 90 Hz not 120 Hz so also excluded. The
-         * substring "pixel 7" would incorrectly match "Pixel 7a", but
-         * the alternative ("pixel 7 ", with trailing space) wouldn't
-         * match "Pixel 7" base either. Documented limitation: Pixel 7a
-         * may false-positive on this rule; acceptable given the LOW
-         * severity. Test pins this caveat.
+         * Pixel 4a/5a base (no 120 Hz) are intentionally NOT in this
+         * list. Pixel 6a/7a positively-matched by `"pixel 6"`/`"pixel 7"`
+         * substrings are EXCLUDED via [NON_120HZ_PIXEL_A_VARIANTS] to
+         * prevent false-positives on those budget Pixel variants (anti-
+         * false-positive negative-exclusion pattern, same as rank-26/31/33).
          */
         val KNOWN_120HZ_MODELS: List<String> = listOf(
             "pixel 7", "pixel 8", "pixel 9", "pixel fold",
@@ -114,7 +120,12 @@ class RefreshRateProbe(
             "sm-s911", "sm-s916", "sm-s918",   // Galaxy S23 family
             "sm-s921", "sm-s926", "sm-s928",   // Galaxy S24 family
             "sm-s931", "sm-s936", "sm-s938",   // Galaxy S25 family
+            // OnePlus: `9 pro` is intentionally narrower than `oneplus 9`
+            // because OnePlus 9 base is 120Hz only on Pro; from `10` onward
+            // both base and Pro are 120Hz so the broader prefix suffices.
             "oneplus 9 pro", "oneplus 10", "oneplus 11", "oneplus 12",
+            // Mi/Xiaomi 13/14 covers CN-region (`Mi 13`) and international
+            // (`Xiaomi 13`) SKU naming. Same dual-coverage as rank-45.
             "mi 13", "mi 14", "xiaomi 13", "xiaomi 14",
         )
 
@@ -137,10 +148,40 @@ class RefreshRateProbe(
                 "Hz values, single-60Hz-mode on 120Hz-capable flagships, and " +
                 "stub patterns"
 
-        /** True iff [model] is in [KNOWN_120HZ_MODELS] (case-insensitive). */
+        /**
+         * Pixel a-series variants that match a positive substring but are
+         * NOT 120 Hz-capable. Anti-false-positive guard — same negative-
+         * exclusion pattern as rank-26 ANGLE-on-Pixel-8, rank-31 LA-default
+         * on `02:...`, rank-33 static-max on charger.
+         *
+         * **Verified per OEM spec (May 2026)**:
+         *   - Pixel 6a: 60 Hz max (Google's spec page)
+         *   - Pixel 7a: 90 Hz max (Google's spec page)
+         *   - Pixel 8a: 120 Hz Actua — INTENTIONALLY NOT EXCLUDED (Pixel 8a
+         *     IS 120 Hz-capable and the positive `"pixel 8"` substring
+         *     correctly fires for it).
+         *
+         * If a future Pixel a-variant ships without 120 Hz, add it here.
+         * The drift-alarm test pins this set.
+         */
+        val NON_120HZ_PIXEL_A_VARIANTS: List<String> = listOf(
+            "pixel 6a",
+            "pixel 7a",
+        )
+
+        /**
+         * True iff [model] is in [KNOWN_120HZ_MODELS] (case-insensitive),
+         * with negative exclusions for [NON_120HZ_PIXEL_A_VARIANTS] applied
+         * first to prevent positive-substring false-positives.
+         */
         internal fun is120HzCapableModel(model: String?): Boolean {
             if (model.isNullOrEmpty()) return false
             val lower = model.lowercase()
+            // Negative exclusions BEFORE positive matches: a Pixel 7a model
+            // string contains "pixel 7" which would otherwise fire the
+            // positive rule. Same pattern as rank-26/31/33 anti-false-
+            // positive guards.
+            if (NON_120HZ_PIXEL_A_VARIANTS.any { it in lower }) return false
             return KNOWN_120HZ_MODELS.any { it in lower }
         }
     }

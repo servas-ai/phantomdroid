@@ -265,16 +265,43 @@ class RefreshRateProbeTest {
     }
 
     @Test
-    fun `Pixel 7a documented limitation — fires 0_85 (90Hz max, not 120)`() = runBlocking {
-        // KDoc note: "pixel 7" substring matches "Pixel 7a" too. Pixel 7a
-        // is 90 Hz max, not 120, so single-60-mode on it isn't an emulator
-        // tell — but the substring rule still fires. Documented limitation;
-        // acceptable false-positive on LOW severity. This test locks the
-        // limitation in case a future refinement narrows the list.
+    fun `Pixel 7a (90Hz max) — score is 0 (negative exclusion guard)`() = runBlocking {
+        // Anti-false-positive guard: Pixel 7a positively matches the
+        // `"pixel 7"` substring but is 90 Hz max, not 120. Negative
+        // exclusion via NON_120HZ_PIXEL_A_VARIANTS prevents the
+        // single-60-mode rule from misfiring. Same negative-exclusion
+        // pattern as rank-26 ANGLE / rank-31 LA-default / rank-33 max-charger.
         val result = makeProbe(
             refreshRateHz = 60.0f,
             supportedModes = listOf(60.0f),
         ).run(fakeCtx(model = "Pixel 7a"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `Pixel 6a (60Hz max) — score is 0 (negative exclusion guard)`() = runBlocking {
+        // Pixel 6a is 60 Hz max — but `"pixel 6"` isn't in
+        // KNOWN_120HZ_MODELS so the positive rule wouldn't fire here
+        // regardless. The negative exclusion adds defense-in-depth:
+        // if KNOWN_120HZ_MODELS is later extended to include "pixel 6"
+        // (e.g. for Pixel 6 Pro coverage), the negative guard prevents
+        // Pixel 6a from inheriting that false-positive.
+        val result = makeProbe(
+            refreshRateHz = 60.0f,
+            supportedModes = listOf(60.0f),
+        ).run(fakeCtx(model = "Pixel 6a"))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `Pixel 8a (120Hz max — verified) — fires 0_85 (positive match holds)`() = runBlocking {
+        // Pixel 8a IS 120 Hz-capable per Google's spec page (Actua
+        // display). Intentionally NOT in NON_120HZ_PIXEL_A_VARIANTS.
+        // Single-60-mode on it IS a legitimate emulator tell.
+        val result = makeProbe(
+            refreshRateHz = 60.0f,
+            supportedModes = listOf(60.0f),
+        ).run(fakeCtx(model = "Pixel 8a"))
         assertEquals(0.85, result.score)
     }
 
@@ -514,6 +541,33 @@ class RefreshRateProbeTest {
         assertFalse(RefreshRateProbe.is120HzCapableModel("Pixel 4a"))
         assertFalse(RefreshRateProbe.is120HzCapableModel("Pixel 5"))
         assertFalse(RefreshRateProbe.is120HzCapableModel("Pixel 6"))
+    }
+
+    @Test
+    fun `is120HzCapableModel false for Pixel 6a 7a (negative exclusion)`() {
+        // Pixel 6a / 7a positively match `"pixel 6"`/`"pixel 7"` substrings
+        // but are EXCLUDED via NON_120HZ_PIXEL_A_VARIANTS. Anti-false-
+        // positive guard.
+        assertFalse(RefreshRateProbe.is120HzCapableModel("Pixel 6a"))
+        assertFalse(RefreshRateProbe.is120HzCapableModel("Pixel 7a"))
+    }
+
+    @Test
+    fun `is120HzCapableModel true for Pixel 8a (NOT excluded — verified 120Hz)`() {
+        // Per Google's spec page, Pixel 8a has 120 Hz Actua display.
+        // Intentionally NOT in NON_120HZ_PIXEL_A_VARIANTS.
+        assertTrue(RefreshRateProbe.is120HzCapableModel("Pixel 8a"))
+    }
+
+    @Test
+    fun `NON_120HZ_PIXEL_A_VARIANTS list pinned (drift alarm)`() {
+        // Future maintainer changing the negative-exclusion list must
+        // update this test deliberately. New a-variants should be added
+        // ONLY after verifying refresh-rate spec via Google's page.
+        assertEquals(
+            listOf("pixel 6a", "pixel 7a"),
+            RefreshRateProbe.NON_120HZ_PIXEL_A_VARIANTS,
+        )
     }
 
     @Test
