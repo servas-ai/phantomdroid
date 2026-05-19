@@ -1,0 +1,150 @@
+# =============================================================================
+# L6.compose.yml — Network egress shaping layer (layer L6)
+# =============================================================================
+# Owner:        Stability Agent (id=174f9181-63c9-40b5-8041-46beef440e56)
+# Filed under:  GOAL-Power-1 acceptance #3 (SpoofStack layer scaffolding)
+# Layer set:    L0a + L0b + L1 + L2 + L3 + L4 + L5 + L6 (full stack)
+# Reference:    agents/stability/stack/layers.md §L6 — Network Egress
+#
+# Safety boundary
+# ---------------
+# This compose file describes a lab cell for measuring detection signals in
+# owned test environments. It MUST NOT be used as an operational tool for
+# bypassing third-party anti-abuse, anti-bot, attestation, account-integrity,
+# or fraud controls. Network-policy shaping is for MEASUREMENT only:
+# detector-side observation of IP/ASN/DNS signals on owned test infrastructure.
+# See agents/stability/stack/layers.md §"Safety boundary".
+#
+# Purpose
+# -------
+# L6 layers network-egress shaping on top of the lower stack. Per layers.md
+# §L6 the canonical components are a lab LTE modem (mobile carrier IP), an
+# iptables NAT gateway routing container egress to the LTE link, and a local
+# DNS resolver (1.1.1.1) for realistic resolution behaviour. Targets probes
+# in the network.* family (#5, #18, #25, #37, #38).
+#
+# Refuse-privileged-compose preflight (6 checks — all MUST PASS).
+#
+# Bring-up:
+#   docker compose \
+#     -f agents/stability/stack/compose/L0a.yml \
+#     -f agents/stability/stack/compose/L0b.compose.yml \
+#     -f agents/stability/stack/compose/L1.compose.yml \
+#     -f agents/stability/stack/compose/L2.compose.yml \
+#     -f agents/stability/stack/compose/L3.compose.yml \
+#     -f agents/stability/stack/compose/L4.compose.yml \
+#     -f agents/stability/stack/compose/L5.compose.yml \
+#     -f agents/stability/stack/compose/L6.compose.yml \
+#     up -d
+#
+# Sequel: see agents/stability/stack/L6-RUNBOOK.md.
+# =============================================================================
+
+name: stability-l6
+
+x-l6-base: &l6-base
+  image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  platform: "linux/amd64"
+  restart: "no"
+  init: true
+
+  cap_drop:
+    - ALL
+  cap_add:
+    - SYS_NICE
+    - SYS_RESOURCE
+    - SYS_PTRACE
+    - MKNOD
+    - SETUID
+    - SETGID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - DAC_OVERRIDE
+    - DAC_READ_SEARCH
+    - FOWNER
+    - FSETID
+    - KILL
+    - AUDIT_WRITE
+
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "apparmor=unconfined"
+
+  devices:
+    - /dev/binder:/dev/binder
+    - /dev/hwbinder:/dev/hwbinder
+    - /dev/vndbinder:/dev/vndbinder
+    - /dev/ashmem:/dev/ashmem
+
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "4g"
+      reservations:
+        cpus: "0.5"
+        memory: "2g"
+
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - "getprop sys.boot_completed | grep -q 1"
+    interval: 10s
+    timeout: 5s
+    retries: 36
+    start_period: 60s
+
+  environment: &l6-env
+    ANDROID_DATA: "/data"
+    androidboot.hardware: "redroid"
+    androidboot.redroid_google_play_store: "0"
+    redroid.gpu.mode: "guest"
+    RESEARCH_LAYER_SET: "L0a+L0b+L1+L2+L3+L4+L5+L6"
+    # Local resolver for the cell — set to 1.1.1.1 per layers.md §L6.
+    RESEARCH_DNS_RESOLVER: "1.1.1.1"
+
+  labels: &l6-labels
+    research.phase: "L6-network-egress"
+    research.layer_set: "L0a+L0b+L1+L2+L3+L4+L5+L6"
+    research.compose_file: "agents/stability/stack/compose/L6.compose.yml"
+    research.runbook: "agents/stability/stack/L6-RUNBOOK.md"
+    research.owner: "stability"
+
+services:
+
+  redroid-l6:
+    <<: *l6-base
+    container_name: "stability-l6-redroid"
+    hostname: "l6"
+    ports:
+      - "127.0.0.1:15561:5555"
+    volumes:
+      # TODO(L6): network-policy module (iptables-NAT-to-LTE gateway client
+      # + DNS policy config) not yet in-tree. Placeholder bind-mount reserves
+      # the config path. See L6-RUNBOOK §1.
+      - "./results/l6/network-policy:/data/network-policy:rw"
+      # Per-cell results dir (writable, isolated)
+      - "./results/l6/out:/opt/research/results:rw"
+    dns:
+      - "1.1.1.1"
+    environment:
+      <<: *l6-env
+      RESEARCH_TARGET_PROBES: "network.source_ip_asn, network.vpn_interface_present, network.dns_resolver, network.cellular_vs_wifi"
+    labels:
+      <<: *l6-labels
+
+networks:
+  default:
+    driver: bridge
+    # TODO(L6): wire to lab LTE gateway bridge once the host-side iptables
+    # NAT route is staged. Until then this is a plain isolated bridge — the
+    # carrier-IP probe (#5) will NOT yet read as cellular.
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.65.0/29
+
+volumes: {}

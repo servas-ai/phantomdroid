@@ -1,0 +1,142 @@
+# =============================================================================
+# L5.compose.yml — Sensor emulation / noise injection layer (layer L5)
+# =============================================================================
+# Owner:        Stability Agent (id=174f9181-63c9-40b5-8041-46beef440e56)
+# Filed under:  GOAL-Power-1 acceptance #3 (SpoofStack layer scaffolding)
+# Layer set:    L0a + L0b + L1 + L2 + L3 + L4 + L5
+# Reference:    agents/stability/stack/layers.md §L5 — Sensor Emulation
+#
+# Safety boundary
+# ---------------
+# This compose file describes a lab cell for measuring detection signals in
+# owned test environments. It MUST NOT be used as an operational tool for
+# bypassing third-party anti-abuse, anti-bot, attestation, account-integrity,
+# or fraud controls. See agents/stability/stack/layers.md §"Safety boundary".
+#
+# Purpose
+# -------
+# L5 layers sensor-data injection on top of the lower stack. Per layers.md
+# §L5 the canonical modules are VirtualSensor (modified) and a trace-player
+# replaying a real Pixel 7 sensor recording (CSV sequence). Targets probes
+# in the sensor.* family (#24, #42..#45). The L5 module is a research
+# placeholder until a concrete in-tree module lands.
+#
+# Refuse-privileged-compose preflight (6 checks — all MUST PASS).
+#
+# Bring-up:
+#   docker compose \
+#     -f agents/stability/stack/compose/L0a.yml \
+#     -f agents/stability/stack/compose/L0b.compose.yml \
+#     -f agents/stability/stack/compose/L1.compose.yml \
+#     -f agents/stability/stack/compose/L2.compose.yml \
+#     -f agents/stability/stack/compose/L3.compose.yml \
+#     -f agents/stability/stack/compose/L4.compose.yml \
+#     -f agents/stability/stack/compose/L5.compose.yml \
+#     up -d
+#
+# Sequel: see agents/stability/stack/L5-RUNBOOK.md.
+# =============================================================================
+
+name: stability-l5
+
+x-l5-base: &l5-base
+  image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  platform: "linux/amd64"
+  restart: "no"
+  init: true
+
+  cap_drop:
+    - ALL
+  cap_add:
+    - SYS_NICE
+    - SYS_RESOURCE
+    - SYS_PTRACE
+    - MKNOD
+    - SETUID
+    - SETGID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - DAC_OVERRIDE
+    - DAC_READ_SEARCH
+    - FOWNER
+    - FSETID
+    - KILL
+    - AUDIT_WRITE
+
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "apparmor=unconfined"
+
+  devices:
+    - /dev/binder:/dev/binder
+    - /dev/hwbinder:/dev/hwbinder
+    - /dev/vndbinder:/dev/vndbinder
+    - /dev/ashmem:/dev/ashmem
+
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "4g"
+      reservations:
+        cpus: "0.5"
+        memory: "2g"
+
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - "getprop sys.boot_completed | grep -q 1"
+    interval: 10s
+    timeout: 5s
+    retries: 36
+    start_period: 60s
+
+  environment: &l5-env
+    ANDROID_DATA: "/data"
+    androidboot.hardware: "redroid"
+    androidboot.redroid_google_play_store: "0"
+    redroid.gpu.mode: "guest"
+    RESEARCH_LAYER_SET: "L0a+L0b+L1+L2+L3+L4+L5"
+
+  labels: &l5-labels
+    research.phase: "L5-sensor-noise"
+    research.layer_set: "L0a+L0b+L1+L2+L3+L4+L5"
+    research.compose_file: "agents/stability/stack/compose/L5.compose.yml"
+    research.runbook: "agents/stability/stack/L5-RUNBOOK.md"
+    research.owner: "stability"
+
+services:
+
+  redroid-l5:
+    <<: *l5-base
+    container_name: "stability-l5-redroid"
+    hostname: "l5"
+    ports:
+      - "127.0.0.1:15560:5555"
+    volumes:
+      # TODO(L5): VirtualSensor + trace-player not yet in-tree as a local
+      # artefact. Placeholder bind-mount reserves the path so the
+      # orchestrator can pre-stage the module + a recorded sensor CSV trace
+      # once it lands. See L5-RUNBOOK §1.
+      - "./results/l5/sensor-noise-module:/data/adb/modules/sensor-noise:rw"
+      - "./results/l5/sensor-traces:/data/sensor-traces:ro"
+      # Per-cell results dir (writable, isolated)
+      - "./results/l5/out:/opt/research/results:rw"
+    environment:
+      <<: *l5-env
+      RESEARCH_TARGET_PROBES: "sensor.fft_accelerometer, sensor.gyroscope_noise, sensor.gps_consistency"
+    labels:
+      <<: *l5-labels
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.64.0/29
+
+volumes: {}

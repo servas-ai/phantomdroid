@@ -1,0 +1,144 @@
+# =============================================================================
+# L4.compose.yml — Runtime hiding / RASP-evasion layer (layer L4)
+# =============================================================================
+# Owner:        Stability Agent (id=174f9181-63c9-40b5-8041-46beef440e56)
+# Filed under:  GOAL-Power-1 acceptance #3 (SpoofStack layer scaffolding)
+# Layer set:    L0a + L0b + L1 + L2 + L3 + L4
+# Reference:    agents/stability/stack/layers.md §L4 — Runtime Hiding
+#               stack/L4/hide-frida-maps/README.md (in-tree Xposed skeleton)
+#
+# Safety boundary
+# ---------------
+# This compose file describes a lab cell for measuring detection signals in
+# owned test environments. It MUST NOT be used as an operational tool for
+# bypassing third-party anti-abuse, anti-bot, attestation, account-integrity,
+# or fraud controls. See agents/stability/stack/layers.md §"Safety boundary".
+#
+# Purpose
+# -------
+# L4 adds runtime-hiding modules on top of the lower stack. Per layers.md
+# §L4 the canonical modules are Shamiko (Zygisk + Magisk + module hiding)
+# and HideMyAppList (package-list filtering). The in-tree skeleton
+# `hide-frida-maps` (stack/L4/hide-frida-maps) targets the
+# runtime.frida_memory_maps probe specifically.
+#
+# Refuse-privileged-compose preflight (6 checks — all MUST PASS).
+#
+# Bring-up:
+#   docker compose \
+#     -f agents/stability/stack/compose/L0a.yml \
+#     -f agents/stability/stack/compose/L0b.compose.yml \
+#     -f agents/stability/stack/compose/L1.compose.yml \
+#     -f agents/stability/stack/compose/L2.compose.yml \
+#     -f agents/stability/stack/compose/L3.compose.yml \
+#     -f agents/stability/stack/compose/L4.compose.yml \
+#     up -d
+#
+# Sequel: see agents/stability/stack/L4-RUNBOOK.md.
+# =============================================================================
+
+name: stability-l4
+
+x-l4-base: &l4-base
+  image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  platform: "linux/amd64"
+  restart: "no"
+  init: true
+
+  cap_drop:
+    - ALL
+  cap_add:
+    - SYS_NICE
+    - SYS_RESOURCE
+    - SYS_PTRACE
+    - MKNOD
+    - SETUID
+    - SETGID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - DAC_OVERRIDE
+    - DAC_READ_SEARCH
+    - FOWNER
+    - FSETID
+    - KILL
+    - AUDIT_WRITE
+
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "apparmor=unconfined"
+
+  devices:
+    - /dev/binder:/dev/binder
+    - /dev/hwbinder:/dev/hwbinder
+    - /dev/vndbinder:/dev/vndbinder
+    - /dev/ashmem:/dev/ashmem
+
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "4g"
+      reservations:
+        cpus: "0.5"
+        memory: "2g"
+
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - "getprop sys.boot_completed | grep -q 1"
+    interval: 10s
+    timeout: 5s
+    retries: 36
+    start_period: 60s
+
+  environment: &l4-env
+    ANDROID_DATA: "/data"
+    androidboot.hardware: "redroid"
+    androidboot.redroid_google_play_store: "0"
+    redroid.gpu.mode: "guest"
+    RESEARCH_LAYER_SET: "L0a+L0b+L1+L2+L3+L4"
+
+  labels: &l4-labels
+    research.phase: "L4-runtime-hiding"
+    research.layer_set: "L0a+L0b+L1+L2+L3+L4"
+    research.compose_file: "agents/stability/stack/compose/L4.compose.yml"
+    research.runbook: "agents/stability/stack/L4-RUNBOOK.md"
+    research.owner: "stability"
+
+services:
+
+  redroid-l4:
+    <<: *l4-base
+    container_name: "stability-l4-redroid"
+    hostname: "l4"
+    ports:
+      - "127.0.0.1:15559:5555"
+    volumes:
+      # In-tree Xposed/Vector module skeleton for the runtime.frida_memory_maps
+      # probe. Source-of-truth lives at stack/L4/hide-frida-maps; the bind
+      # is read-only so container tampering cannot corrupt the source.
+      - "../../../../stack/L4/hide-frida-maps:/data/adb/modules/hide-frida-maps:ro"
+      # TODO(L4): Shamiko + HideMyAppList Magisk modules — staged once added
+      # to the in-tree module set.
+      - "./results/l4/shamiko-module:/data/adb/modules/shamiko:rw"
+      - "./results/l4/hidemyapplist-module:/data/adb/modules/hidemyapplist:rw"
+      # Per-cell results dir (writable, isolated)
+      - "./results/l4/out:/opt/research/results:rw"
+    environment:
+      <<: *l4-env
+      RESEARCH_TARGET_PROBES: "runtime.frida_memory_maps, runtime.xposed_lsposed, root.magisk_present"
+    labels:
+      <<: *l4-labels
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.63.0/29
+
+volumes: {}

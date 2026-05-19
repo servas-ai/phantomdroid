@@ -1,0 +1,137 @@
+# =============================================================================
+# L2.compose.yml — Identity spoofing layer (layer L2)
+# =============================================================================
+# Owner:        Stability Agent (id=174f9181-63c9-40b5-8041-46beef440e56)
+# Filed under:  GOAL-Power-1 acceptance #3 (SpoofStack layer scaffolding)
+# Layer set:    L0a + L0b + L1 + L2
+# Reference:    agents/stability/stack/layers.md §L2 — Identity Spoofing
+#
+# Safety boundary
+# ---------------
+# This compose file describes a lab cell for measuring detection signals in
+# owned test environments. It MUST NOT be used as an operational tool for
+# bypassing third-party anti-abuse, anti-bot, attestation, account-integrity,
+# or fraud controls. See agents/stability/stack/layers.md §"Safety boundary".
+#
+# Purpose
+# -------
+# L2 adds identity-level spoofing on top of L0a+L0b+L1: IMEI, Android ID, MAC,
+# BT-MAC, SSID, MediaDRM, SIM, Operator. Per layers.md §L2, the canonical
+# module is "Android Faker" with per-app-profile unique IDs and persistent
+# storage. The L2 module is a research placeholder until a concrete in-tree
+# module lands; the bind-mount below pre-creates the staging directory.
+#
+# Refuse-privileged-compose preflight (6 checks — all MUST PASS).
+#
+# Bring-up:
+#   docker compose \
+#     -f agents/stability/stack/compose/L0a.yml \
+#     -f agents/stability/stack/compose/L0b.compose.yml \
+#     -f agents/stability/stack/compose/L1.compose.yml \
+#     -f agents/stability/stack/compose/L2.compose.yml \
+#     up -d
+#
+# Sequel: see agents/stability/stack/L2-RUNBOOK.md.
+# =============================================================================
+
+name: stability-l2
+
+x-l2-base: &l2-base
+  image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  platform: "linux/amd64"
+  restart: "no"
+  init: true
+
+  cap_drop:
+    - ALL
+  cap_add:
+    - SYS_NICE
+    - SYS_RESOURCE
+    - SYS_PTRACE
+    - MKNOD
+    - SETUID
+    - SETGID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - DAC_OVERRIDE
+    - DAC_READ_SEARCH
+    - FOWNER
+    - FSETID
+    - KILL
+    - AUDIT_WRITE
+
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "apparmor=unconfined"
+
+  devices:
+    - /dev/binder:/dev/binder
+    - /dev/hwbinder:/dev/hwbinder
+    - /dev/vndbinder:/dev/vndbinder
+    - /dev/ashmem:/dev/ashmem
+
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "4g"
+      reservations:
+        cpus: "0.5"
+        memory: "2g"
+
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - "getprop sys.boot_completed | grep -q 1"
+    interval: 10s
+    timeout: 5s
+    retries: 36           # 36 * 10s = 6 min boot budget for L0a+L0b+L1+L2
+    start_period: 60s
+
+  environment: &l2-env
+    ANDROID_DATA: "/data"
+    androidboot.hardware: "redroid"
+    androidboot.redroid_google_play_store: "0"
+    redroid.gpu.mode: "guest"
+    RESEARCH_LAYER_SET: "L0a+L0b+L1+L2"
+
+  labels: &l2-labels
+    research.phase: "L2-identity-spoofing"
+    research.layer_set: "L0a+L0b+L1+L2"
+    research.compose_file: "agents/stability/stack/compose/L2.compose.yml"
+    research.runbook: "agents/stability/stack/L2-RUNBOOK.md"
+    research.owner: "stability"
+
+services:
+
+  redroid-l2:
+    <<: *l2-base
+    container_name: "stability-l2-redroid"
+    hostname: "l2"
+    ports:
+      - "127.0.0.1:15557:5555"
+    volumes:
+      # TODO(L2): identity-spoof Magisk/Xposed module not yet in-tree.
+      # Placeholder bind-mount reserves the path so the orchestrator can
+      # pre-stage the module once it lands. See L2-RUNBOOK §1.
+      - "./results/l2/identity-spoof-module:/data/adb/modules/identity-spoof:rw"
+      # Per-cell results dir (writable, isolated)
+      - "./results/l2/out:/opt/research/results:rw"
+    environment:
+      <<: *l2-env
+      RESEARCH_TARGET_PROBES: "framework.android_id, telephony.imei, mac.wifi, mac.bt, drm.widevine_id"
+    labels:
+      <<: *l2-labels
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.61.0/29
+
+volumes: {}

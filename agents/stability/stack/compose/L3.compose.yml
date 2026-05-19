@@ -1,0 +1,155 @@
+# =============================================================================
+# L3.compose.yml — Integrity / attestation layer (layer L3)
+# =============================================================================
+# Owner:        Stability Agent (id=174f9181-63c9-40b5-8041-46beef440e56)
+# Filed under:  GOAL-Power-1 acceptance #3 (SpoofStack layer scaffolding)
+# Layer set:    L0a + L0b + L1 + L2 + L3
+# Reference:    agents/stability/stack/layers.md §L3 — Integrity & Attestation
+#               agents/stability/stack/L3-DEFAULT.md (TEESimulator default)
+#
+# Safety boundary
+# ---------------
+# This compose file describes a lab cell for measuring detection signals in
+# owned test environments. It MUST NOT be used as an operational tool for
+# bypassing third-party anti-abuse, anti-bot, attestation, account-integrity,
+# or fraud controls. See agents/stability/stack/layers.md §"Safety boundary".
+#
+# Per Hard Ceiling #3 (BEST-STACK-v2.md): STRONG_INTEGRITY is uncountered by
+# any FOSS L3 module. INTEGRITY_TARGET_VERDICTS is therefore "BASIC,DEVICE";
+# STRONG verdict failures in cell runs are EXPECTED and MUST NOT be treated
+# as a stack regression.
+#
+# Purpose
+# -------
+# L3 adds the integrity backend. The canonical default is TEESimulator v3.2;
+# TrickyStore v1.4.1 is the fallback branch behind a mutual-exclusion gate
+# (see L3-DEFAULT.md §3). This compose file scaffolds the keystore-related
+# bind-mounts for either backend. Backend selection is done via SPOOFSTACK_L3
+# env-var and the compose-matrix.sh resolver (L3-DEFAULT.md §2).
+#
+# Refuse-privileged-compose preflight (6 checks — all MUST PASS).
+#
+# Bring-up:
+#   docker compose \
+#     -f agents/stability/stack/compose/L0a.yml \
+#     -f agents/stability/stack/compose/L0b.compose.yml \
+#     -f agents/stability/stack/compose/L1.compose.yml \
+#     -f agents/stability/stack/compose/L2.compose.yml \
+#     -f agents/stability/stack/compose/L3.compose.yml \
+#     up -d
+#
+# Sequel: see agents/stability/stack/L3-DEFAULT.md for the decision record
+# and (future) the per-backend runbook.
+# =============================================================================
+
+name: stability-l3
+
+x-l3-base: &l3-base
+  image: "redroid/redroid@sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  platform: "linux/amd64"
+  restart: "no"
+  init: true
+
+  cap_drop:
+    - ALL
+  cap_add:
+    - SYS_NICE
+    - SYS_RESOURCE
+    - SYS_PTRACE
+    - MKNOD
+    - SETUID
+    - SETGID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - DAC_OVERRIDE
+    - DAC_READ_SEARCH
+    - FOWNER
+    - FSETID
+    - KILL
+    - AUDIT_WRITE
+
+  security_opt:
+    - "no-new-privileges:true"
+    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "apparmor=unconfined"
+
+  devices:
+    - /dev/binder:/dev/binder
+    - /dev/hwbinder:/dev/hwbinder
+    - /dev/vndbinder:/dev/vndbinder
+    - /dev/ashmem:/dev/ashmem
+
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "4g"
+      reservations:
+        cpus: "0.5"
+        memory: "2g"
+
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - "getprop sys.boot_completed | grep -q 1"
+    interval: 10s
+    timeout: 5s
+    retries: 36
+    start_period: 60s
+
+  environment: &l3-env
+    ANDROID_DATA: "/data"
+    androidboot.hardware: "redroid"
+    androidboot.redroid_google_play_store: "0"
+    redroid.gpu.mode: "guest"
+    RESEARCH_LAYER_SET: "L0a+L0b+L1+L2+L3"
+    # Per L3-DEFAULT.md §4: STRONG uncountered, DEVICE/BASIC are the targets.
+    INTEGRITY_TARGET_VERDICTS: "BASIC,DEVICE"
+    # Selector: "teesimulator" (default) or "trickystore" (fallback).
+    SPOOFSTACK_L3: "teesimulator"
+
+  labels: &l3-labels
+    research.phase: "L3-integrity-attestation"
+    research.layer_set: "L0a+L0b+L1+L2+L3"
+    research.compose_file: "agents/stability/stack/compose/L3.compose.yml"
+    research.runbook: "agents/stability/stack/L3-DEFAULT.md"
+    research.owner: "stability"
+    # Mutual-exclusion marker per L3-DEFAULT.md §3.
+    research.l3.mutual_exclusion: "trickystore"
+
+services:
+
+  redroid-l3:
+    <<: *l3-base
+    container_name: "stability-l3-redroid"
+    hostname: "l3"
+    ports:
+      - "127.0.0.1:15558:5555"
+    volumes:
+      # TODO(L3): TEESimulator v3.2 Magisk module not yet in-tree as a local
+      # artefact. Placeholder bind-mount reserves /data/adb/modules/teesimulator
+      # so the orchestrator can pre-stage it. See L3-DEFAULT.md §2.
+      - "./results/l3/teesimulator-module:/data/adb/modules/teesimulator:rw"
+      # TODO(L3): TrickyStore keybox.xml path — only populated when
+      # SPOOFSTACK_L3=trickystore. Per L3-DEFAULT.md §5, the keybox is the
+      # provenance burden for the fallback branch.
+      - "./results/l3/tricky-store:/data/adb/tricky_store:rw"
+      # Per-cell results dir (writable, isolated)
+      - "./results/l3/out:/opt/research/results:rw"
+    environment:
+      <<: *l3-env
+      RESEARCH_TARGET_PROBES: "integrity.play_integrity_verdict, attestation.keymaster_strongbox"
+    labels:
+      <<: *l3-labels
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.62.0/29
+
+volumes: {}
