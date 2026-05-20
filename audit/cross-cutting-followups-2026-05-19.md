@@ -5,21 +5,24 @@
 
 ---
 
-## #1 Evidence-key namespace collision across probes
+## #1 Evidence-key namespace collision across probes (FIXED 2026-05-20)
 
-**Observation**: Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 10 (`InstalledAppsProbe`) all emit `Evidence("pkg.<id>", …)` rows for overlapping package IDs (Magisk Manager, SuperSU, LSPosed, Xposed installer).
+**Fix**: Evidence keys are now probe-scoped:
+- rank 3 `SuDetectionProbe`:    `pkg.<id>` → `su_search.pkg.<id>`
+- rank 8 `XposedLsposedProbe`:   `pkg.<id>` → `xposed.pkg.<id>`
+- rank 10 `InstalledAppsProbe`:  `pkg.<id>` → `installed_apps.pkg.<id>`
 
-**Why this matters**: A human reading the consolidated probe report cannot tell at a glance whether the same observation is triple-counted or whether the three probes are independent signals from different surfaces. JSON structure (`ProbeRecord.id`) makes it unambiguous to a parser, but the reading-friendly evidence labels collide.
+Single atomic cross-rank refactor — 3 probe sites + 7 test sites updated. No two probes now emit the same evidence key for the same package ID. The originally-proposed naming convention was adopted verbatim.
 
-**Proposed fix**:
-- Rename evidence keys to `installed_apps.pkg.<id>` (rank 10), `su_search.pkg.<id>` (rank 3), `xposed.pkg.<id>` (rank 8).
-- Single cross-probe refactor, ~30 LOC across the three probes + tests.
+**Coverage**: Full `:detection:test` BUILD SUCCESSFUL (3253 tests, 0 failures, 0 errors). Test count unchanged by the refactor itself (all assertions retargeted at the new keys).
 
-**Acceptance**:
-- No two probes emit the same evidence key for the same package ID across their evidence lists.
-- Consolidated JSON report (when implemented) renders unambiguously.
+---
 
-**Owner action**: confirm namespacing convention preferred, or pick alternative (e.g. nested keys, `probe_id_pkg.<id>`).
+**Original observation (preserved for archive)**:
+
+Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 10 (`InstalledAppsProbe`) all emitted `Evidence("pkg.<id>", …)` rows for overlapping package IDs (Magisk Manager, SuperSU, LSPosed, Xposed installer).
+
+**Why this mattered**: A human reading the consolidated probe report could not tell at a glance whether the same observation was triple-counted or whether the three probes were independent signals from different surfaces. JSON structure (`ProbeRecord.id`) made it unambiguous to a parser, but the reading-friendly evidence labels collided.
 
 ---
 
@@ -99,7 +102,7 @@
 
 | # | Item | Owner action needed | Workaround in place? | Severity |
 |---|---|---|---|---|
-| 1 | pkg.* evidence-key collision | yes (naming convention) | no (only confusing, not wrong) | low |
+| 1 | pkg.* evidence-key collision | RESOLVED 2026-05-20 | YES (probe-scoped namespacing: `su_search.` / `xposed.` / `installed_apps.` prefixes) | (closed) |
 | 2 | rank 10 marker-list verification | yes (telemetry budget) | yes (no false positives) | low |
 | 3 | querySettingGlobal missing | yes (core-contract change) | yes (3 probes assume bridge) | medium |
 | 4 | inventory.yml rank 20 description | yes (inventory.yml edit) | yes (probe behavior correct) | low |

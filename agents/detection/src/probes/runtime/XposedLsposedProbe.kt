@@ -164,7 +164,7 @@ class XposedLsposedProbe : Probe {
                 if (installed) anyManagerInstalled = true
                 evidence.add(
                     Evidence(
-                        key = "pkg.$pkg",
+                        key = "xposed.pkg.$pkg",
                         value = if (installed) "installed" else "absent",
                         expected = "absent",
                     )

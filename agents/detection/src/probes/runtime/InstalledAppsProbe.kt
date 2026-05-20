@@ -178,7 +178,7 @@ class InstalledAppsProbe : Probe {
                     )
                 )
                 for (pkg in allHits) {
-                    add(Evidence(key = "pkg.$pkg", value = "installed", expected = "absent"))
+                    add(Evidence(key = "installed_apps.pkg.$pkg", value = "installed", expected = "absent"))
                 }
             }
 

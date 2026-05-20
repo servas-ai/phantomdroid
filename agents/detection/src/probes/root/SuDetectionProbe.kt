@@ -129,7 +129,7 @@ class SuDetectionProbe : Probe {
                 if (installed) anyPackagePresent = true
                 evidence.add(
                     Evidence(
-                        key = "pkg.$pkg",
+                        key = "su_search.pkg.$pkg",
                         value = if (installed) "installed" else "absent",
                         expected = "absent",
                     )

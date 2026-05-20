@@ -75,7 +75,7 @@ class SuDetectionProbeTest {
     @Test
     fun `clean device — all probed packages reported as absent`() = runBlocking {
         val result = probe.run(fakeCtx())
-        val pkgEvidence = result.evidence.filter { it.key.startsWith("pkg.") }
+        val pkgEvidence = result.evidence.filter { it.key.startsWith("su_search.pkg.") }
         assertEquals(SuDetectionProbe.SUPERUSER_PACKAGES.size, pkgEvidence.size)
         assertTrue(pkgEvidence.all { it.value == "absent" })
     }
@@ -134,7 +134,7 @@ class SuDetectionProbeTest {
         val result = probe.run(
             fakeCtx(installedPackages = setOf("com.topjohnwu.magisk")),
         )
-        val ev = result.evidence.find { it.key == "pkg.com.topjohnwu.magisk" }
+        val ev = result.evidence.find { it.key == "su_search.pkg.com.topjohnwu.magisk" }
         assertEquals("installed", ev?.value)
     }
 
@@ -232,8 +232,8 @@ class SuDetectionProbeTest {
         val result = probe.run(fakeCtx())
         for (pkg in SuDetectionProbe.SUPERUSER_PACKAGES) {
             assertTrue(
-                result.evidence.any { it.key == "pkg.$pkg" },
-                "missing evidence for pkg.$pkg",
+                result.evidence.any { it.key == "su_search.pkg.$pkg" },
+                "missing evidence for su_search.pkg.$pkg",
             )
         }
     }

@@ -89,7 +89,7 @@ class InstalledAppsProbeTest {
     @Test
     fun `clean device — no per-package evidence rows emitted`() = runBlocking {
         val result = probe.run(fakeCtx())
-        val pkgRows = result.evidence.filter { it.key.startsWith("pkg.") }
+        val pkgRows = result.evidence.filter { it.key.startsWith("installed_apps.pkg.") }
         assertTrue(pkgRows.isEmpty())
     }
 
@@ -148,7 +148,7 @@ class InstalledAppsProbeTest {
     @Test
     fun `Group A — per-package evidence row emitted`() = runBlocking {
         val result = probe.run(fakeCtx(baselinePackages + "com.topjohnwu.magisk"))
-        val ev = result.evidence.find { it.key == "pkg.com.topjohnwu.magisk" }
+        val ev = result.evidence.find { it.key == "installed_apps.pkg.com.topjohnwu.magisk" }
         assertEquals("installed", ev?.value)
         assertEquals("absent", ev?.expected)
     }
@@ -282,8 +282,8 @@ class InstalledAppsProbeTest {
         val result = probe.run(
             fakeCtx(baselinePackages + setOf("com.topjohnwu.magisk", "org.lsposed.manager")),
         )
-        assertTrue(result.evidence.any { it.key == "pkg.com.topjohnwu.magisk" })
-        assertTrue(result.evidence.any { it.key == "pkg.org.lsposed.manager" })
+        assertTrue(result.evidence.any { it.key == "installed_apps.pkg.com.topjohnwu.magisk" })
+        assertTrue(result.evidence.any { it.key == "installed_apps.pkg.org.lsposed.manager" })
     }
 
     // ── Android 11+ package-visibility filter ─────────────────────────────────

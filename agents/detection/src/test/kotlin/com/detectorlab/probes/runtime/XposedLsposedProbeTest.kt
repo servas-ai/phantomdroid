@@ -93,7 +93,7 @@ class XposedLsposedProbeTest {
     @Test
     fun `clean device — all probed manager packages reported absent`() = runBlocking {
         val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
-        val pkgEvidence = result.evidence.filter { it.key.startsWith("pkg.") }
+        val pkgEvidence = result.evidence.filter { it.key.startsWith("xposed.pkg.") }
         assertEquals(XposedLsposedProbe.MANAGER_PACKAGES.size, pkgEvidence.size)
         assertTrue(pkgEvidence.all { it.value == "absent" })
     }
@@ -181,7 +181,7 @@ class XposedLsposedProbeTest {
         val result = probe.run(
             fakeCtx(installedPackages = setOf("org.lsposed.manager"), procSelfMaps = mapsWith()),
         )
-        val ev = result.evidence.find { it.key == "pkg.org.lsposed.manager" }
+        val ev = result.evidence.find { it.key == "xposed.pkg.org.lsposed.manager" }
         assertEquals("installed", ev?.value)
     }
 
@@ -352,8 +352,8 @@ class XposedLsposedProbeTest {
         val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
         for (pkg in XposedLsposedProbe.MANAGER_PACKAGES) {
             assertTrue(
-                result.evidence.any { it.key == "pkg.$pkg" },
-                "missing evidence for pkg.$pkg",
+                result.evidence.any { it.key == "xposed.pkg.$pkg" },
+                "missing evidence for xposed.pkg.$pkg",
             )
         }
     }
