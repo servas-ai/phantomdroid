@@ -42,6 +42,7 @@ import com.detectorlab.probes.emulator.CpuAbiProbe
 import com.detectorlab.probes.emulator.GpuRendererProbe
 import com.detectorlab.probes.emulator.ProcVersionProbe
 import com.detectorlab.probes.emulator.QemuArtifactsProbe
+import com.detectorlab.probes.emulator.ThirdPartyEmulatorArtifactsProbe
 import com.detectorlab.probes.env.AccessibilityServicesProbe
 import com.detectorlab.probes.env.AccountsProbe
 import com.detectorlab.probes.env.BatteryLevelProbe
@@ -130,11 +131,12 @@ class FullProbeRunnerSpoofTest {
         BuildFingerprintProbe(),
         ModelBrandManufacturerProbe(),
         TagsAndTypeProbe(),
-        // emulator (4)
+        // emulator (5) — Power-13 Gap #4 added ThirdPartyEmulatorArtifactsProbe
         CpuAbiProbe(),
         GpuRendererProbe(),
         ProcVersionProbe(),
         QemuArtifactsProbe(),
+        ThirdPartyEmulatorArtifactsProbe(),
         // env (19)
         AccessibilityServicesProbe(),
         AccountsProbe(),
@@ -224,8 +226,9 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                73, probes.size,
-                "expected the full 73-probe inventory; if the inventory changed, " +
+                74, probes.size,
+                "expected the full 74-probe inventory (73 base + Power-13 Gap #4 " +
+                    "ThirdPartyEmulatorArtifactsProbe); if the inventory changed, " +
                     "update the allProbes() registry above",
             )
             val runner = ProbeRunner(

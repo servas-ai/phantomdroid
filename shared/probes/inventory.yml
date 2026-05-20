@@ -510,6 +510,14 @@ probes:
     description: "/proc/self/status TracerPid != 0 = debugger/ptrace attached (NeoZygisk window, Frida ptrace). freeRASP T2; MASTG MSTG-RESILIENCE-2 / MASTG-KNOW-0033"
     mitigation_layer: L4
 
+  - rank: 4.5
+    id: emulator.third_party_artifacts
+    category: emulator
+    severity: critical
+    android_layer: kernel
+    description: "Nox/Andy/MEmu/BlueStacks/MicroVirt/Droid4x init.rc + fstab files — third-party (non-AOSP) emulator artifacts (Power-13 Gap #4)"
+    mitigation_layer: L1
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime
