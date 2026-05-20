@@ -157,6 +157,7 @@ import com.detectorlab.core.ProbeSeverity
 class LocationMockRaspProbe : Probe {
     override val id = "env.location_mock_rasp"
     override val rank = RANK
+    override val inventoryRank = 39.5      // canonical from inventory.yml (cross-cutting #7)
     override val category = ProbeCategory.ENV
     override val severity = ProbeSeverity.MEDIUM
     override val androidLayer = AndroidLayer.FRAMEWORK

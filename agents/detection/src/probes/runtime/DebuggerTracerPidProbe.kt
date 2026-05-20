@@ -111,6 +111,7 @@ import com.detectorlab.core.ProbeSeverity
 class DebuggerTracerPidProbe : Probe {
     override val id = "runtime.debugger_tracerpid"
     override val rank = RANK
+    override val inventoryRank = 8.5      // canonical from inventory.yml (cross-cutting #7)
     override val category = ProbeCategory.RUNTIME
     override val severity = ProbeSeverity.HIGH
     override val androidLayer = AndroidLayer.FRAMEWORK

@@ -46,6 +46,7 @@ import com.detectorlab.core.ProbeSeverity
 class ScreenLockProbe : Probe {
     override val id = "env.screen_lock"
     override val rank = RANK
+    override val inventoryRank = 40.5      // canonical from inventory.yml (cross-cutting #7)
     override val category = ProbeCategory.ENV
     override val severity = ProbeSeverity.MEDIUM
     override val androidLayer = AndroidLayer.FRAMEWORK

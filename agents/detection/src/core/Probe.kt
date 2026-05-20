@@ -14,11 +14,26 @@ package com.detectorlab.core
  */
 interface Probe {
     val id: String                 // e.g. "buildprop.fingerprint"
-    val rank: Int                  // 1..75 (synced with probes/inventory.yml)
+    val rank: Int                  // 1..99 (Int slot for the probe runner)
     val category: ProbeCategory
     val severity: ProbeSeverity
     val androidLayer: AndroidLayer
     val budgetMs: Long             // hard timeout, must be <= 5000
+
+    /**
+     * Canonical inventory rank from `shared/probes/inventory.yml`. May be
+     * fractional (e.g. 8.5, 39.5, 40.5). Defaults to `rank.toDouble()` so
+     * probes whose code-rank matches the inventory don't need to override.
+     *
+     * Cross-cutting #7 (FIXED 2026-05-20): closes the Int-vs-Double mismatch
+     * between this interface and the inventory schema. Probes with fractional
+     * inventory ranks (ScreenLockProbe = 40.5, DebuggerTracerPidProbe = 8.5,
+     * LocationMockRaspProbe = 39.5) override this to surface their canonical
+     * rank for reporting/aggregation, while keeping their Int `rank` for the
+     * runner's slot-keyed routing.
+     */
+    val inventoryRank: Double
+        get() = rank.toDouble()
 
     /**
      * Probe execution. Implementations must be idempotent and side-effect-free
