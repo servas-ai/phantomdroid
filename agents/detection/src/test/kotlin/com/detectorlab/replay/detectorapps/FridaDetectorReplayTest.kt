@@ -1,20 +1,39 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/detectorapps/FridaDetectorReplayTest.kt
 //
-// Power-13 Task #4 — DetectFrida (darvincisec/DetectFrida) replay.
+// Power-13 Task #4 / Power-14 amendment — Frida-detection signal UNION replay.
 //
-// Encodes DetectFrida's three native-level Frida checks against our
-// raw ProbeContext accessors. Source:
-// https://github.com/darvincisec/DetectFrida/blob/master/app/src/
-// main/c/native-lib.c
+// HONESTY DISCLAIMER (Power-14 audit finding): this class is NAMED
+// after DetectFrida (darvincisec/DetectFrida) but encodes a UNION of
+// Frida-detection techniques from multiple upstream sources. See
+// `audit/spoof-stack/power-14-apk-source-diff.md` §1bis for the
+// detailed diff. DetectFrida's actual published source uses only
+// (a) thread-name strstr for "gum-js-loop"+"gmain" (not "gdbus"),
+// (b) named-pipe linjector check in /proc/self/fd/*, and
+// (c) ELF .text section CHECKSUM comparison vs on-disk for libc.so
+//     + libnative-lib.so (this is the un-snapshottable surface
+//     handled by rank-9.7 NativePrologueHashProbe).
 //
+// Our replay is STRICTER than DetectFrida: it catches DetectFrida's
+// signals PLUS additional Frida signals (port-bind 27042/27043 from
+// freeRASP-style detection, library-token search from generic
+// Frida-detection literature, "gdbus" thread name from Frida's own
+// internals). A spoof passing our union check also passes
+// DetectFrida's strict subset.
+//
+// Encoded signals (UNION):
 //   1. /proc/self/maps library tokens (frida-agent, frida-gadget,
-//      gum, linjector, libfrida-gadget)
+//      gum, linjector, libfrida-gadget)   ← from Frida-itself source
 //   2. /proc/self/task/<tid>/comm thread names (gum-js-loop, gmain,
-//      gdbus)
-//   3. /proc/net/tcp ports 27042 + 27043 (frida-server defaults)
+//      gdbus)                              ← gum-js-loop+gmain from DetectFrida;
+//                                            gdbus from Frida-itself
+//   3. /proc/net/tcp ports 27042 + 27043   ← from freeRASP-style detection
 //
-// DetectFrida's decision rule: ANY of the three checks fires →
-// Frida detected.
+// NOT encoded (un-snapshottable, covered separately):
+//   • ELF .text section checksum compare   ← rank-9.7 (DetectFrida's
+//                                            primary technique)
+//   • GOT/PLT entry comparison             ← rank-9.8
+//
+// Decision rule: ANY of the three union-checks fires → Frida detected.
 //
 // Acceptance:
 //   - Pixel7Clean / SamsungS22Clean → NOT detected (sanity)

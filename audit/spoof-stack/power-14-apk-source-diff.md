@@ -177,6 +177,60 @@ Shipping calls JNI into `libtoolChecker.so`. The native lib opens su binary path
 
 ---
 
+## §1bis. DetectFrida Source Diff (no shipping APK available)
+
+### §1bis.1 Source under audit
+
+| | |
+|---|---|
+| Shipping artifact | NONE — DetectFrida is a sample-app demonstration, no AAR / no APK published |
+| Reference source | `github.com/darvincisec/DetectFrida` master at `/app/src/main/c/native-lib.c` |
+| Our replay test | `FridaDetectorReplayTest.kt` |
+| Verifiability | Source-only (cloned shallow to `/tmp/power14-apk-diff/DetectFrida/`) |
+
+### §1bis.2 What DetectFrida's source ACTUALLY does
+
+Three signals in the published `native-lib.c`:
+
+1. **`detect_frida_threads`**: scans `/proc/self/task/<tid>/status`, fires if `my_strstr(buf, "gum-js-loop") || my_strstr(buf, "gmain")`. **Only TWO thread strings**, NOT three.
+2. **`detect_frida_namedpipe`**: scans `/proc/self/fd/*`, fires if any symlink target contains `"linjector"`. **Named-pipe check, not lib-token check**.
+3. **`detect_frida_memdiskcompare`**: ELF section CHECKSUM comparison between in-memory `/proc/self/maps`-mapped library and on-disk ELF. Operates on `libnative-lib.so` + `libc.so` (NUM_LIBS=2 hardcoded array). **No string-token search**.
+
+### §1bis.3 Divergence vs our replay test
+
+| Our replay encodes | Source reality | Divergence kind |
+|---|---|---|
+| `gum-js-loop`, `gmain`, **`gdbus`** in thread names | only `gum-js-loop` + `gmain` | OUR TEST IS BROADER — `gdbus` is a Frida-itself internal thread, not in DetectFrida's check |
+| `frida-agent`, `frida-gadget`, `libfrida-gadget`, `gum`, `linjector` in `/proc/self/maps` | NO string-token search; instead ELF .text checksum mismatch against on-disk for libc.so + libnative-lib.so | OUR TEST CHECKS DIFFERENT SIGNAL CLASS — DetectFrida doesn't scan for string tokens at all |
+| TCP ports 27042 + 27043 | NOT checked by DetectFrida (no `/proc/net/tcp` scan) | OUR TEST CHECKS PORTS — DetectFrida doesn't |
+| `linjector` is a `/proc/self/maps` token | DetectFrida looks for it in `/proc/self/fd/*` readlink targets | DIFFERENT FILE SURFACE |
+
+**Net effect**: our `FridaDetectorReplayTest` is **a UNION of Frida-detection techniques** drawn from multiple sources (Frida's own source code, DetectFrida's source, freeRASP-style port-binding checks). It is NOT specifically DetectFrida's decision rule. The class name + KDoc are misleading.
+
+### §1bis.4 Why this is OK (and what to fix)
+
+Our replay is **STRICTER** than DetectFrida — it would catch all of DetectFrida's signals (thread names + named-pipe) PLUS additional signals (port checks + library-token search). A spoof that passes our union check would also pass DetectFrida's stricter subset.
+
+But: our claim "verified bypass-able against DetectFrida" is **technically incorrect**. The correct claim is "verified bypass-able against a Frida-detection signal UNION that includes DetectFrida's signals as a strict subset".
+
+**ELF-section-checksum comparison** is the one DetectFrida-specific signal that our replay does NOT model. This is the same un-snapshottable surface as rank-9.7 `runtime.native_prologue_hash` and rank-9.8 `integrity.prologue_got_hooks` from Power-12 — already documented as `not_spoofable` mitigation_layer with the declarative-variant pattern. So the spoofstack does NOT claim to defeat DetectFrida's checksum-compare; it only claims to NOT trigger the easier surface signals. Hard ceiling carried from Power-12.
+
+**Fix-up**: rename `FridaDetectorReplayTest` to `FridaDetectionUnionReplayTest` OR add explicit KDoc disclaimer that the class encodes a union of Frida-detection techniques (NOT DetectFrida specifically), and that DetectFrida's checksum-compare technique is covered separately by rank-9.7/9.8 not_spoofable probes.
+
+---
+
+## §1ter. FreeRASP / Momo / EmulatorDetector — no public verifiable shipping artifact
+
+| Detector | Distribution | Power-14 verification status |
+|---|---|---|
+| **freeRASP-Android** (Talsec) | Private Maven (talsec.app/maven) — requires registration. Repo has source but no public APK or AAR on Maven Central. | UNVERIFIABLE — published source on GitHub only; no shipping bytecode available to public for diff |
+| **Momo** | Closed-source Chinese app, distributed via QQ groups / Chinese Android stores. No GitHub source, no public APK. | UNVERIFIABLE — our replay is reverse-engineered from HuskyDG blog observations, NOT verified against the actual app |
+| **EmulatorDetector composite** | strazzere/anti-emulator + mofneko/EmulatorDetector + CalebFenton/AndroidEmulatorDetect are libraries integrated into other apps. No standalone APK. The relevant code is the source in each repo. | Source verifiable on GitHub (cloned), but not "shipping APK" since they don't ship as APKs themselves |
+
+This is honest scope reality: only **RootBeer** (commercial AAR on Maven Central) gave us a real APK-vs-source diff target. The other 4 detectors fail the "deployed bytecode available" precondition.
+
+---
+
 ## §2. Recommended Power-14 Follow-up
 
 This diff identifies **3 CRITICAL + 3 GAP + 3 LOW** divergences in our RootBeer replay test:
