@@ -93,6 +93,70 @@ object RedroidV12Snapshot {
             "ro.boot.warranty" to "",
             "ro.bootmode" to "",
             "ro.hardware.keystore" to "",
+
+            // rank 57 touch_pressure — ReDroid containers have NO real
+            // touchscreen HAL bound. `ro.hardware.touchscreen` is EMPTY
+            // on the captured container (no IC name, no synthetic stub).
+            // Encoded as empty-string (not omitted) so the rank-57
+            // declarative probe sees the captured "set-but-empty" answer.
+            // Combined with the absence of any `/dev/input/event*` files
+            // below this lands the probe in PATTERN_NO_TOUCH_HAL (0.95).
+            "ro.hardware.touchscreen" to "",
+
+            // rank 56 webgl_fingerprint (DECLARATIVE VARIANT) — containerized
+            // ReDroid has NO GPU HAL bound. The host's Ubuntu 18.04 kernel
+            // ships no Android vendor GPU driver and the ReDroid build does
+            // NOT inject a software-renderer (no SwiftShader binding) —
+            // instead AOSP's libGLES_swiftshader.so is absent and the
+            // gpu.driver property is simply left empty. Captured ground
+            // truth from `docker exec redroid-test getprop ro.gpu.driver`
+            // is empty stdout (set-but-empty, not "key not found"), so we
+            // encode each property as `""` (preserving the rank-4 /
+            // rank-14 / rank-57 set-but-empty convention).
+            //
+            // Per the rank-56 WebGlFingerprintProbe signal cascade, the
+            // gpu_driver+vulkan both-empty pair is the load-bearing
+            // signal — it lands the probe in PATTERN_NO_GPU_HAL (0.70)
+            // with confidence 0.75 declarative. The opengles.version is
+            // also empty for the same reason (no GLES driver to report a
+            // version), but the no_gpu_hal rule fires FIRST in the
+            // cascade so the old_gles rule (0.50) is preempted. The
+            // gltransport / kernel.qemu.gles / hardware.gralloc props
+            // are all empty too — ReDroid is not running under QEMU and
+            // does not synthesize an AVD GL stack, so the emulator_gl
+            // rule (0.85) does not fire and no_gpu_hal stays the winning
+            // pattern.
+            "ro.gpu.driver" to "",
+            "ro.hardware.gralloc" to "",
+            "ro.hardware.vulkan" to "",
+            "ro.opengles.version" to "",
+            "ro.boot.qemu.gltransport" to "",
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) — ReDroid
+            // containerized Android has NO real audio HAL. The ReDroid
+            // build script binds the canonical Linux ALSA dummy driver
+            // (`snd_card_dummy`) as the audio HAL so the Android
+            // framework's AudioFlinger has a HAL name to consult on
+            // boot — without it, AudioFlinger crashes the system server.
+            // The `snd_card_dummy` value is the load-bearing signature
+            // that the declarative probe scores against: real Android
+            // devices on real silicon report a vendor codec name
+            // (`trondheim_audio` on Pixel 7, `exynos_audio_2200` on
+            // Galaxy S22, `qcom_aud_codec_*` on Qualcomm devices). The
+            // dummy HAL signals "container with software-only audio"
+            // which strongly implies the WebView AudioContext FFT
+            // fingerprint would be the well-known software-DSP variant
+            // (the actual un-snapshottable rank-54 surface — see the
+            // probe KDoc's "declarative limitation" section).
+            //
+            // Combined with the absence of `/dev/snd/controlC0` below
+            // (the ALSA control device for the dummy HAL is not bound
+            // in the container's /dev namespace), the declarative
+            // probe lands in PATTERN_SOFTWARE_HAL (0.85) — the
+            // software-HAL signature wins over the no-device-no-HAL
+            // rule per the cascade in source order, which is the
+            // correct stronger signal for the snd_card_dummy case.
+            "ro.hardware.audio" to "snd_card_dummy",
         ),
         existingFiles = setOf(
             // rank 3 su_detection — ReDroid ships /system/bin/su
@@ -106,6 +170,30 @@ object RedroidV12Snapshot {
             // "/dev/keymaster", which is the captured ground-truth and
             // mirrors what `docker exec redroid-test ls /dev/keymaster`
             // returned in the audit run.
+
+            // rank 57 touch_pressure — containerized ReDroid has NO
+            // /dev/input/event* nodes (no evdev backend bound to the
+            // generic Ubuntu host kernel). Declared by omission — the
+            // set explicitly does NOT include any /dev/input/event[0-4]
+            // path. Combined with the empty ro.hardware.touchscreen prop
+            // above this lands rank-57 in PATTERN_NO_TOUCH_HAL (0.95) —
+            // the dispositive "container without input HAL" signal.
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) —
+            // containerized ReDroid has NO `/dev/snd/*` device nodes
+            // (the host Ubuntu kernel's ALSA tree is not bound into
+            // the container's /dev namespace; even if the user namespace
+            // had it visible, the ReDroid build does not request the
+            // sound-card capability in its docker run flags). Declared
+            // by omission — the set explicitly does NOT include
+            // "/dev/snd/controlC0", mirroring `docker exec redroid-test
+            // ls /dev/snd/` which returns "No such file or directory"
+            // on the captured run. The absence is one of two surfaces
+            // the rank-54 probe consults; combined with the
+            // `ro.hardware.audio=snd_card_dummy` prop above, the
+            // declarative probe lands in PATTERN_SOFTWARE_HAL (0.85)
+            // — the dummy-HAL signature wins over the no-device-no-HAL
+            // rule per the cascade in source order.
         ),
         readableFiles = mapOf(
             // rank 30 proc_version — leaks host (Ubuntu 18.04 launchpad
@@ -135,7 +223,25 @@ object RedroidV12Snapshot {
         installedPackages = setOf(
             // ReDroid 12 minimal package set — only AOSP system packages
             // are pre-installed; nothing from the rank-10 marker list
-            // would be expected to fire here.
+            // would be expected to fire here. NOTE explicitly NO
+            // `com.google.android.gms`: ReDroid containerized = no Play
+            // Services. This is load-bearing for rank-2
+            // (integrity.play_integrity) which scores the no-GMS signal at
+            // 0.95 (NO_VERDICT tier). The absence is the ground-truth
+            // emulator tell.
+            //
+            // **Rank-55 (ui.canvas_fingerprint) ground-truth signal**:
+            // `com.google.android.webview` is INTENTIONALLY ABSENT from
+            // this set. Every Google-certified retail Android phone ships
+            // the Chromium WebView provider preinstalled (since 2016), but
+            // ReDroid 12's containerized minimal /system_apks/ overlay
+            // does not include it — the container has no Chromium binary,
+            // so any WebView canvas render either fails entirely or falls
+            // back to the AOSP stub which produces a non-standard pixel
+            // hash. CanvasFingerprintProbe scores 0.85
+            // (PATTERN_WEBVIEW_PROVIDER_MISSING) on this snapshot,
+            // declaratively standing in for the un-snapshottable canvas-
+            // render signal per the rank-55 KDoc.
             "android",
             "com.android.systemui",
             "com.android.settings",

@@ -100,12 +100,119 @@ object Pixel7CleanSnapshot {
             // rank 14 selinux — Pixel 7 ships SELinux enforcing.
             "ro.boot.selinux" to "enforcing",
             "ro.build.selinux" to "1",
+
+            // rank 2 (integrity.play_integrity) — canonical Pixel 7 Play
+            // Integrity surface. A factory-clean Pixel 7 reports a
+            // versioned GMS release code, a provisioned `clientidbase` that
+            // carries the Pixel model marker, and the default factory
+            // values for the gms-disabled / rescue-disabled toggles. Drives
+            // PlayIntegrityLiveProbe to score 0.0 (CLEAN verdict tier).
+            "ro.com.google.gmsversion" to "243532033",
+            "ro.com.google.clientidbase" to "android-google-Pixel-7",
+            "ro.gms.disabled" to "0",
+            "persist.sys.disable_rescue" to "0",
+            // ro.boot.veritymode — paired with ro.boot.flash.locked above,
+            // both required for the rank-2 bootloader-unlock rule to NOT
+            // fire. A factory-clean Pixel reports "enforcing".
+            "ro.boot.veritymode" to "enforcing",
+
+            // rank 57 touch_pressure — Pixel 7 ships the FTS7250 touch
+            // controller IC (FocalTech FT7250 / Pixel 7 panther device-tree
+            // value). NOT empty (NO_TOUCH_HAL rule disarms), NOT in
+            // SYNTHETIC_TOUCHSCREEN_SUBSTRINGS (synthetic-HAL rule
+            // disarms). Combined with the four /dev/input/event* nodes
+            // below this lands the rank-57 probe in PATTERN_CLEAN (0.0).
+            "ro.hardware.touchscreen" to "fts7250",
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) — Pixel 7
+            // `panther` ships the Tensor-G2-class audio codec HAL. The
+            // canonical published name in `ro.hardware.audio` on Pixel 7
+            // retail builds is `trondheim_audio` — the codename used in
+            // the Google factory image's vendor/audio HAL config (same
+            // naming convention as `panther`/`gs201` elsewhere in this
+            // snapshot). This is a REAL codec name, NOT in
+            // AudioFingerprintProbe.SOFTWARE_HAL_SUBSTRINGS (`stub`/
+            // `dummy`), NOT equal to HAL_SND_CARD_DUMMY — so the
+            // declarative probe lands cleanly in PATTERN_CLEAN (0.0)
+            // with confidence 0.70 (the declarative cap — see probe
+            // KDoc's "declarative limitation" section for why a
+            // proxy-marker probe can't claim WebView-FFT confidence
+            // 0.99). No loopback / silent_in / dock_aplc props set —
+            // those rules only fire on explicit "1" / "true", and
+            // their absence is the correct negative-class signal.
+            "ro.hardware.audio" to "trondheim_audio",
+
+            // rank 56 webgl_fingerprint — canonical Pixel 7 (Tensor G2)
+            // GPU property surface. Tensor-G2 pairs an Arm Mali-G710 MP7
+            // GPU with Google's vendor blob, which publishes the driver
+            // identifier as `kgsl` in `ro.gpu.driver` (a historical
+            // Qualcomm/Adreno naming kept across the Tensor migration —
+            // documented in `device/google/panther` device tree and the
+            // Google factory-image vendor partition for build
+            // TQ1A.230205.002).
+            //
+            // Values:
+            //   ro.gpu.driver = "kgsl" — real Pixel-class driver name
+            //     (NOT "swiftshader" which fires SWIFTSHADER 0.95)
+            //   ro.hardware.gralloc = "mali" — Mali-G710 vendor gralloc
+            //     HAL (NOT "ranchu" which is the goldfish/AVD GL backend)
+            //   ro.hardware.vulkan = "1.3.0" — Vulkan 1.3 supported by
+            //     Mali-G710 since the 2022 vendor blob refresh
+            //   ro.opengles.version = "196610" — = 0x30002 = OpenGL ES
+            //     3.2 packed as `(major << 16) | minor`. EXACTLY the
+            //     boundary value the rank-56 probe treats as PLAUSIBLE
+            //     (strict-less-than semantics — 196610 itself does NOT
+            //     fire old_gles 0.50). Real Pixel 7 spec confirms GLES
+            //     3.2 support; this is the lab-approximation value and
+            //     pins the false-positive floor for the rank-56 probe.
+            //   ro.boot.qemu.gltransport — INTENTIONALLY OMITTED (= null
+            //     at probe accessor level). The property is AVD-only;
+            //     real Pixel 7 retail does not emit it. The probe's
+            //     emulator_gl rule only fires when this key is set to a
+            //     non-empty value, so omission is the correct negative-
+            //     class ground truth.
+            //   ro.kernel.qemu.gles — INTENTIONALLY OMITTED. AVD-only
+            //     property; real Pixel 7 does not set it. Distinct from
+            //     the RedroidV12 capture which preserves the prop as
+            //     empty-string ("set-but-empty" was the captured ground
+            //     truth on the container).
+            //
+            // The rank-56 probe lands in PATTERN_CLEAN (0.0) with the
+            // 0.75 declarative confidence pinned by the L0-vs-L3 framing
+            // in the probe KDoc. Confidence does NOT raise to 0.95 even
+            // on a fully-clean property cascade because the property
+            // surface is not the dispositive WebGL shader-trace surface.
+            "ro.gpu.driver" to "kgsl",
+            "ro.hardware.gralloc" to "mali",
+            "ro.hardware.vulkan" to "1.3.0",
+            "ro.opengles.version" to "196610",
         ),
         existingFiles = setOf(
             // rank 3 su_detection — clean Pixel 7 has NONE of the su-binary
             // paths or magisk artifacts. Empty set means every fileExists()
             // lookup returns false, which is the correct negative-class
             // answer (this is a stock device, no root toolchain installed).
+
+            // rank 57 touch_pressure — real Pixel 7 exposes the standard
+            // four evdev input devices: event0=touchscreen,
+            // event1=volume/power keys, event2=sensor-hub-derived events,
+            // event3=fingerprint sensor. Population satisfies the rank-57
+            // declarative probe's "phone-class input surface" expectation
+            // (>=3 event devices) and disarms the SINGLE_INPUT_DEVICE
+            // weak-signal rule.
+            "/dev/input/event0",
+            "/dev/input/event1",
+            "/dev/input/event2",
+            "/dev/input/event3",
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) — real
+            // Pixel 7 has a working audio HAL bound, so `/dev/snd/controlC0`
+            // exists as the ALSA control device for the Tensor-G2 codec.
+            // This is a positive observation that combines with the HAL
+            // prop above to disarm the PATTERN_NO_HAL_NO_DEVICE rule
+            // (which would only fire on set-but-empty HAL + missing
+            // device; here both surfaces are positively present).
+            "/dev/snd/controlC0",
         ),
         readableFiles = mapOf(
             // rank 30 proc_version — real Pixel 7 kernel banner. Format is

@@ -274,6 +274,197 @@ object RedroidSpoofedSnapshot {
             "ro.boot.warranty" to "1",                            // was not-set
             "ro.bootmode" to "normal",                            // was not-set
             "ro.hardware.keystore" to "gs201",                    // was not-set — Pixel 7 Tensor-G2 HAL
+
+            // Mask rank-2 (integrity.play_integrity): PlayIntegrityLiveProbe
+            // scores against the broader Play Integrity API verdict surface
+            // (vs. the rank-71 sister probe's narrower basicIntegrity-only
+            // surface). The probe reads four properties — GMS version,
+            // OEM provisioning client-id, gms-disabled flag, and the
+            // rescue-disabled tell. A ReDroid container ships NO Google
+            // Play Services at all, so an un-spoofed capture trips the
+            // 0.95 NO_VERDICT tier; populating these properties together
+            // with the GMS package in installedPackages closes the rule
+            // cascade to land at CLEAN (score 0.0).
+            //
+            // Values:
+            //   ro.com.google.gmsversion=243532033 — a recent stable GMS
+            //     version code (24.35.32 release, late-2024). NOT "0"
+            //     (which fires the GMS-downgrade 0.70 tier).
+            //   ro.com.google.clientidbase=android-google-Pixel-7 — the
+            //     provisioned variant that real OOBE-completed Pixels report.
+            //     NOT bare "android-google" (the unprovisioned default that
+            //     fires the 0.85 UNPROVISIONED_CLIENTID tier).
+            //   ro.gms.disabled=0 — GMS active.
+            //   persist.sys.disable_rescue=0 — rescue mode enabled (the
+            //     factory default; setting it to "1" would fire 0.50).
+            //
+            // Real-SpoofStack hook for this rank-2 surface: a real spoof
+            // requires the rank-2 verdict to be returned via a live Play
+            // Integrity API call, which itself is L0 / un-spoofable in the
+            // FOSS-tooling era of 2026. The declarative property-surface
+            // here is L3 — closing it is necessary but NOT sufficient
+            // against a verifier that actually invokes the API. Production
+            // SpoofStack closes these property markers via:
+            //   (a) Magisk resetprop `ro.com.google.gmsversion <version>`
+            //       at boot (boot-script in `service.d/00-spoof.sh`).
+            //   (b) Magisk resetprop `ro.com.google.clientidbase <versioned>`.
+            //   (c) Installing a stub `com.google.android.gms` APK that
+            //       fakes the package surface (Microg's playservices package
+            //       does exactly this, but does NOT pass real attestation).
+            // See `audit/spoof-stack/un-snapshottable.md` for the L0 vs L3
+            // distinction.
+            "ro.com.google.gmsversion" to "243532033",
+            "ro.com.google.clientidbase" to "android-google-Pixel-7",
+            "ro.gms.disabled" to "0",
+            "persist.sys.disable_rescue" to "0",
+
+            // Mask rank-57 (ui.touch_pressure) property surface: was empty
+            // (no touchscreen HAL bound on ReDroid) → TouchPressureProbe lands
+            // in PATTERN_NO_TOUCH_HAL (0.95) when combined with the missing
+            // /dev/input/event* tree. Replaced with the canonical
+            // `qcom_synaptics_dsx` IC name — a realistic Pixel-class
+            // Synaptics-DSX driver IC name used across multiple Qualcomm-class
+            // flagships (NOT in SYNTHETIC_TOUCHSCREEN_SUBSTRINGS so the
+            // synthetic-HAL rule disarms; NOT empty so the NO_TOUCH_HAL rule
+            // disarms). Combined with the /dev/input/event[0-3] existingFiles
+            // additions below this drops the probe into PATTERN_CLEAN (0.0).
+            //
+            // Real SpoofStack: Magisk overlay /dev/input/event[0-4] via uinput,
+            // plus resetprop. Specifically:
+            //   (a) Magisk `resetprop -n ro.hardware.touchscreen qcom_synaptics_dsx`
+            //       to fabricate the IC name visible to property readers.
+            //       `-n` is required to overwrite the read-only kernel-set prop.
+            //   (b) Magisk service.d boot script runs `mknod /dev/input/event0
+            //       c 13 64` through `mknod /dev/input/event3 c 13 67` to
+            //       create four evdev nodes. The character-device numbering
+            //       (major 13 / minor 64-67) matches the Linux input subsystem's
+            //       standard evdev range. Like the rank-6 /dev/keymaster mknod
+            //       hook above, this satisfies the presence check without
+            //       binding a real driver.
+            //   (c) The un-snapshottable runtime surface (MotionEvent pressure
+            //       FFT) requires a userland uinput-injector daemon that
+            //       fabricates pressure samples with realistic finger-skin
+            //       bandwidth (NOT the square-wave pulses a naive injector
+            //       produces). Per audit/spoof-stack/un-snapshottable.md, the
+            //       REAL rank-57 surface (NOT this declarative L3 inference)
+            //       is L0 — un-spoofable against a verifier that performs
+            //       FFT analysis on a recorded gesture. The declarative probe
+            //       here scores against the static property + filesystem
+            //       markers; the production SpoofStack closes those markers,
+            //       but a verifier that records and FFT-analyzes a real touch
+            //       gesture bypasses this mitigation entirely.
+            "ro.hardware.touchscreen" to "qcom_synaptics_dsx",
+
+            // Mask rank-54 (ui.audio_fingerprint — DECLARATIVE VARIANT):
+            // ReDroid ground-truth reports `ro.hardware.audio=snd_card_dummy`
+            // (the Linux ALSA dummy driver — the canonical software-only
+            // audio HAL name). AudioFingerprintProbe.isSoftwareHal returns
+            // TRUE for `snd_card_dummy` AND for any HAL name containing
+            // `stub`/`dummy` substring (case-insensitive), firing
+            // PATTERN_SOFTWARE_HAL (0.85). Replaced with `qcom_aud_codec_xxxx`,
+            // a plausible Qualcomm audio codec name. The spoofed snapshot
+            // already advertises `ro.board.platform=gs201` (Pixel 7 Tensor G2)
+            // and a Tensor-G2 device's audio HAL is commonly reported as a
+            // Qualcomm-derived codec name in `ro.hardware.audio`. The exact
+            // substring `qcom_aud_codec_xxxx` intentionally does NOT contain
+            // "stub" or "dummy" — those tokens are the load-bearing
+            // isSoftwareHal() predicate, so any name lacking them lands the
+            // probe cleanly in PATTERN_CLEAN (0.0).
+            //
+            // No `persist.audio.loopback` / `ro.audio.silent.in` /
+            // `ro.config.audio_dock_uses_aplc` masking needed — ReDroid
+            // ground-truth never sets these (the loopback/silent_in rules
+            // only fire on explicit "1", and the dock_aplc rule only fires
+            // on explicit "true"; unset → null → does not fire). The
+            // PATTERN_NO_HAL_NO_DEVICE rule also disarms because the HAL
+            // prop is now non-empty (it requires set-but-empty).
+            //
+            // Real-SpoofStack hook: Magisk `resetprop -n ro.hardware.audio
+            // qcom_aud_codec_xxxx` (`-n` required to overwrite the kernel-set
+            // read-only prop). Belt-and-suspenders: combine with the
+            // `/dev/snd/controlC0` mknod below (also a Magisk service.d boot
+            // script invoking `mknod /dev/snd/controlC0 c 116 0` with major-116
+            // being the Linux ALSA control major device). The character-device
+            // numbering is irrelevant for the declarative probe's presence
+            // check — `stat /dev/snd/controlC0` only consults the dentry, not
+            // the underlying driver — so the mknod satisfies the existence
+            // surface without requiring a real audio driver to be bound.
+            //
+            // Per the rank-54 KDoc's "declarative limitation" section, the
+            // REAL un-snapshottable rank-54 surface (WebView AudioContext
+            // OscillatorNode → DynamicsCompressorNode → AnalyserNode FFT
+            // fingerprint) is L0 — un-spoofable in the FOSS-tooling era of
+            // 2026. The declarative inference here scores against the
+            // property + device-node markers that imply the WebView would
+            // render audio nonstandardly; the production SpoofStack closes
+            // those markers, but a verifier that loads a JS context and
+            // FFTs the AudioContext output bypasses this mitigation entirely.
+            "ro.hardware.audio" to "qcom_aud_codec_xxxx",         // was "snd_card_dummy"
+
+            // Mask rank-56 (ui.webgl_fingerprint — DECLARATIVE VARIANT):
+            // ReDroid ground-truth has all GPU-identifying properties empty
+            // — gpu.driver/vulkan/opengles.version/gralloc/gltransport — so
+            // the WebGlFingerprintProbe lands in PATTERN_NO_GPU_HAL (0.70).
+            // Spoofed values present a coherent Pixel-class Qualcomm Adreno
+            // GPU stack:
+            //   ro.gpu.driver = "qcom_adreno_750" — realistic Adreno-series
+            //     vendor driver name (Adreno 7xx is the Pixel/flagship-class
+            //     mobile GPU IP block sold to Qualcomm and Google). NOT
+            //     literal "swiftshader" (which fires SWIFTSHADER 0.95);
+            //     NOT empty (which fires NO_GPU_HAL 0.70 when paired with
+            //     empty vulkan). Combined with vulkan="1.3.0" both halves
+            //     of the no_gpu_hal predicate disarm.
+            //   ro.hardware.gralloc = "qcom" — Qualcomm vendor gralloc HAL
+            //     identifier. NOT "ranchu" (the goldfish/AVD GL backend
+            //     marker that fires EMULATOR_GL 0.85).
+            //   ro.hardware.vulkan = "1.3.0" — realistic Vulkan API version
+            //     supported by Adreno 7xx-class GPUs since 2022. Non-empty
+            //     disarms the no_gpu_hal rule's vulkan-side predicate.
+            //   ro.opengles.version = "196610" — = 0x30002 = OpenGL ES 3.2
+            //     packed as `(major << 16) | minor`. EXACTLY the boundary
+            //     value the probe treats as PLAUSIBLE (strict-less-than
+            //     semantics — 196610 itself does NOT fire old_gles 0.50).
+            //     Real Pixel 7 and Samsung S22 retail also pin to this
+            //     value; cross-snapshot consistent.
+            //   ro.boot.qemu.gltransport (NOT in this map) — preserved as
+            //     absent (= null at probe-accessor level), matching real
+            //     Pixel ground truth where the AVD-only property is never
+            //     set. Setting it to any non-empty value would fire the
+            //     EMULATOR_GL rule.
+            //   ro.kernel.qemu.gles UNCHANGED — already empty from the
+            //     ground-truth ReDroid capture (rank-4 + rank-56 both
+            //     consult this key; empty disarms both). See note at
+            //     ro.kernel.qemu above for the rank-4 ground-truth.
+            //
+            // Real-SpoofStack hook: this surface is NOT spoofable by Magisk
+            // resetprop alone. The REAL un-snapshottable rank-56 surface
+            // is the WebGL shader fingerprint pulled at runtime through a
+            // WebView GLES context — that L0 read returns the actual
+            // host-GPU shader trace which the property cascade cannot
+            // mask. Production-grade SpoofStack approaches for the
+            // property-cascade side (necessary but NOT sufficient against
+            // a verifier that runs the actual GL trace):
+            //   (a) Magisk `resetprop -n ro.gpu.driver qcom_adreno_750`
+            //       at boot. `-n` required to overwrite the kernel-set
+            //       read-only prop.
+            //   (b) Magisk `resetprop -n ro.hardware.gralloc qcom` and
+            //       `resetprop -n ro.hardware.vulkan 1.3.0`.
+            //   (c) Magisk `resetprop -n ro.opengles.version 196610`.
+            //   (d) For the un-snapshottable L0 surface: an LSPosed module
+            //       hooking `android.opengl.GLES20.glGetString()` and the
+            //       WebView's `WebGLRenderingContext.getParameter` JS
+            //       bridge to return canned vendor/renderer strings. This
+            //       still does NOT pass a real shader-execution
+            //       fingerprint (the GPU pipeline output itself), which
+            //       requires a custom GLES implementation linked into the
+            //       Android runtime — a research-grade undertaking not
+            //       available in the FOSS-tooling era of 2026.
+            // See `audit/spoof-stack/un-snapshottable.md` for the L0 vs L3
+            // distinction (same framing as rank-2 / rank-6 / rank-54).
+            "ro.gpu.driver" to "qcom_adreno_750",                 // was ""
+            "ro.hardware.gralloc" to "qcom",                      // was ""
+            "ro.hardware.vulkan" to "1.3.0",                      // was ""
+            "ro.opengles.version" to "196610",                    // was "" — boundary value, plausible
         ),
         existingFiles = setOf(
             // Mask rank-3 (root.su_detection): was {"/system/bin/su"} — the
@@ -304,6 +495,58 @@ object RedroidSpoofedSnapshot {
             // (see the L0 vs L3 note in the rank-6 KDoc and in the
             // ro.hardware.keystore comment block above).
             "/dev/keymaster",
+
+            // Mask rank-57 (ui.touch_pressure) /dev/input/event* surface.
+            // ReDroid containers have NO /dev/input/event* nodes (no evdev
+            // backend bound). The declarative probe scores against the
+            // count of present event devices: 0 → PATTERN_NO_TOUCH_HAL (0.95)
+            // combined with empty `ro.hardware.touchscreen`, only event0 →
+            // PATTERN_SINGLE_INPUT_DEVICE (0.70). Real Pixel-class phones
+            // expose 3-5 input devices: event0=touchscreen, event1=keys,
+            // event2=sensor-hub, event3=fingerprint, event4=stylus (when
+            // present). We populate four to land cleanly in the >=3 range
+            // (matches Pixel 7 panther canonical evdev inventory).
+            //
+            // Real SpoofStack: Magisk overlay /dev/input/event[0-4] via
+            // uinput, plus resetprop. Specifically, a Magisk service.d
+            // boot script runs `mknod /dev/input/event0 c 13 64` through
+            // `mknod /dev/input/event3 c 13 67` to create four evdev
+            // nodes. The major device number 13 is the Linux input
+            // subsystem's standard evdev range; the minor numbers
+            // (64-67) correspond to event0-event3 per the standard
+            // /dev/input numbering. Like the rank-6 /dev/keymaster mknod
+            // hook above, this satisfies the file-presence check without
+            // binding a real driver.
+            "/dev/input/event0",
+            "/dev/input/event1",
+            "/dev/input/event2",
+            "/dev/input/event3",
+
+            // Mask rank-54 (ui.audio_fingerprint — DECLARATIVE VARIANT)
+            // /dev/snd/controlC0 surface. ReDroid containers have NO
+            // `/dev/snd/*` nodes (the host Ubuntu kernel's ALSA tree is
+            // not bound into the container's /dev namespace). The
+            // declarative probe checks `ctx.fileExists("/dev/snd/controlC0")`
+            // as one of two surfaces for the PATTERN_NO_HAL_NO_DEVICE
+            // rule (which requires set-but-empty `ro.hardware.audio` AND
+            // missing controlC0). The HAL prop fix above already disarms
+            // that rule by making the property non-empty; this mknod adds
+            // defense-in-depth so a future probe extension consulting the
+            // device node directly (e.g. a future Linux-ALSA-introspection
+            // probe via /proc/asound/cards) sees a coherent "audio HAL
+            // exists" story.
+            //
+            // Real SpoofStack: Magisk service.d boot script runs
+            //   mknod /dev/snd/controlC0 c 116 0
+            // where major-116 is the Linux ALSA control major device.
+            // The character-device numbering is irrelevant for the
+            // declarative probe's presence check — `stat /dev/snd/controlC0`
+            // only consults the dentry, not the underlying driver — so
+            // the mknod satisfies the existence surface without requiring
+            // a real audio driver to be bound. Same "make the existence
+            // check pass" hook discipline as the rank-6 /dev/keymaster
+            // and rank-57 /dev/input/event* nodes above.
+            "/dev/snd/controlC0",
 
             // Mask rank-14 (root.selinux) Signal 4: SeLinuxProbe checks
             // `fileExists("/sys/fs/selinux/policy")` — absence is suspicious
@@ -729,12 +972,34 @@ object RedroidSpoofedSnapshot {
             "MCC_MNC" to "310260",                // T-Mobile US
         ),
         installedPackages = setOf(
-            // UNCHANGED — ReDroid ships a minimal AOSP set; no rank-10 emulator-
-            // marker packages (com.bluestacks.*, com.vphone.*, etc.) are
-            // present in the ground truth, so no masking needed here.
+            // Base AOSP set — ReDroid ships these in the minimal package
+            // inventory; no rank-10 emulator-marker packages
+            // (com.bluestacks.*, com.vphone.*, etc.) are present in the
+            // ground truth, so no masking needed for rank-10 itself.
             "android",
             "com.android.systemui",
             "com.android.settings",
+            // Mask rank-2 (integrity.play_integrity) package-surface signal.
+            // PlayIntegrityLiveProbe asks PackageManager whether
+            // `com.google.android.gms` is installed. The un-spoofed ReDroid
+            // capture has no GMS at all → probe lands in the 0.95 NO_VERDICT
+            // tier. Adding the package here disarms the no-GMS rule. NOTE:
+            // a real spoof requires more than just the package being
+            // present — it requires the GMS signature chain to verify
+            // against Google's published certificate, which a stub APK
+            // (Microg-style) does NOT satisfy. The declarative probe here
+            // only checks presence; a verifier doing a real Play Integrity
+            // API call would still see the missing/invalid signature.
+            // Real-SpoofStack hook: ship a stub `com.google.android.gms` APK
+            // that exposes the AIDL surface apps consult before invoking
+            // the API. Microg's `play-services-fake` package does this for
+            // the "make Play Services available" half. The signature-spoof
+            // half requires a separate LSPosed hook on
+            // `PackageManager.getPackageInfo()` that fakes the signing-cert
+            // chain (TrickyStore's `com.google.android.gms.unaltered`
+            // pattern — but explicitly DO NOT install that package here,
+            // it would trip the 0.85 GMS_HIJACK rule instead).
+            "com.google.android.gms",
         ),
         // Mask rank-42/43/44/45 (sensors.proximity/light/magnetometer/barometer)
         // + flip rank-24 (sensors.accelerometer_gyro) from PATTERN_NO_SIGNAL

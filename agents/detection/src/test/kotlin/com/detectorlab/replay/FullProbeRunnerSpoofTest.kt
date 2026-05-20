@@ -1,7 +1,7 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt
 //
 // FULL-PANEL spoof-effectiveness gate — instantiates every probe in the
-// production inventory (all 67) and runs them against RedroidSpoofedSnapshot
+// production inventory (all 68) and runs them against RedroidSpoofedSnapshot
 // through the real ProbeRunner. Two assertions:
 //
 //   (1) report.aggregate.category == ReportCategory.CLEAN
@@ -73,6 +73,7 @@ import com.detectorlab.probes.identity.WifiMacProbe
 import com.detectorlab.probes.identity.WifiSsidBssidProbe
 import com.detectorlab.probes.integrity.AppSignatureProbe
 import com.detectorlab.probes.integrity.KeystoreAttestationProbe
+import com.detectorlab.probes.integrity.PlayIntegrityLiveProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
 import com.detectorlab.probes.kernel.CpuInfoProbe
 import com.detectorlab.probes.network.DnsServerProbe
@@ -94,11 +95,13 @@ import com.detectorlab.probes.sensors.BarometerProbe
 import com.detectorlab.probes.sensors.LightProbe
 import com.detectorlab.probes.sensors.MagnetometerProbe
 import com.detectorlab.probes.sensors.ProximityProbe
+import com.detectorlab.probes.ui.AudioFingerprintProbe
 import com.detectorlab.probes.ui.DisplayCutoutProbe
 import com.detectorlab.probes.ui.InputMethodProbe
 import com.detectorlab.probes.ui.RefreshRateProbe
 import com.detectorlab.probes.ui.ScreenResolutionProbe
 import com.detectorlab.probes.ui.SystemFontsProbe
+import com.detectorlab.probes.ui.TouchPressureProbe
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -162,9 +165,10 @@ class FullProbeRunnerSpoofTest {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (3)
+        // integrity (4)
         AppSignatureProbe(),
         KeystoreAttestationProbe(),
+        PlayIntegrityLiveProbe(),
         PlayIntegrityProbe(),
         // kernel (1)
         CpuInfoProbe(),
@@ -191,12 +195,14 @@ class FullProbeRunnerSpoofTest {
         LightProbe(),
         MagnetometerProbe(),
         ProximityProbe(),
-        // ui (5)
+        // ui (7)
+        AudioFingerprintProbe(),
         DisplayCutoutProbe(),
         InputMethodProbe(),
         RefreshRateProbe(),
         ScreenResolutionProbe(),
         SystemFontsProbe(),
+        TouchPressureProbe(),
     )
 
     @Test
@@ -207,8 +213,8 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                67, probes.size,
-                "expected the full 67-probe inventory; if the inventory changed, " +
+                70, probes.size,
+                "expected the full 70-probe inventory; if the inventory changed, " +
                     "update the allProbes() registry above",
             )
             val runner = ProbeRunner(

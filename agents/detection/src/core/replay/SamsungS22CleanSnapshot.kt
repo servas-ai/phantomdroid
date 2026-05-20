@@ -108,12 +108,102 @@ object SamsungS22CleanSnapshot {
             // rank 14 selinux — Samsung One UI ships SELinux enforcing.
             "ro.boot.selinux" to "enforcing",
             "ro.build.selinux" to "1",
+
+            // rank 57 touch_pressure — Samsung Galaxy S22 ships Samsung's
+            // STM FingerTipS touch controller ("stmfts"), the canonical
+            // touch IC across the S22 family. NOT empty (NO_TOUCH_HAL
+            // rule disarms), NOT in SYNTHETIC_TOUCHSCREEN_SUBSTRINGS
+            // (synthetic-HAL rule disarms). Combined with the four
+            // /dev/input/event* nodes below this lands the rank-57
+            // probe in PATTERN_CLEAN (0.0).
+            "ro.hardware.touchscreen" to "stmfts",
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) — Samsung
+            // Galaxy S22 (international SM-S901B Exynos variant) ships
+            // the Exynos 2200 SoC's integrated audio codec. The
+            // canonical published name in `ro.hardware.audio` on stock
+            // One UI 6 retail builds is `exynos_audio_2200` — the
+            // codename used in Samsung's vendor/audio HAL config (same
+            // naming convention as `exynos2200` elsewhere in this
+            // snapshot's ro.hardware / ro.board.platform fields). This
+            // is a REAL codec name, NOT in
+            // AudioFingerprintProbe.SOFTWARE_HAL_SUBSTRINGS (`stub`/
+            // `dummy`), NOT equal to HAL_SND_CARD_DUMMY — so the
+            // declarative probe lands cleanly in PATTERN_CLEAN (0.0)
+            // with confidence 0.70 (the declarative cap — see probe
+            // KDoc's "declarative limitation" section). No loopback /
+            // silent_in / dock_aplc props set — those rules only fire
+            // on explicit "1" / "true", and their absence is the
+            // correct negative-class signal on stock Samsung firmware.
+            "ro.hardware.audio" to "exynos_audio_2200",
+
+            // rank 56 webgl_fingerprint — canonical Samsung Galaxy S22
+            // (Exynos 2200 international variant) GPU property surface.
+            // The Exynos 2200 SoC pairs an Arm Mali-G710 MP9 GPU with
+            // Samsung's vendor blob. Samsung's audio/graphics HAL config
+            // publishes the driver identifier as `mali-g710_kmd` in
+            // `ro.gpu.driver` — the canonical "Mali-G710 kernel-mode
+            // driver" naming Samsung uses across the S22/S23 family.
+            //
+            // Values:
+            //   ro.gpu.driver = "mali-g710_kmd" — real Exynos-Mali driver
+            //     name (NOT "swiftshader" which fires SWIFTSHADER 0.95;
+            //     distinct from the Pixel 7 "kgsl" value so the rank-56
+            //     probe is exercised against TWO different real driver
+            //     identifiers across the negative-class anchors)
+            //   ro.hardware.gralloc = "samsung" — Samsung vendor gralloc
+            //     HAL identifier (NOT "ranchu")
+            //   ro.hardware.vulkan = "1.3.0" — Vulkan 1.3 supported by
+            //     Mali-G710 since the 2022 vendor blob refresh
+            //   ro.opengles.version = "196610" — = 0x30002 = OpenGL ES
+            //     3.2 packed as `(major << 16) | minor`. Same boundary
+            //     value as Pixel 7 — the rank-56 probe treats this as
+            //     PLAUSIBLE (strict-less-than semantics). Samsung S22
+            //     spec confirms GLES 3.2 support; the boundary pins the
+            //     false-positive floor.
+            //   ro.boot.qemu.gltransport — INTENTIONALLY OMITTED. AVD-
+            //     only property; real Samsung S22 retail does not emit it.
+            //   ro.kernel.qemu.gles — INTENTIONALLY OMITTED. Same reason.
+            //
+            // Cross-snapshot diversity: this anchor uses `mali-g710_kmd`
+            // / `samsung` gralloc — distinct from Pixel 7's `kgsl` /
+            // `mali` tuple. If the rank-56 probe over-fitted to a single
+            // Pixel-class string (e.g. accidentally required exact
+            // `kgsl`), this Samsung anchor would catch the regression.
+            "ro.gpu.driver" to "mali-g710_kmd",
+            "ro.hardware.gralloc" to "samsung",
+            "ro.hardware.vulkan" to "1.3.0",
+            "ro.opengles.version" to "196610",
         ),
         existingFiles = setOf(
             // rank 3 su_detection — clean Samsung S22 has NONE of the
             // su-binary paths or magisk artifacts. Knox additionally bricks
             // any device that has had su installed (warranty_bit flip),
             // making this even more strictly true on Samsung than on Pixel.
+
+            // rank 57 touch_pressure — real Samsung Galaxy S22 exposes
+            // the standard four evdev input devices: event0=touchscreen,
+            // event1=volume/power keys, event2=sensor-hub-derived events,
+            // event3=fingerprint sensor (ultrasonic FoD on S22). Same
+            // four-device shape as Pixel 7 — the AOSP CDD requires the
+            // touchscreen + buttons + fingerprint trio on any modern
+            // flagship, with the sensor-hub adding a fourth aggregator
+            // node. Population satisfies the rank-57 declarative probe's
+            // "phone-class input surface" expectation (>=3 event devices).
+            "/dev/input/event0",
+            "/dev/input/event1",
+            "/dev/input/event2",
+            "/dev/input/event3",
+
+            // rank 54 audio_fingerprint (DECLARATIVE VARIANT) — real
+            // Samsung S22 has a working audio HAL bound (Exynos 2200
+            // integrated codec), so `/dev/snd/controlC0` exists as the
+            // ALSA control device. This is a positive observation that
+            // combines with the HAL prop above to disarm the
+            // PATTERN_NO_HAL_NO_DEVICE rule (which would only fire on
+            // set-but-empty HAL + missing device; here both surfaces
+            // are positively present).
+            "/dev/snd/controlC0",
         ),
         readableFiles = mapOf(
             // rank 30 proc_version — Samsung S22 kernel banner. Samsung
