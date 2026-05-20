@@ -428,6 +428,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "        installSourcePackage = null,"
 else
     DUMP_PKG="${INSTALL_SOURCE_PKG:-com.android.shell}"
+    # Sanitize INSTALL_SOURCE_PKG env var — restrict to Android package-name charset
+    # (Power-17 security audit MEDIUM advisory dbca3d6 Pillar 2: shell-injection guard).
+    DUMP_PKG="${DUMP_PKG//[^a-zA-Z0-9._-]/}"
+    if [[ -z "$DUMP_PKG" ]]; then
+        echo "        // FIELD_UNAVAILABLE: INSTALL_SOURCE_PKG rejected by sanitizer (empty after charset filter)" >&2
+        DUMP_PKG="com.android.shell"
+    fi
     INSTALLER_RAW="$(capture_raw "pm dump $DUMP_PKG | grep -i installerPackageName")"
     INSTALLER_RAW="${INSTALLER_RAW%$'\n'}"
     if [[ -z "$INSTALLER_RAW" ]]; then
