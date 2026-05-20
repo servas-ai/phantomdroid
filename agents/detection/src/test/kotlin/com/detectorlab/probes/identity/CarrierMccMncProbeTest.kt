@@ -24,8 +24,12 @@ class CarrierMccMncProbeTest {
     private fun fakeCtx(
         operatorName: String? = "Deutsche Telekom",
         mccMnc: String? = "26201",
+        line1: String? = null,
+        imsi: String? = null,
         nameThrows: Boolean = false,
         mccMncThrows: Boolean = false,
+        line1Throws: Boolean = false,
+        imsiThrows: Boolean = false,
     ): ProbeContext = object : ProbeContext {
         override fun getSystemProperty(key: String): String? = null
         override fun fileExists(path: String) = false
@@ -39,6 +43,14 @@ class CarrierMccMncProbeTest {
             TelephonyField.MCC_MNC -> {
                 if (mccMncThrows) throw RuntimeException("simulated TM MCC_MNC")
                 mccMnc
+            }
+            TelephonyField.LINE1_NUMBER -> {
+                if (line1Throws) throw RuntimeException("simulated TM Line1")
+                line1
+            }
+            TelephonyField.SUBSCRIBER_ID -> {
+                if (imsiThrows) throw RuntimeException("simulated TM IMSI")
+                imsi
             }
             else -> null
         }
@@ -351,10 +363,12 @@ class CarrierMccMncProbeTest {
     // ── Evidence row coverage ─────────────────────────────────────────────────
 
     @Test
-    fun `evidence has exactly 8 keys`() = runBlocking {
+    fun `evidence has exactly 13 keys`() = runBlocking {
+        // 8 original telephony rows + 5 Power-13 Gap #6 rows under
+        // `carrier_mccmnc.*` namespace (line1_number, emulator_phone_match,
+        // subscriber_id, emulator_imsi_match, operator_name_match).
         val result = probe.run(fakeCtx())
-        // Spec listed 7 + 1 added pattern row (mirrors rank-17/21 convention).
-        assertEquals(8, result.evidence.size)
+        assertEquals(13, result.evidence.size)
     }
 
     @Test
@@ -371,6 +385,13 @@ class CarrierMccMncProbeTest {
                 "telephony.mnc",
                 "telephony.is_known_emulator_carrier",
                 "telephony.pattern",
+                // Power-13 Gap #6 Line1 + IMSI axis (namespace
+                // `carrier_mccmnc.*` per cross-cutting #1).
+                "carrier_mccmnc.line1_number",
+                "carrier_mccmnc.emulator_phone_match",
+                "carrier_mccmnc.subscriber_id",
+                "carrier_mccmnc.emulator_imsi_match",
+                "carrier_mccmnc.operator_name_match",
             ),
             keys,
         )
@@ -430,10 +451,297 @@ class CarrierMccMncProbeTest {
         val result = probe.run(fakeCtx())
         assertEquals(
             "Read TelephonyManager.networkOperator + networkOperatorName + " +
-                "simOperator + simOperatorName; detect known emulator-default " +
-                "carrier names and MCC/MNC values; cross-check SIM vs network " +
-                "for roaming consistency",
+                "line1Number + subscriberId; detect known emulator-default " +
+                "carrier names, MCC/MNC values, AOSP-block phone numbers " +
+                "(strazzere/anti-emulator 16-entry list), and AOSP " +
+                "canonical IMSI 310260000000000. Power-13 Gap #6.",
             result.method,
+        )
+    }
+
+    // ── Power-13 Gap #6 — Emulator Line1 phone-number block ──────────────────
+
+    @Test
+    fun `emulator Line1 15555215554 — score is 1_0`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = "15555215554"),
+        )
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `emulator Line1 15555215584 (last in block) — score is 1_0`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = "15555215584"),
+        )
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `emulator Line1 — pattern is emulator_phone_number`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = "15555215562"),
+        )
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_EMULATOR_PHONE_NUMBER, ev?.value)
+    }
+
+    @Test
+    fun `real Line1 number — score stays clean (PII redacted)`() = runBlocking {
+        // Real consumer phone number (not in emulator block). Score
+        // stays 0.0; evidence row reports value redacted to 4-char
+        // prefix + length.
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = "+491701234567"),
+        )
+        assertEquals(0.0, result.score)
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.line1_number" }
+        assertTrue(
+            (ev?.value as? String)?.let { it.startsWith("+491") && it.contains("len=13") } == true,
+            "expected redacted PII format, got ${ev?.value}",
+        )
+    }
+
+    @Test
+    fun `emulator Line1 — emulator_phone_match evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(line1 = "15555215554"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.emulator_phone_match" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `emulator Line1 — line1_number evidence value is verbatim (dispositive diagnostic)`() = runBlocking {
+        val result = probe.run(fakeCtx(line1 = "15555215554"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.line1_number" }
+        assertEquals("15555215554", ev?.value)
+    }
+
+    @Test
+    fun `null Line1 — emulator_phone_match evidence is false`() = runBlocking {
+        val result = probe.run(fakeCtx(line1 = null))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.emulator_phone_match" }
+        assertEquals("false", ev?.value)
+    }
+
+    @Test
+    fun `null Line1 — confidence is NOT degraded (consumer-context expected)`() = runBlocking {
+        // Line1 null is expected on consumer contexts (permission
+        // typically absent). Should NOT drop confidence below the
+        // operator/MCC tier.
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = null),
+        )
+        assertEquals(0.95, result.confidence)
+    }
+
+    @Test
+    fun `Line1 accessor throws — does not crash`() = runBlocking {
+        val result = probe.run(fakeCtx(line1Throws = true))
+        assertFalse(result.failed)
+    }
+
+    // ── Power-13 Gap #6 — AOSP canonical IMSI ─────────────────────────────────
+
+    @Test
+    fun `AOSP IMSI 310260000000000 — score is 0_95`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = "310260000000000"),
+        )
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `AOSP IMSI — pattern is emulator_imsi`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = "310260000000000"),
+        )
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_EMULATOR_IMSI, ev?.value)
+    }
+
+    @Test
+    fun `real IMSI — score stays clean (PII redacted)`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = "262011234567890"),
+        )
+        assertEquals(0.0, result.score)
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.subscriber_id" }
+        assertTrue(
+            (ev?.value as? String)?.let { it.startsWith("2620") && it.contains("len=15") } == true,
+            "expected redacted PII, got ${ev?.value}",
+        )
+    }
+
+    @Test
+    fun `AOSP IMSI — emulator_imsi_match evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(imsi = "310260000000000"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.emulator_imsi_match" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `AOSP IMSI — subscriber_id evidence value is verbatim`() = runBlocking {
+        val result = probe.run(fakeCtx(imsi = "310260000000000"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.subscriber_id" }
+        assertEquals("310260000000000", ev?.value)
+    }
+
+    @Test
+    fun `null IMSI — confidence is NOT degraded (system-only permission expected)`() = runBlocking {
+        // IMSI null is expected on consumer contexts (system-only
+        // permission). Should NOT degrade confidence.
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = null),
+        )
+        assertEquals(0.95, result.confidence)
+    }
+
+    @Test
+    fun `IMSI accessor throws — does not crash`() = runBlocking {
+        val result = probe.run(fakeCtx(imsiThrows = true))
+        assertFalse(result.failed)
+    }
+
+    // ── Cascade ordering — Line1 / IMSI interactions ──────────────────────────
+
+    @Test
+    fun `emu name + emu phone — emu name wins (both 1_0, name first)`() = runBlocking {
+        // Both rules tie at 1.0. Cascade is name → phone. Pattern
+        // stays emulator_operator_name to preserve legacy semantics.
+        val result = probe.run(fakeCtx(operatorName = "Android", line1 = "15555215554"))
+        assertEquals(1.0, result.score)
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_EMULATOR_OPERATOR_NAME, ev?.value)
+    }
+
+    @Test
+    fun `emu phone wins over synthetic MCC (1_0 vs 0_95)`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Carrier Co", mccMnc = "00099", line1 = "15555215554"),
+        )
+        assertEquals(1.0, result.score)
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_EMULATOR_PHONE_NUMBER, ev?.value)
+    }
+
+    @Test
+    fun `avd_canonical wins over emu IMSI (both 0_95, avd first)`() = runBlocking {
+        // Both 0.95 tier. Cascade orders avd_canonical before
+        // emu IMSI so legacy avd_canonical semantics win on tie.
+        val result = probe.run(
+            fakeCtx(operatorName = "Android Things", mccMnc = "310260", imsi = "310260000000000"),
+        )
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_AVD_CANONICAL, ev?.value)
+    }
+
+    @Test
+    fun `emu IMSI alone on clean operator — score is 0_95 emulator_imsi`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = "310260000000000"),
+        )
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "telephony.pattern" }
+        assertEquals(CarrierMccMncProbe.PATTERN_EMULATOR_IMSI, ev?.value)
+    }
+
+    @Test
+    fun `is_known_emulator_carrier evidence is true on emu phone alone`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", line1 = "15555215554"),
+        )
+        val ev = result.evidence.find { it.key == "telephony.is_known_emulator_carrier" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `is_known_emulator_carrier evidence is true on emu IMSI alone`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201", imsi = "310260000000000"),
+        )
+        val ev = result.evidence.find { it.key == "telephony.is_known_emulator_carrier" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `operator_name_match evidence is true on Android operator`() = runBlocking {
+        val result = probe.run(fakeCtx(operatorName = "Android", mccMnc = "310260"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.operator_name_match" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `operator_name_match evidence is false on real carrier`() = runBlocking {
+        val result = probe.run(fakeCtx(operatorName = "Deutsche Telekom", mccMnc = "26201"))
+        val ev = result.evidence.find { it.key == "carrier_mccmnc.operator_name_match" }
+        assertEquals("false", ev?.value)
+    }
+
+    // ── Helper unit tests for new internals ──────────────────────────────────
+
+    @Test
+    fun `EMULATOR_PHONE_NUMBERS has exactly 16 entries`() {
+        // Regression guard — strazzere/anti-emulator block is exactly
+        // 16 entries (15555215554..15555215584 step 2).
+        assertEquals(16, CarrierMccMncProbe.EMULATOR_PHONE_NUMBERS.size)
+    }
+
+    @Test
+    fun `isEmulatorPhoneNumber accepts all 16 entries`() {
+        for (number in CarrierMccMncProbe.EMULATOR_PHONE_NUMBERS) {
+            assertTrue(
+                CarrierMccMncProbe.isEmulatorPhoneNumber(number),
+                "expected emulator-phone match for $number",
+            )
+        }
+    }
+
+    @Test
+    fun `isEmulatorPhoneNumber rejects real numbers, null, empty`() {
+        assertFalse(CarrierMccMncProbe.isEmulatorPhoneNumber("+491701234567"))
+        assertFalse(CarrierMccMncProbe.isEmulatorPhoneNumber("18005551234"))
+        assertFalse(CarrierMccMncProbe.isEmulatorPhoneNumber(null))
+        assertFalse(CarrierMccMncProbe.isEmulatorPhoneNumber(""))
+    }
+
+    @Test
+    fun `isEmulatorImsi accepts AOSP canonical 310260000000000`() {
+        assertTrue(CarrierMccMncProbe.isEmulatorImsi("310260000000000"))
+    }
+
+    @Test
+    fun `isEmulatorImsi rejects real IMSI, null, empty`() {
+        assertFalse(CarrierMccMncProbe.isEmulatorImsi("262011234567890"))
+        assertFalse(CarrierMccMncProbe.isEmulatorImsi("310260000000001"))
+        assertFalse(CarrierMccMncProbe.isEmulatorImsi(null))
+        assertFalse(CarrierMccMncProbe.isEmulatorImsi(""))
+    }
+
+    @Test
+    fun `redactPiiUnlessEmulator returns verbatim on emulator match`() {
+        assertEquals(
+            "15555215554",
+            CarrierMccMncProbe.redactPiiUnlessEmulator("15555215554", isEmulator = true),
+        )
+    }
+
+    @Test
+    fun `redactPiiUnlessEmulator redacts real number`() {
+        val redacted = CarrierMccMncProbe.redactPiiUnlessEmulator("+491701234567", isEmulator = false)
+        assertTrue(redacted.startsWith("+491"))
+        assertTrue(redacted.contains("len=13"))
+    }
+
+    @Test
+    fun `redactPiiUnlessEmulator returns unavailable on null and empty`() {
+        assertEquals(
+            "<unavailable>",
+            CarrierMccMncProbe.redactPiiUnlessEmulator(null, isEmulator = false),
+        )
+        assertEquals(
+            "<unavailable>",
+            CarrierMccMncProbe.redactPiiUnlessEmulator("", isEmulator = false),
         )
     }
 

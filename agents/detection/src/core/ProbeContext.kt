@@ -382,7 +382,30 @@ enum class AllowlistedCommand {
 
 data class ShellResult(val exitCode: Int, val stdout: String, val stderr: String)
 
-enum class TelephonyField { IMEI, SERIAL, OPERATOR_NAME, MCC_MNC, SIM_SERIAL }
+/**
+ * Per-field selector for [ProbeContext.queryTelephonyManager].
+ *
+ *  - `IMEI`           — `TelephonyManager.getImei()` (`getDeviceId()` pre-A8).
+ *  - `SERIAL`         — `Build.getSerial()` (post-A8; pre-A8 `Build.SERIAL`).
+ *  - `OPERATOR_NAME`  — `TelephonyManager.getNetworkOperatorName()`.
+ *  - `MCC_MNC`        — `TelephonyManager.getNetworkOperator()` (5-6 digits).
+ *  - `SIM_SERIAL`     — `TelephonyManager.getSimSerialNumber()` (ICCID).
+ *  - `LINE1_NUMBER`   — `TelephonyManager.getLine1Number()` (phone MSISDN).
+ *    Power-13 Gap #6 — AOSP emulator + Genymotion ship the 16-entry
+ *    `15555215554..15555215584` block; rank-22 scores these as
+ *    dispositive emulator markers. Read requires `READ_PHONE_NUMBERS`
+ *    (A8+) or `READ_SMS` / `READ_PHONE_STATE` on older SDKs; returns
+ *    null when permission missing (the conservative answer).
+ *  - `SUBSCRIBER_ID`  — `TelephonyManager.getSubscriberId()` (IMSI,
+ *    15 digits). Power-13 Gap #6 — AOSP emulator ships canonical IMSI
+ *    `310260000000000` (T-Mobile MCC/MNC with 10-zero suffix); rank-22
+ *    scores this exact value as dispositive. Read requires
+ *    `READ_PRIVILEGED_PHONE_STATE` (A10+ system-only); returns null on
+ *    consumer-app contexts even on a real device — null is the
+ *    expected answer for non-system callers and is NOT scored as
+ *    suspicious.
+ */
+enum class TelephonyField { IMEI, SERIAL, OPERATOR_NAME, MCC_MNC, SIM_SERIAL, LINE1_NUMBER, SUBSCRIBER_ID }
 
 interface PackageManagerView {
     fun isPackageInstalled(packageName: String): Boolean

@@ -183,7 +183,7 @@ probes:
     category: identity
     severity: high
     android_layer: framework
-    description: "Network operator name and MCC/MNC"
+    description: "Network operator name + MCC/MNC + Line1 phone (16-entry AOSP block) + IMSI 310260000000000 (Power-13 Gap #6)"
     mitigation_layer: L2
 
   - rank: 23
