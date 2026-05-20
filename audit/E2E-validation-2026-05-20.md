@@ -164,11 +164,18 @@ This run is the FIRST real-world ground-truth validation of the Detector probe s
 
 ## Open ends + next steps
 
-### Container shell hangs (ADB but docker exec works)
+### Container shell hangs (ADB but docker exec works) — root cause identified
 
-ADB `shell` commands hang because ReDroid 12 boot doesn't complete (`sys.boot_completed` empty). The container is running and props are readable via `docker exec`, but Android's full init hasn't finished — likely needs more time, more memory, or a specific kernel feature.
+ADB `shell` commands hang because ReDroid 12 boot doesn't complete (`sys.boot_completed` empty, `init.svc.zygote = restarting`). The container is running and props are readable via `docker exec`, but Android's full init hasn't finished.
 
-**Hypothesis**: ReDroid 12 needs binderfs (kernel 5.0+) for full boot, even with our DKMS binder. Kernel 4.15 might let init start but stall at zygote / system_server.
+**Root cause confirmed** (from tombstone in `docker logs`): the crash is in `android::hardware::ProcessState::ProcessState` → `libhidlbase.so` → `configureBinderRpcThreadpool`. This is the **Android 12 HIDL binder-RPC layer requiring binderfs** (kernel 5.0+) which the anbox-modules DKMS binder doesn't provide on kernel 4.15.
+
+Path forward options:
+- **Path A**: Ubuntu HWE kernel (5.x) on this same Ubuntu 18.04 host — gets binderfs natively. Risk: same as kernel-upgrade brick concern from earlier audit.
+- **Path B**: Upgrade host to Ubuntu 22.04 (kernel 5.15+). Path U risk from earlier sub-agent.
+- **Path C**: Use ReDroid 10 (Android 10, older binder ABI) — manifest `redroid/redroid:10.0.0-latest` exists in the registry. Likely avoids the HIDL-binderfs requirement.
+
+ReDroid 11 was attempted but no `11.0.0_64only-latest` tag exists in the registry (Android 11 was skipped in the redroid release line).
 
 **Workaround for E2E**: probe values readable via `docker exec` are equivalent for probe-validation purposes. Production-grade detection JAR running INSIDE the container would also work since the props are populated; only ADB-from-outside is hanging.
 
