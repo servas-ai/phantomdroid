@@ -86,6 +86,7 @@ import com.detectorlab.probes.network.VpnProxyProbe
 import com.detectorlab.probes.root.MountNsMismatchProbe
 import com.detectorlab.probes.root.SeLinuxProbe
 import com.detectorlab.probes.root.SuDetectionProbe
+import com.detectorlab.probes.root.SystemRwMountProbe
 import com.detectorlab.probes.runtime.AutomationToolsProbe
 import com.detectorlab.probes.runtime.DebuggerTracerPidProbe
 import com.detectorlab.probes.runtime.FridaMemoryMapsProbe
@@ -186,10 +187,11 @@ class FullProbeRunnerSpoofTest {
         NetworkIpAsnProbe(),
         NetworkTypeProbe(),
         VpnProxyProbe(),
-        // root (3) — Power-13 Gap #3 added MountNsMismatchProbe
+        // root (4) — Power-13 Gap #3 + Gap #10 expansions
         MountNsMismatchProbe(),
         SeLinuxProbe(),
         SuDetectionProbe(),
+        SystemRwMountProbe(),
         // runtime (9)
         AutomationToolsProbe(),
         DebuggerTracerPidProbe(),
@@ -228,10 +230,11 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                75, probes.size,
-                "expected the full 75-probe inventory (73 base + Power-13 Gap #4 " +
+                76, probes.size,
+                "expected the full 76-probe inventory (73 base + Power-13 Gap #4 " +
                     "ThirdPartyEmulatorArtifactsProbe + Power-13 Gap #3 " +
-                    "MountNsMismatchProbe); if the inventory changed, update " +
+                    "MountNsMismatchProbe + Power-13 Gap #10 " +
+                    "SystemRwMountProbe); if the inventory changed, update " +
                     "the allProbes() registry above",
             )
             val runner = ProbeRunner(

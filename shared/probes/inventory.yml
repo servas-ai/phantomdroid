@@ -526,6 +526,14 @@ probes:
     description: "Magisk-fingerprint substring asymmetry between /proc/self/mountinfo and /proc/1/mountinfo — HuskyDG #1 Momo signal (Power-13 Gap #3)"
     mitigation_layer: L4
 
+  - rank: 14.5
+    id: root.system_rw_mount
+    category: root
+    severity: high
+    android_layer: kernel
+    description: "/system partition rw status (or / on Android 10+ system-as-root) — RootBeer checkForRWPaths (Power-13 Gap #10)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime
