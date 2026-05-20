@@ -26,6 +26,8 @@ class TagsAndTypeProbeTest {
         tags: String? = "release-keys",
         type: String? = "user",
         model: String? = "Pixel 7",
+        debuggable: String? = "0",
+        secure: String? = "1",
         propertyThrowsOn: Set<String> = emptySet(),
     ): ProbeContext = object : ProbeContext {
         override fun getSystemProperty(key: String): String? {
@@ -34,6 +36,8 @@ class TagsAndTypeProbeTest {
                 TagsAndTypeProbe.PROP_RO_BUILD_TAGS -> tags
                 TagsAndTypeProbe.PROP_RO_BUILD_TYPE -> type
                 TagsAndTypeProbe.PROP_RO_PRODUCT_MODEL -> model
+                TagsAndTypeProbe.PROP_RO_DEBUGGABLE -> debuggable
+                TagsAndTypeProbe.PROP_RO_SECURE -> secure
                 else -> null
             }
         }
@@ -341,12 +345,230 @@ class TagsAndTypeProbeTest {
                     TagsAndTypeProbe.PROP_RO_BUILD_TAGS,
                     TagsAndTypeProbe.PROP_RO_BUILD_TYPE,
                     TagsAndTypeProbe.PROP_RO_PRODUCT_MODEL,
+                    TagsAndTypeProbe.PROP_RO_DEBUGGABLE,
+                    TagsAndTypeProbe.PROP_RO_SECURE,
                 )
             )
         )
         assertFalse(result.failed)
         assertEquals(0.0, result.score)
         assertEquals(0.50, result.confidence)
+    }
+
+    @Test
+    fun `debuggable read throws — does not crash`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(propertyThrowsOn = setOf(TagsAndTypeProbe.PROP_RO_DEBUGGABLE))
+        )
+        assertFalse(result.failed)
+    }
+
+    @Test
+    fun `secure read throws — does not crash`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(propertyThrowsOn = setOf(TagsAndTypeProbe.PROP_RO_SECURE))
+        )
+        assertFalse(result.failed)
+    }
+
+    // ── Power-13 Gap #5 — RootBeer dangerous-props axis ──────────────────────
+
+    @Test
+    fun `debuggable=1 on clean tags+type — score is 0_95`() = runBlocking {
+        // RootBeer checkForDangerousProps fires standalone — clean
+        // tags/type don't suppress the dangerous-props rule.
+        val result = probe.run(fakeCtx(debuggable = "1"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `secure=0 on clean tags+type — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = "0"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `debuggable=1 + secure=0 on clean tags+type — score is 0_95 (single rule)`() = runBlocking {
+        // Both dangerous-props axes fire — single cascade rule fires
+        // once at 0.95; no stacking. Co-fire is visible via evidence
+        // rows.
+        val result = probe.run(fakeCtx(debuggable = "1", secure = "0"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `dangerous_props_violation pattern is dangerous_props_violation`() = runBlocking {
+        val result = probe.run(fakeCtx(debuggable = "1"))
+        val ev = result.evidence.find { it.key == "build.tags_type_pattern" }
+        assertEquals(TagsAndTypeProbe.PATTERN_DANGEROUS_PROPS_VIOLATION, ev?.value)
+    }
+
+    @Test
+    fun `debuggable=1 — debuggable_violation evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(debuggable = "1"))
+        val ev = result.evidence.find { it.key == "tags_and_type.debuggable_violation" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `secure=0 — secure_violation evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = "0"))
+        val ev = result.evidence.find { it.key == "tags_and_type.secure_violation" }
+        assertEquals("true", ev?.value)
+    }
+
+    @Test
+    fun `clean — dangerous_props_violation evidence is false`() = runBlocking {
+        val result = probe.run(fakeCtx())
+        val ev = result.evidence.find { it.key == "tags_and_type.dangerous_props_violation" }
+        assertEquals("false", ev?.value)
+    }
+
+    @Test
+    fun `clean debuggable + secure — debuggable_violation false, secure_violation false`() = runBlocking {
+        val result = probe.run(fakeCtx())
+        val debEv = result.evidence.find { it.key == "tags_and_type.debuggable_violation" }
+        val secEv = result.evidence.find { it.key == "tags_and_type.secure_violation" }
+        assertEquals("false", debEv?.value)
+        assertEquals("false", secEv?.value)
+    }
+
+    @Test
+    fun `debuggable evidence reflects supplier`() = runBlocking {
+        val result = probe.run(fakeCtx(debuggable = "1"))
+        val ev = result.evidence.find { it.key == "tags_and_type.ro.debuggable" }
+        assertEquals("1", ev?.value)
+    }
+
+    @Test
+    fun `secure evidence reflects supplier`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = "0"))
+        val ev = result.evidence.find { it.key == "tags_and_type.ro.secure" }
+        assertEquals("0", ev?.value)
+    }
+
+    @Test
+    fun `debuggable evidence unavailable when null`() = runBlocking {
+        val result = probe.run(fakeCtx(debuggable = null))
+        val ev = result.evidence.find { it.key == "tags_and_type.ro.debuggable" }
+        assertEquals("<unavailable>", ev?.value)
+    }
+
+    @Test
+    fun `secure evidence unavailable when null`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = null))
+        val ev = result.evidence.find { it.key == "tags_and_type.ro.secure" }
+        assertEquals("<unavailable>", ev?.value)
+    }
+
+    @Test
+    fun `debuggable null — confidence 0_50`() = runBlocking {
+        // Even with clean tags/type/secure, missing debuggable read
+        // degrades confidence per the new partial-observation rule.
+        val result = probe.run(fakeCtx(debuggable = null))
+        assertEquals(0.50, result.confidence)
+    }
+
+    @Test
+    fun `secure null — confidence 0_50`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = null))
+        assertEquals(0.50, result.confidence)
+    }
+
+    @Test
+    fun `debuggable null — score stays 0 on clean tags+type+secure`() = runBlocking {
+        // Null is unobservable, NOT a violation. Score doesn't elevate.
+        val result = probe.run(fakeCtx(debuggable = null))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `secure null — score stays 0 on clean tags+type+debuggable`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = null))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `debuggable empty — score stays 0 (empty treated as unobservable)`() = runBlocking {
+        // Empty-string on debuggable is unobservable, NOT a violation
+        // (avoids FP on containers that don't expose the prop).
+        val result = probe.run(fakeCtx(debuggable = ""))
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `secure empty — score stays 0 (empty treated as unobservable)`() = runBlocking {
+        val result = probe.run(fakeCtx(secure = ""))
+        assertEquals(0.0, result.score)
+    }
+
+    // ── Cascade ordering — dangerous-props is the LAST 0.95 rule ─────────────
+
+    @Test
+    fun `tags=test-keys + debuggable=1 — tags_violation wins over dangerous_props`() = runBlocking {
+        // Both rules at 0.95 tier; tags-only is earlier in cascade.
+        // Score is identical (0.95) but pattern stays tags_violation
+        // to preserve legacy semantics.
+        val result = probe.run(fakeCtx(tags = "test-keys", debuggable = "1"))
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "build.tags_type_pattern" }
+        assertEquals(TagsAndTypeProbe.PATTERN_TAGS_VIOLATION, ev?.value)
+    }
+
+    @Test
+    fun `type=userdebug + secure=0 — type_violation wins over dangerous_props`() = runBlocking {
+        val result = probe.run(fakeCtx(type = "userdebug", secure = "0"))
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "build.tags_type_pattern" }
+        assertEquals(TagsAndTypeProbe.PATTERN_TYPE_VIOLATION, ev?.value)
+    }
+
+    @Test
+    fun `both tags+type violations + debuggable=1 — both_violations stays 1_0`() = runBlocking {
+        // Highest-tier rule (1.0) wins; dangerous-props evidence
+        // still emits the co-fire.
+        val result = probe.run(fakeCtx(tags = "test-keys", type = "userdebug", debuggable = "1"))
+        assertEquals(1.0, result.score)
+        val patEv = result.evidence.find { it.key == "build.tags_type_pattern" }
+        assertEquals(TagsAndTypeProbe.PATTERN_BOTH_VIOLATIONS, patEv?.value)
+        val dangEv = result.evidence.find { it.key == "tags_and_type.dangerous_props_violation" }
+        assertEquals("true", dangEv?.value)
+    }
+
+    @Test
+    fun `dangerous_props wins over empty_on_phone_class`() = runBlocking {
+        // Empty tags + debuggable=1 on phone-class: dangerous-props
+        // is 0.95 vs empty_on_phone_class 0.70 — dangerous-props wins.
+        val result = probe.run(fakeCtx(tags = "", debuggable = "1"))
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "build.tags_type_pattern" }
+        assertEquals(TagsAndTypeProbe.PATTERN_DANGEROUS_PROPS_VIOLATION, ev?.value)
+    }
+
+    // ── Helper unit tests for new internals ──────────────────────────────────
+
+    @Test
+    fun `isDangerousDebuggable detects 1`() {
+        assertTrue(TagsAndTypeProbe.isDangerousDebuggable("1"))
+    }
+
+    @Test
+    fun `isDangerousDebuggable false for 0, empty, null`() {
+        assertFalse(TagsAndTypeProbe.isDangerousDebuggable("0"))
+        assertFalse(TagsAndTypeProbe.isDangerousDebuggable(""))
+        assertFalse(TagsAndTypeProbe.isDangerousDebuggable(null))
+    }
+
+    @Test
+    fun `isDangerousSecure detects 0`() {
+        assertTrue(TagsAndTypeProbe.isDangerousSecure("0"))
+    }
+
+    @Test
+    fun `isDangerousSecure false for 1, empty, null`() {
+        assertFalse(TagsAndTypeProbe.isDangerousSecure("1"))
+        assertFalse(TagsAndTypeProbe.isDangerousSecure(""))
+        assertFalse(TagsAndTypeProbe.isDangerousSecure(null))
     }
 
     // ── Helper unit tests ────────────────────────────────────────────────────
@@ -392,9 +614,11 @@ class TagsAndTypeProbeTest {
     // ── Evidence row coverage ────────────────────────────────────────────────
 
     @Test
-    fun `evidence has exactly 6 keys`() = runBlocking {
+    fun `evidence has exactly 11 keys`() = runBlocking {
+        // 6 original tags/type rows + 5 dangerous-props rows added by
+        // Power-13 Gap #5.
         val result = probe.run(fakeCtx())
-        assertEquals(6, result.evidence.size)
+        assertEquals(11, result.evidence.size)
     }
 
     @Test
@@ -409,6 +633,13 @@ class TagsAndTypeProbeTest {
                 "build.type_violation",
                 "build.is_production_user_build",
                 "build.tags_type_pattern",
+                // Power-13 Gap #5 dangerous-props axis (namespace
+                // `tags_and_type.*` per cross-cutting #1).
+                "tags_and_type.ro.debuggable",
+                "tags_and_type.ro.secure",
+                "tags_and_type.debuggable_violation",
+                "tags_and_type.secure_violation",
+                "tags_and_type.dangerous_props_violation",
             ),
             keys,
         )
@@ -493,10 +724,13 @@ class TagsAndTypeProbeTest {
     fun `method string matches spec`() = runBlocking {
         val result = probe.run(fakeCtx())
         assertEquals(
-            "Read ro.build.tags + ro.build.type and verify production-build " +
-                "pattern (release-keys + user). Scoped focus separate from " +
-                "rank 1 BuildFingerprint which checks consistency across the " +
-                "full fingerprint string.",
+            "Read ro.build.tags + ro.build.type + ro.debuggable + ro.secure " +
+                "and verify production-build pattern (release-keys + user + " +
+                "debuggable=0 + secure=1). Scoped focus separate from rank 1 " +
+                "BuildFingerprint (which checks tags/type as fingerprint " +
+                "co-factors) and rank 13 Bootloader (which checks debuggable " +
+                "as AVB co-factor). Dangerous-props axis closes Power-13 " +
+                "real-world gap #5 — RootBeer checkForDangerousProps().",
             result.method,
         )
     }

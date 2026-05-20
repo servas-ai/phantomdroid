@@ -62,7 +62,7 @@ probes:
     category: buildprop
     severity: critical
     android_layer: native
-    description: "ro.build.tags=release-keys, ro.build.type=user"
+    description: "ro.build.tags=release-keys, ro.build.type=user, ro.debuggable=0, ro.secure=1 (RootBeer dangerous-props axis — Power-13 Gap #5)"
     mitigation_layer: L1
 
   - rank: 8
