@@ -492,9 +492,13 @@ object RedroidSpoofedSnapshot {
         // BluetoothMacProbe reads from a constructor-injected supplier
         // (default `{ null }`), independently of any ProbeContext accessor.
         // Wiring: in tests, the probe is instantiated as
-        //   BluetoothMacProbe(adapterMacSupplier = { ctx.snapshotBluetoothMac() })
-        // which routes this value to the supplier (see
-        // `SnapshotReplayContext.snapshotBluetoothMac()` accessor).
+        //   BluetoothMacProbe(adapterMacSupplier = { ctx.queryBluetoothAdapterMac() })
+        // which routes this value to the supplier. The accessor is a
+        // `ProbeContext` interface method (with default `= null` so existing
+        // fakes keep working) — same backward-compat pattern as
+        // `querySettingGlobal` / `queryWifiManager` / `queryKeyguardManager`.
+        // `SnapshotReplayContext` overrides the method to return the
+        // snapshot's `bluetoothMac` field.
         //
         // Without this fix, the probe would land in PATTERN_NULL_ADAPTER_ON_PHONE
         // (score 0.85) because `nullAdapterOnPhone = !adapterSupplierReturned
