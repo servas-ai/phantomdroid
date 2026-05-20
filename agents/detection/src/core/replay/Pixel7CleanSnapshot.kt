@@ -331,6 +331,19 @@ object Pixel7CleanSnapshot {
         // sees /system mounted read-only (the production state).
         // Gap #12 sees NO overlay over /system (Pixel 7 uses
         // dynamic-partition ext4 mounts, not overlayfs).
+        // Power-13 Gap #1 (root.magisk_uds) — clean Pixel 7
+        // /proc/net/unix output. AOSP system daemons only; no
+        // magisk fingerprints.
+        procNetUnixSockets = listOf(
+            "@android:installd",
+            "@android:zygote",
+            "@android:netd",
+            "@android:wpa_supplicant",
+            "/dev/socket/installd",
+            "/dev/socket/zygote",
+            "/dev/socket/netd",
+        ),
+
         mountInfo = mapOf(
             "self" to """
                 1 0 253:0 / / ro - ext4 /dev/block/dm-0

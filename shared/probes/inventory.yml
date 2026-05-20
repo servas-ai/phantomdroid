@@ -542,6 +542,14 @@ probes:
     description: "overlay filesystem mounted at /system or / — Magisk-on-A11+ tell, Momo target surface (Power-13 Gap #12)"
     mitigation_layer: L4
 
+  - rank: 3.5
+    id: root.magisk_uds
+    category: root
+    severity: high
+    android_layer: kernel
+    description: "Magisk magiskd UDS socket in /proc/net/unix (@MAGISK literal or magisk-substring path) — RootBeerFresh target (Power-13 Gap #1)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime

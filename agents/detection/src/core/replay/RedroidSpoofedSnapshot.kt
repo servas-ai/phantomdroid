@@ -1286,6 +1286,26 @@ object RedroidSpoofedSnapshot {
         // (/sbin/.magisk, /data/adb, magisk_tmp), not the overlay
         // filesystem itself — that's a legitimate Android 11+
         // mount type.
+        // Power-13 Gap #1 (root.magisk_uds) — spoofed-clean
+        // /proc/net/unix output. The Shamiko-class spoof stack
+        // hooks the read of /proc/net/unix and filters out any
+        // socket name containing magisk-fingerprint substrings,
+        // serving the synthetic Android-system-only socket list
+        // a clean Pixel-7 would have. Real-SpoofStack hook:
+        // /proc/net/unix is one of the load-bearing surfaces
+        // Shamiko already filters for the existing rank-3 +
+        // rank-8 probes, so this Power-13 probe sees the same
+        // already-filtered list.
+        procNetUnixSockets = listOf(
+            "@android:installd",
+            "@android:zygote",
+            "@android:netd",
+            "@android:wpa_supplicant",
+            "/dev/socket/installd",
+            "/dev/socket/zygote",
+            "/dev/socket/netd",
+        ),
+
         mountInfo = mapOf(
             // /proc/self/mountinfo — synthetic Pixel-7-shaped view.
             // Magisk paths SCRUBBED.

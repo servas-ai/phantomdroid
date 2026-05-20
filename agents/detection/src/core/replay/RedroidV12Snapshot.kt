@@ -362,6 +362,28 @@ object RedroidV12Snapshot {
         // The asymmetry is the Power-13 Gap #3 signal — Magisk
         // mounts in init only fires PATTERN_MAGISK_IN_INIT_ONLY
         // at score 0.95.
+        // Power-13 Gap #1 (root.magisk_uds) — Magisk-rooted ReDroid
+        // ships the magiskd UDS in /proc/net/unix. Pre-Magisk-25
+        // canonical: literal `@MAGISK` abstract-namespace socket
+        // (the literal string IS dispositive). The probe fires
+        // PATTERN_MAGISK_UDS_PRESENT at 0.95 on this fixture.
+        procNetUnixSockets = listOf(
+            "@android:installd",
+            "@android:zygote",
+            "@android:netd",
+            // Magisk's smoking-gun UDS. Pre-Magisk-25 canonical
+            // literal — Magisk-25+ randomizes the name (separate
+            // honest false-negative class documented in
+            // MagiskUdsProbe KDoc).
+            "@MAGISK",
+            // Magisk's secondary daemon socket path. File-namespace
+            // socket — leaks the runtime root path even when the
+            // abstract-namespace name is randomized.
+            "/sbin/.magisk/magiskd",
+            "/dev/socket/installd",
+            "/dev/socket/zygote",
+        ),
+
         mountInfo = mapOf(
             // /proc/self/mountinfo — Magisk-DenyList-pruned view.
             // Same overlay /system (visible to apps because it IS

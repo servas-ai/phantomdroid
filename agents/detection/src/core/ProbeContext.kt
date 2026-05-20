@@ -295,6 +295,26 @@ interface ProbeContext {
      * digests.
      */
     fun queryMountInfo(pid: String): String? = null
+
+    /**
+     * Read the unix-socket names from `/proc/net/unix`. Returns the
+     * list of socket-name strings (field 8 of each line, after the
+     * 7-field protocol/state header). Abstract-namespace sockets
+     * are prefixed with `@`; file-namespace sockets show the
+     * filesystem path. Returns an empty list by default — fakes /
+     * contexts that predate this accessor report "no UDS
+     * observation" (the conservative answer).
+     *
+     * Power-13 Gap #1 closure. Magisk's `magiskd` daemon registers
+     * a Unix-Domain Socket (UDS) — pre-Magisk-25 versions use the
+     * literal `@MAGISK` abstract socket; Magisk-25+ randomizes the
+     * name. RootBeerFresh + Momo detect Magisk by enumerating
+     * `/proc/net/unix` and matching `magisk` / `MAGISK` substrings
+     * in the socket-name column. The randomized-name path is a
+     * known false-negative class — that's an honest signal-floor
+     * the rank-3.5 probe documents in its KDoc.
+     */
+    fun queryProcNetUnixSockets(): List<String> = emptyList()
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

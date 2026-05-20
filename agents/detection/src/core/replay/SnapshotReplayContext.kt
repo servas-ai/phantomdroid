@@ -233,6 +233,13 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      * key → null (no observation); empty-string preserved.
      */
     override fun queryMountInfo(pid: String): String? = snapshot.mountInfo[pid]
+
+    /**
+     * Snapshot-side bridge for Power-13 Gap #1 (`MagiskUdsProbe`).
+     * Returns the snapshot's `procNetUnixSockets` list verbatim.
+     * Empty list = no observation captured.
+     */
+    override fun queryProcNetUnixSockets(): List<String> = snapshot.procNetUnixSockets
 }
 
 /**

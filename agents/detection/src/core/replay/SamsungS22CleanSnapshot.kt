@@ -332,6 +332,20 @@ object SamsungS22CleanSnapshot {
         // Power-13 Gap #3 lands in PATTERN_DIGEST_DIFF_NO_MAGISK
         // at 0.0. Gap #10 sees /system read-only. Gap #12 sees no
         // overlay over /system.
+        // Power-13 Gap #1 (root.magisk_uds) — clean Samsung S22
+        // /proc/net/unix output. AOSP + Samsung Knox / OneUI
+        // daemons; no magisk fingerprints.
+        procNetUnixSockets = listOf(
+            "@android:installd",
+            "@android:zygote",
+            "@android:netd",
+            "@android:wpa_supplicant",
+            "@samsung:knoxguard",
+            "/dev/socket/installd",
+            "/dev/socket/zygote",
+            "/dev/socket/netd",
+        ),
+
         mountInfo = mapOf(
             "self" to """
                 1 0 253:0 / / ro - ext4 /dev/block/dm-0

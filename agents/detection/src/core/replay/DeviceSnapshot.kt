@@ -237,4 +237,16 @@ data class DeviceSnapshot(
      * specific lines.
      */
     val mountInfo: Map<String, String?> = emptyMap(),
+
+    /**
+     * Unix-Domain Socket names harvested from `/proc/net/unix` —
+     * field 8 of each line. Abstract-namespace sockets prefixed
+     * with `@`; file-namespace sockets show the filesystem path
+     * (e.g. `/dev/socket/installd`). Empty list = no UDS
+     * observation captured. Consumed by Power-13 Gap #1
+     * (`root.magisk_uds`, rank 3.5) — scans the list for Magisk's
+     * dispositive socket-name substrings (`@MAGISK`, `magisk`,
+     * `/.magisk` path-fragments).
+     */
+    val procNetUnixSockets: List<String> = emptyList(),
 )
