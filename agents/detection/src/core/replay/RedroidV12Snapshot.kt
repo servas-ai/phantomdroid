@@ -486,5 +486,14 @@ object RedroidV12Snapshot {
                 12 9 0:12 / /sbin/magisk rw - bind /sbin/.magisk/busybox
             """.trimIndent(),
         ),
+
+        // Power-16 B3 — IntegrityInstallSourceProbe (inventory rank 10.5,
+        // freeRASP T5). Un-spoofed ReDroid 12 containers run app APKs
+        // installed via `adb install` (sideload) — the install source is
+        // `null` (no installer recorded). Probe scores 0.85 (strong
+        // suspicion). This is the realistic captured ground-truth for
+        // the container: `pm install -i ...` is not used by the docker
+        // bring-up flow, so `getInstallerPackageName()` returns null.
+        installSourcePackage = null,
     )
 }

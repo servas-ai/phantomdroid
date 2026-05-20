@@ -510,6 +510,14 @@ probes:
     description: "/proc/self/status TracerPid != 0 = debugger/ptrace attached (NeoZygisk window, Frida ptrace). freeRASP T2; MASTG MSTG-RESILIENCE-2 / MASTG-KNOW-0033"
     mitigation_layer: L4
 
+  - rank: 10.5
+    id: integrity.install_source
+    category: integrity
+    severity: high
+    android_layer: application
+    description: "PackageManager.getInstallSourceInfo() (Android 11+) / getInstallerPackageName() (pre-A11) compared against allowlist of legitimate stores (Play, Samsung Galaxy Store, Huawei AppGallery, Xiaomi GetApps, Oppo Market, Vivo App Store + legacy Google Play feedback). freeRASP T5 — Detecting Unofficial Installation (Power-16 B3). Source: https://docs.talsec.app/freerasp/freerasp/wiki/threat-detection/detecting-unofficial-installation.md"
+    mitigation_layer: L2
+
   - rank: 4.5
     id: emulator.third_party_artifacts
     category: emulator

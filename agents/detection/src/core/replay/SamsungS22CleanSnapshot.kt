@@ -422,5 +422,14 @@ object SamsungS22CleanSnapshot {
                 13 1 259:13 / /omr ro - ext4 /dev/block/by-name/omr
             """.trimIndent(),
         ),
+
+        // Power-16 B3 — IntegrityInstallSourceProbe (inventory rank 10.5,
+        // freeRASP T5). Factory-clean Samsung Galaxy S22 ships with the
+        // Play Store as the default install path for retail users; even
+        // Galaxy Store-installed apps coexist alongside Play installs.
+        // We pin Play Store here for the canonical clean-install case;
+        // Galaxy Store (`com.sec.android.app.samsungapps`) is also in
+        // the probe's allowlist so either string would score 0.05.
+        installSourcePackage = "com.android.vending",
     )
 }

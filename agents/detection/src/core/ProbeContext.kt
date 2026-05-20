@@ -370,6 +370,29 @@ interface ProbeContext {
      *                 dispositive.
      */
     fun queryDirEntries(path: String): List<String>? = null
+
+    /**
+     * Returns the installer package name for THIS app, per
+     * `PackageManager.getInstallSourceInfo()` (Android 11+) with fallback
+     * to `getInstallerPackageName()` (pre-Android-11). Returns `null` for
+     * unknown source — which conflates the legitimate "sideload" case
+     * (no installer recorded, e.g. adb install) with the legitimate
+     * "system pre-install" case (some OEM-shipped apps have null
+     * installer). Both are NON-store states and downstream scoring
+     * (`IntegrityInstallSourceProbe`) treats them as the "suspicious
+     * sideload" branch.
+     *
+     * Default returns `null` for backward compatibility with fakes that
+     * predate this accessor; production wrappers override to call
+     * `context.packageManager.getInstallSourceInfo(context.packageName)
+     * .installingPackageName` (Android 11+) or the legacy
+     * `getInstallerPackageName(context.packageName)` accessor on older
+     * platforms.
+     *
+     * Consumed by `IntegrityInstallSourceProbe` (inventory rank 10.5,
+     * freeRASP T5 — Detecting Unofficial Installation). Power-16 B3.
+     */
+    fun queryInstallSourcePackage(): String? = null
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

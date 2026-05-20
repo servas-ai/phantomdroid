@@ -419,5 +419,12 @@ object Pixel7CleanSnapshot {
                 12 1 253:12 / /product ro - ext4 /dev/block/dm-12
             """.trimIndent(),
         ),
+
+        // Power-16 B3 — IntegrityInstallSourceProbe (inventory rank 10.5,
+        // freeRASP T5). Factory-clean retail Pixel 7 ships with all
+        // user-installed apps coming from the Play Store, so the
+        // installer is `com.android.vending` (the canonical Play Store
+        // package). Probe scores 0.05 (clean).
+        installSourcePackage = "com.android.vending",
     )
 }

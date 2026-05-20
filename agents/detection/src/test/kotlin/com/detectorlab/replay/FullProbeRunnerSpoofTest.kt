@@ -1,7 +1,7 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt
 //
 // FULL-PANEL spoof-effectiveness gate — instantiates every probe in the
-// production inventory (all 68) and runs them against RedroidSpoofedSnapshot
+// production inventory (all 82) and runs them against RedroidSpoofedSnapshot
 // through the real ProbeRunner. Two assertions:
 //
 //   (1) report.aggregate.category == ReportCategory.CLEAN
@@ -74,6 +74,7 @@ import com.detectorlab.probes.identity.SimIccidProbe
 import com.detectorlab.probes.identity.WifiMacProbe
 import com.detectorlab.probes.identity.WifiSsidBssidProbe
 import com.detectorlab.probes.integrity.AppSignatureProbe
+import com.detectorlab.probes.integrity.IntegrityInstallSourceProbe
 import com.detectorlab.probes.integrity.KeystoreAttestationProbe
 import com.detectorlab.probes.integrity.PlayIntegrityLiveProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
@@ -178,8 +179,9 @@ class FullProbeRunnerSpoofTest {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (5)
+        // integrity (6) — Power-16 B3 added IntegrityInstallSourceProbe
         AppSignatureProbe(),
+        IntegrityInstallSourceProbe(),
         KeystoreAttestationProbe(),
         PlayIntegrityLiveProbe(),
         PlayIntegrityProbe(),
@@ -240,9 +242,10 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                81, probes.size,
-                "expected the full 81-probe inventory (73 base + Power-13 Gaps " +
-                    "#4 + #3 + #10 + #12 + #1 + #2 + #8 + #9); if the " +
+                82, probes.size,
+                "expected the full 82-probe inventory (73 base + Power-13 Gaps " +
+                    "#4 + #3 + #10 + #12 + #1 + #2 + #8 + #9 + Power-16 B3 " +
+                    "IntegrityInstallSourceProbe / freeRASP T5); if the " +
                     "inventory changed, update the allProbes() registry above",
             )
             val runner = ProbeRunner(

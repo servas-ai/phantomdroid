@@ -256,6 +256,15 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      * observation; directory does not exist OR permission denied).
      */
     override fun queryDirEntries(path: String): List<String>? = snapshot.dirEntries[path]
+
+    /**
+     * Snapshot-side bridge for `IntegrityInstallSourceProbe` (inventory
+     * rank 10.5, freeRASP T5). Returns the snapshot's
+     * `installSourcePackage` field verbatim. `null` value preserved as
+     * `null` (= "installer unknown / sideload / system pre-install"
+     * branch in the probe's scoring).
+     */
+    override fun queryInstallSourcePackage(): String? = snapshot.installSourcePackage
 }
 
 /**

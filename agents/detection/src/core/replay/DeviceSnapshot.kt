@@ -274,4 +274,34 @@ data class DeviceSnapshot(
      * (including empty-but-present which still indicates Magisk).
      */
     val dirEntries: Map<String, List<String>> = emptyMap(),
+
+    /**
+     * Installer package name for THIS app, as reported by
+     * `PackageManager.getInstallSourceInfo()` (Android 11+) or the legacy
+     * `getInstallerPackageName()` (pre-Android-11). Consumed by
+     * `IntegrityInstallSourceProbe` (inventory rank 10.5, freeRASP T5 —
+     * Detecting Unofficial Installation).
+     *
+     * Value semantics:
+     *   - `"com.android.vending"` / `"com.google.android.feedback"` /
+     *     `"com.huawei.appmarket"` / `"com.sec.android.app.samsungapps"` /
+     *     `"com.xiaomi.mipicks"` / `"com.oppo.market"` / `"com.vivo.appstore"`
+     *     — installed via the corresponding legitimate store. Probe scores
+     *     0.05 (clean).
+     *   - Any other package string (e.g. `"com.evil.unofficial"`,
+     *     `"org.fdroid.fdroid"`, `"com.apkmirror.helper"`) — installed via
+     *     an unofficial third-party store. Probe scores 0.95 (dispositive).
+     *   - `null` — installer unknown. Either the app was sideloaded
+     *     (`adb install`), or it is a system pre-install where the OEM
+     *     didn't record an installer, or the platform's
+     *     `getInstallSourceInfo()` accessor returned a null
+     *     `installingPackageName`. Probe scores 0.85 (strong suspicion —
+     *     real production installs from a store always populate this).
+     *
+     * Default `null` means "snapshot did not capture installer info"
+     * which is observationally equivalent to "installer is unknown"; the
+     * probe scoring conflates the two and downstream consumers should
+     * read CONFIDENCE rather than re-distinguishing.
+     */
+    val installSourcePackage: String? = null,
 )

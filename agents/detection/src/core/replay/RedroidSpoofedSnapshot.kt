@@ -1403,5 +1403,14 @@ object RedroidSpoofedSnapshot {
                 11 3 253:11 / /vendor_dlkm ro - ext4 /dev/block/dm-11
             """.trimIndent(),
         ),
+
+        // Power-16 B3 — IntegrityInstallSourceProbe (inventory rank 10.5,
+        // freeRASP T5). The spoof-stack masks the sideload by writing
+        // `com.android.vending` into the install-source recorded for the
+        // detector app — equivalent to running
+        // `pm install -i com.android.vending ...` at install time. This
+        // is the canonical post-spoof state and the probe scores 0.05
+        // (clean), matching the FullProbeRunnerSpoofTest CLEAN invariant.
+        installSourcePackage = "com.android.vending",
     )
 }
