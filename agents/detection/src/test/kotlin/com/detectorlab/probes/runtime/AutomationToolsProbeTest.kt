@@ -219,4 +219,211 @@ class AutomationToolsProbeTest {
         assertTrue("proc_net_tcp.port_5555_established" in keys)
         assertTrue("adb_shell_active" in keys)
     }
+
+    // ── Power-13 Gap #13 — overlay/capture/control categorization ────────────
+
+    @Test
+    fun `overlay package present — score gains 0_30`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.facebook.lite")))
+        assertTrue(
+            result.score >= 0.29 && result.score < 0.40,
+            "expected score in [0.29, 0.40) for overlay-only, got ${result.score}",
+        )
+    }
+
+    @Test
+    fun `overlay present — overlay_present evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.facebook.lite")))
+        val ev = result.evidence.find { it.key == "automation_tools.overlay_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `overlay present — overlay_hits lists package verbatim`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.facebook.lite")))
+        val ev = result.evidence.find { it.key == "automation_tools.overlay_hits" }
+        assertEquals("com.facebook.lite", ev?.value)
+    }
+
+    @Test
+    fun `capture package present — score gains 0_25`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.duapps.recorder")))
+        assertTrue(
+            result.score >= 0.24 && result.score < 0.35,
+            "expected score in [0.24, 0.35) for capture-only, got ${result.score}",
+        )
+    }
+
+    @Test
+    fun `capture present — capture_present evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.duapps.recorder")))
+        val ev = result.evidence.find { it.key == "automation_tools.capture_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `control package present — score gains 0_40`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.teamviewer.host")))
+        assertTrue(
+            result.score >= 0.39 && result.score < 0.50,
+            "expected score in [0.39, 0.50) for control-only, got ${result.score}",
+        )
+    }
+
+    @Test
+    fun `control present — control_present evidence is true`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.teamviewer.host")))
+        val ev = result.evidence.find { it.key == "automation_tools.control_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `AnyDesk control — fires control category`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.anydesk.anydeskandroid")))
+        val ev = result.evidence.find { it.key == "automation_tools.control_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `AirDroid control — fires control category`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.sand.airdroid")))
+        val ev = result.evidence.find { it.key == "automation_tools.control_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `Vysor control — fires control category`() = runBlocking {
+        val result = probe.run(fakeCtx(installedPackages = setOf("com.koushikdutta.vysor")))
+        val ev = result.evidence.find { it.key == "automation_tools.control_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `all three Power-13 Gap #13 categories — score caps at 0_95 additive`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(installedPackages = setOf(
+                "com.facebook.lite",        // overlay 0.30
+                "com.duapps.recorder",      // capture 0.25
+                "com.teamviewer.host",      // control 0.40
+            )),
+        )
+        // 0.30 + 0.25 + 0.40 = 0.95
+        assertTrue(
+            result.score >= 0.94 && result.score <= 0.96,
+            "expected ~0.95 additive score, got ${result.score}",
+        )
+    }
+
+    @Test
+    fun `clean — all 3 new evidence rows reflect absent state`() = runBlocking {
+        val result = probe.run(fakeCtx())
+        val overlay = result.evidence.find { it.key == "automation_tools.overlay_present" }
+        val capture = result.evidence.find { it.key == "automation_tools.capture_present" }
+        val control = result.evidence.find { it.key == "automation_tools.control_present" }
+        assertEquals(false, overlay?.value)
+        assertEquals(false, capture?.value)
+        assertEquals(false, control?.value)
+    }
+
+    @Test
+    fun `clean — overlay_hits capture_hits control_hits all report none`() = runBlocking {
+        val result = probe.run(fakeCtx())
+        val overlayHits = result.evidence.find { it.key == "automation_tools.overlay_hits" }
+        val captureHits = result.evidence.find { it.key == "automation_tools.capture_hits" }
+        val controlHits = result.evidence.find { it.key == "automation_tools.control_hits" }
+        assertEquals("none", overlayHits?.value)
+        assertEquals("none", captureHits?.value)
+        assertEquals("none", controlHits?.value)
+    }
+
+    @Test
+    fun `evidence set contains 6 new Power-13 Gap 13 keys`() = runBlocking {
+        val result = probe.run(fakeCtx())
+        val keys = result.evidence.map { it.key }.toSet()
+        assertTrue("automation_tools.overlay_present" in keys)
+        assertTrue("automation_tools.overlay_hits" in keys)
+        assertTrue("automation_tools.capture_present" in keys)
+        assertTrue("automation_tools.capture_hits" in keys)
+        assertTrue("automation_tools.control_present" in keys)
+        assertTrue("automation_tools.control_hits" in keys)
+    }
+
+    @Test
+    fun `multiple control packages — hits lists comma-joined`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(installedPackages = setOf(
+                "com.teamviewer.host",
+                "com.anydesk.anydeskandroid",
+            )),
+        )
+        val ev = result.evidence.find { it.key == "automation_tools.control_hits" }
+        val hits = ev?.value?.toString()?.split(",")?.toSet() ?: emptySet()
+        assertEquals(
+            setOf("com.teamviewer.host", "com.anydesk.anydeskandroid"),
+            hits,
+        )
+    }
+
+    // ── findInstalledFromList helper ─────────────────────────────────────────
+
+    @Test
+    fun `findInstalledFromList returns subset that is installed`() {
+        val pm = object : PackageManagerView {
+            override fun isPackageInstalled(packageName: String) =
+                packageName == "com.facebook.lite"
+            override fun listInstalledPackages() = listOf("com.facebook.lite")
+            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+        }
+        val hits = findInstalledFromList(
+            pm,
+            listOf("com.facebook.lite", "com.zedge.android"),
+        )
+        assertEquals(listOf("com.facebook.lite"), hits)
+    }
+
+    @Test
+    fun `findInstalledFromList tolerates per-package throws`() {
+        val pm = object : PackageManagerView {
+            override fun isPackageInstalled(packageName: String): Boolean {
+                if (packageName == "com.facebook.lite") throw RuntimeException("simulated")
+                return packageName == "com.teamviewer.host"
+            }
+            override fun listInstalledPackages() = emptyList<String>()
+            override fun listPackagesWithPermission(permission: String) = emptyList<String>()
+        }
+        val hits = findInstalledFromList(
+            pm,
+            listOf("com.facebook.lite", "com.teamviewer.host"),
+        )
+        // The throwing call is silently skipped; the second one
+        // succeeds.
+        assertEquals(listOf("com.teamviewer.host"), hits)
+    }
+
+    // ── Power-13 Gap #13 list-size invariants ────────────────────────────────
+
+    @Test
+    fun `KNOWN_OVERLAY_PACKAGES has at least 5 entries`() {
+        assertTrue(AutomationToolsProbe.KNOWN_OVERLAY_PACKAGES.size >= 5)
+    }
+
+    @Test
+    fun `KNOWN_CAPTURE_PACKAGES has at least 5 entries`() {
+        assertTrue(AutomationToolsProbe.KNOWN_CAPTURE_PACKAGES.size >= 5)
+    }
+
+    @Test
+    fun `KNOWN_CONTROL_PACKAGES has at least 5 entries`() {
+        assertTrue(AutomationToolsProbe.KNOWN_CONTROL_PACKAGES.size >= 5)
+    }
+
+    @Test
+    fun `Power-13 Gap 13 lists are disjoint`() {
+        val o = AutomationToolsProbe.KNOWN_OVERLAY_PACKAGES.toSet()
+        val c = AutomationToolsProbe.KNOWN_CAPTURE_PACKAGES.toSet()
+        val r = AutomationToolsProbe.KNOWN_CONTROL_PACKAGES.toSet()
+        assertTrue((o intersect c).isEmpty())
+        assertTrue((o intersect r).isEmpty())
+        assertTrue((c intersect r).isEmpty())
+    }
 }

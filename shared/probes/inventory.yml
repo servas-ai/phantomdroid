@@ -643,7 +643,7 @@ probes:
     category: runtime
     severity: medium
     android_layer: framework
-    description: "UIAutomator service; accessibility service Appium; adb_enabled + active shell connection. freeRASP T10"
+    description: "UIAutomator service; accessibility service Appium; adb_enabled + active shell; overlay/capture/control package categorization aligned with Play Integrity appAccessRiskVerdict (Power-13 Gap #13). freeRASP T10"
     mitigation_layer: L4
 
   - rank: 52.5
