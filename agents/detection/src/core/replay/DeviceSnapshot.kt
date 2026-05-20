@@ -219,4 +219,22 @@ data class DeviceSnapshot(
      * Empty list = clean (no rwxp pages observed).
      */
     val rwxpMemorySegments: List<String> = emptyList(),
+
+    /**
+     * `/proc/<pid>/mountinfo` content per PID. Keys are pid strings —
+     * canonical entries are `"self"` (calling process) and `"1"` (init).
+     * Values are the full mountinfo content verbatim — one mount entry
+     * per line in the standard kernel format
+     * (`mount-id parent-id major:minor root mount-point opts ...`).
+     * Missing key → `queryMountInfo(pid)` returns `null` ("no
+     * observation"). Empty-string value → `queryMountInfo(pid)`
+     * returns `""` (file existed but was empty).
+     *
+     * Power-13 Gap #3 (`root.mount_ns_mismatch`) consumes both
+     * `mountInfo["self"]` and `mountInfo["1"]` for the digest
+     * comparison. Power-13 Gap #10 (`root.system_rw_mount`) and
+     * Gap #12 (`root.overlayfs_present`) parse the content for
+     * specific lines.
+     */
+    val mountInfo: Map<String, String?> = emptyMap(),
 )

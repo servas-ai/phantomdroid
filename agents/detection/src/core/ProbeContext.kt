@@ -271,6 +271,30 @@ interface ProbeContext {
      * `PrologueGotHooksProbe` (rank 9.8).
      */
     fun queryRwxpMemorySegments(): List<String> = emptyList()
+
+    /**
+     * Read `/proc/<pid>/mountinfo` for the given PID. Standard kernel
+     * format — one mount entry per line. `pid` is either a numeric
+     * decimal string (e.g. `"1"` for init) or the special token
+     * `"self"` (kernel-recognised alias for the calling process).
+     * Returns `null` by default — fakes / contexts that predate this
+     * accessor report "no mountinfo observation" (the conservative
+     * answer for a Power-13-pre-iteration JVM ctx).
+     *
+     * Power-13 Gap #3 closure. The mount-namespace comparison rule
+     * needs BOTH `mountinfo("self")` AND `mountinfo("1")` to detect
+     * the Magisk `mount --bind` divergence — when Magisk hides
+     * filesystem changes per-process via mount-namespace isolation,
+     * the digest of `/proc/self/mountinfo` differs from
+     * `/proc/1/mountinfo`. HuskyDG documents this as the #1 Momo
+     * signal.
+     *
+     * Also reused by Power-13 Gap #10 (`root.system_rw_mount`) and
+     * Gap #12 (`root.overlayfs_present`) — both parse the
+     * mountinfo content for specific lines instead of comparing
+     * digests.
+     */
+    fun queryMountInfo(pid: String): String? = null
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

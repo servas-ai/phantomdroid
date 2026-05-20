@@ -320,5 +320,44 @@ object Pixel7CleanSnapshot {
         // surfaces empty by ground truth.
         gotPltAnomalies = emptyMap(),
         rwxpMemorySegments = emptyList(),
+
+        // Power-13 Gap #3 / #10 / #12 — Pixel 7 GKI-kernel
+        // production mountinfo. Apex mounts visible to init,
+        // partially inherited via zygote bind into the app
+        // namespace (apex runtime + art runtime are app-visible;
+        // vendor_dlkm typically is not). No Magisk paths anywhere
+        // — factory-clean state. Power-13 Gap #3 lands in
+        // PATTERN_DIGEST_DIFF_NO_MAGISK at score 0.0. Gap #10
+        // sees /system mounted read-only (the production state).
+        // Gap #12 sees NO overlay over /system (Pixel 7 uses
+        // dynamic-partition ext4 mounts, not overlayfs).
+        mountInfo = mapOf(
+            "self" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 2 0:9 / /apex/com.android.runtime ro - bind /apex/com.android.runtime
+                10 2 0:10 / /apex/com.android.art ro - bind /apex/com.android.art
+            """.trimIndent(),
+            "1" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 2 0:9 / /apex/com.android.runtime ro - bind /apex/com.android.runtime
+                10 2 0:10 / /apex/com.android.art ro - bind /apex/com.android.art
+                11 3 253:11 / /vendor_dlkm ro - ext4 /dev/block/dm-11
+                12 1 253:12 / /product ro - ext4 /dev/block/dm-12
+            """.trimIndent(),
+        ),
     )
 }

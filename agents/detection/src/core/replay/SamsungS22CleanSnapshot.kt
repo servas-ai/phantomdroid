@@ -323,5 +323,43 @@ object SamsungS22CleanSnapshot {
         // memory pages = empty map + empty list, the clean ground truth.
         gotPltAnomalies = emptyMap(),
         rwxpMemorySegments = emptyList(),
+
+        // Power-13 Gap #3 / #10 / #12 — Samsung Galaxy S22 OneUI
+        // production mountinfo. Same shape as Pixel 7 (Android 12+
+        // dynamic-partition layout) with Samsung-specific
+        // /optics, /efs, /omr OEM partitions visible to init.
+        // No Magisk paths anywhere — factory-clean state.
+        // Power-13 Gap #3 lands in PATTERN_DIGEST_DIFF_NO_MAGISK
+        // at 0.0. Gap #10 sees /system read-only. Gap #12 sees no
+        // overlay over /system.
+        mountInfo = mapOf(
+            "self" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 2 0:9 / /apex/com.android.runtime ro - bind /apex/com.android.runtime
+                10 2 0:10 / /apex/com.android.art ro - bind /apex/com.android.art
+            """.trimIndent(),
+            "1" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 2 0:9 / /apex/com.android.runtime ro - bind /apex/com.android.runtime
+                10 2 0:10 / /apex/com.android.art ro - bind /apex/com.android.art
+                11 1 259:11 / /efs ro - ext4 /dev/block/by-name/efs
+                12 1 259:12 / /optics ro - ext4 /dev/block/by-name/optics
+                13 1 259:13 / /omr ro - ext4 /dev/block/by-name/omr
+            """.trimIndent(),
+        ),
     )
 }

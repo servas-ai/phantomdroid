@@ -1257,5 +1257,72 @@ object RedroidSpoofedSnapshot {
         // STACK §IV Hard Ceiling #1 — UNCOUNTERED.
         gotPltAnomalies = emptyMap(),
         rwxpMemorySegments = emptyList(),
+
+        // Power-13 Gap #3 (root.mount_ns_mismatch) + Gap #10
+        // (root.system_rw_mount) + Gap #12 (root.overlayfs_present)
+        // — spoofed-clean mountinfo. The Shamiko-class spoof stack
+        // intercepts /proc/<pid>/mountinfo reads and serves a
+        // pruned view that omits Magisk's mount-bind operations,
+        // for BOTH self and init. The result: no magisk-fingerprint
+        // substrings appear anywhere; the rank-3.8 probe lands in
+        // PATTERN_DIGEST_DIFF_NO_MAGISK (zygote isolation normal
+        // case) at score 0.0.
+        //
+        // Real-SpoofStack hook: Shamiko + Zygisk-Assistant +
+        // isolated_process — collectively re-route /proc/*/mountinfo
+        // reads to a synthetic mount table that matches the
+        // Pixel-7 reference rather than the actual ReDroid+Magisk
+        // mounts. This is a high-effort spoof: requires (a) syscall
+        // hooking for openat() targeting /proc/*/mountinfo,
+        // (b) a maintained "clean reference" mount table that
+        // matches the spoofed brand/model fingerprint, and (c)
+        // re-synthesis of mount IDs / major:minor numbers that
+        // don't trivially leak the underlying overlay2 storage.
+        //
+        // **Spoofed clean variant**: also note that the overlay-on-
+        // /system mount (legitimate for Pixel-7 GKI-kernel devices
+        // with system_ext partition) IS preserved here. The
+        // discriminator the spoof scrubs is Magisk-specific paths
+        // (/sbin/.magisk, /data/adb, magisk_tmp), not the overlay
+        // filesystem itself — that's a legitimate Android 11+
+        // mount type.
+        mountInfo = mapOf(
+            // /proc/self/mountinfo — synthetic Pixel-7-shaped view.
+            // Magisk paths SCRUBBED.
+            "self" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+            """.trimIndent(),
+            // /proc/1/mountinfo — synthetic Pixel-7 view with init-
+            // process-specific entries (apexd mounts, vendor_dlkm
+            // overlays) that an app's zygote-forked namespace
+            // legitimately does NOT inherit. This makes the
+            // digests differ in a SHAPE that matches a real
+            // production Pixel device (preserving the zygote-
+            // isolation pattern Android has used since A8 user-
+            // profile sandboxes), so the rank-3.8 probe lands in
+            // PATTERN_DIGEST_DIFF_NO_MAGISK at score 0.0 — the
+            // legitimate "zygote isolated my namespace from init"
+            // tell. Magisk paths SCRUBBED from both.
+            "1" to """
+                1 0 253:0 / / ro - ext4 /dev/block/dm-0
+                2 1 253:1 / /system ro - ext4 /dev/block/dm-1
+                3 1 253:2 / /vendor ro - ext4 /dev/block/dm-2
+                4 1 259:1 / /data rw - f2fs /dev/block/by-name/userdata
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 2 0:9 / /apex/com.android.runtime ro - bind /apex/com.android.runtime
+                10 2 0:10 / /apex/com.android.art ro - bind /apex/com.android.art
+                11 3 253:11 / /vendor_dlkm ro - ext4 /dev/block/dm-11
+            """.trimIndent(),
+        ),
     )
 }

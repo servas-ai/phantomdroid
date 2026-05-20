@@ -518,6 +518,14 @@ probes:
     description: "Nox/Andy/MEmu/BlueStacks/MicroVirt/Droid4x init.rc + fstab files — third-party (non-AOSP) emulator artifacts (Power-13 Gap #4)"
     mitigation_layer: L1
 
+  - rank: 3.8
+    id: root.mount_ns_mismatch
+    category: root
+    severity: high
+    android_layer: kernel
+    description: "Magisk-fingerprint substring asymmetry between /proc/self/mountinfo and /proc/1/mountinfo — HuskyDG #1 Momo signal (Power-13 Gap #3)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime

@@ -340,5 +340,66 @@ object RedroidV12Snapshot {
         // the anomaly map and rwxp segment list are both empty.
         gotPltAnomalies = emptyMap(),
         rwxpMemorySegments = emptyList(),
+
+        // Power-13 Gap #3 (root.mount_ns_mismatch) + Gap #10
+        // (root.system_rw_mount) + Gap #12 (root.overlayfs_present)
+        // — realistic ReDroid 12 + Magisk mountinfo. ReDroid uses
+        // Docker's overlay2 storage driver for the rootfs, so
+        // `/system` is mounted as overlayfs on the host; the
+        // captured container therefore has `overlay on /system`
+        // visible from init's mount namespace. A Magisk-rooted
+        // ReDroid additionally exposes `/sbin/.magisk` (pre-A11
+        // Magisk root) AND `/data/adb` (Magisk modules root) in
+        // init's view.
+        //
+        // Magisk DenyList typically hides these from the app's
+        // /proc/self/mountinfo via per-app fork-bombed unmounts
+        // — so the canonical UN-SPOOFED dirty state is:
+        //   - /proc/1/mountinfo: full mount table with Magisk
+        //   - /proc/self/mountinfo: pruned mount table without
+        //     Magisk paths (Magisk hides itself by default)
+        //
+        // The asymmetry is the Power-13 Gap #3 signal — Magisk
+        // mounts in init only fires PATTERN_MAGISK_IN_INIT_ONLY
+        // at score 0.95.
+        mountInfo = mapOf(
+            // /proc/self/mountinfo — Magisk-DenyList-pruned view.
+            // Same overlay /system (visible to apps because it IS
+            // the root filesystem for the app), but Magisk paths
+            // are unmounted in the app namespace. Realistic ReDroid
+            // shape: a few dozen mount entries, of which only the
+            // standard Android filesystem mounts are visible.
+            "self" to """
+                1 0 0:1 / / ro - overlay overlay rw,lowerdir=/lower,upperdir=/upper
+                2 1 0:2 / /system ro - overlay overlay rw,lowerdir=/system_lower
+                3 1 0:3 / /vendor ro - overlay overlay rw
+                4 1 0:4 / /data rw - ext4 /dev/block/vda
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+            """.trimIndent(),
+            // /proc/1/mountinfo — init view, includes Magisk
+            // mount-binds. Magisk's signature paths are visible:
+            // /sbin/.magisk (Magisk runtime root), /data/adb
+            // (Magisk modules + denylist), and magisk_tmp (Magisk
+            // workdir). Power-13 Gap #3 PATTERN_MAGISK_IN_INIT_ONLY
+            // fires at 0.95 because these substrings appear here
+            // but NOT in the self view above.
+            "1" to """
+                1 0 0:1 / / ro - overlay overlay rw,lowerdir=/lower,upperdir=/upper
+                2 1 0:2 / /system ro - overlay overlay rw,lowerdir=/system_lower
+                3 1 0:3 / /vendor ro - overlay overlay rw
+                4 1 0:4 / /data rw - ext4 /dev/block/vda
+                5 1 0:5 / /sys ro - sysfs sysfs
+                6 1 0:6 / /proc ro - proc proc
+                7 1 0:7 / /dev rw - tmpfs tmpfs
+                8 4 0:8 / /storage/emulated rw - fuse fuse
+                9 1 0:9 / /sbin/.magisk rw - tmpfs magisk_tmp
+                10 9 0:10 / /sbin/.magisk/mirror rw - tmpfs magisk_tmp
+                11 4 0:11 / /data/adb/modules rw - ext4 /dev/block/vda
+                12 9 0:12 / /sbin/magisk rw - bind /sbin/.magisk/busybox
+            """.trimIndent(),
+        ),
     )
 }

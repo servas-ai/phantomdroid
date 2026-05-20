@@ -225,6 +225,14 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      */
     override fun queryRwxpMemorySegments(): List<String> =
         snapshot.rwxpMemorySegments
+
+    /**
+     * Snapshot-side bridge for Power-13 Gap #3 (`MountNsMismatchProbe`),
+     * Gap #10 (`SystemRwMountProbe`), Gap #12 (`OverlayFsPresentProbe`).
+     * Returns the snapshot's `mountInfo[pid]` entry verbatim. Missing
+     * key → null (no observation); empty-string preserved.
+     */
+    override fun queryMountInfo(pid: String): String? = snapshot.mountInfo[pid]
 }
 
 /**
