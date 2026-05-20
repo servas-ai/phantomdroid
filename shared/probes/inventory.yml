@@ -167,7 +167,7 @@ probes:
     category: env
     severity: high
     android_layer: framework
-    description: "Timezone vs IP geolocation mismatch"
+    description: "Timezone vs locale-country consistency (network-free proxy for IP geolocation)"
     mitigation_layer: L1
 
   - rank: 21

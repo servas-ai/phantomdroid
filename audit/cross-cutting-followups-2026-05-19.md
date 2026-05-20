@@ -57,17 +57,13 @@
 
 ---
 
-## #4 inventory.yml rank 20 description divergence
+## #4 inventory.yml rank 20 description divergence (FIXED 2026-05-20)
 
-**Observation**: `shared/probes/inventory.yml:170` says rank 20 description is `"Timezone vs IP geolocation mismatch"`. The implemented probe substitutes locale-country for IP geolocation (per the no-live-network research boundary).
+**Observation**: `shared/probes/inventory.yml:170` said rank 20 description was `"Timezone vs IP geolocation mismatch"`. The implemented probe substitutes locale-country for IP geolocation (per the no-live-network research boundary).
 
-**Why this matters**: Inventory is meant to be authoritative metadata. Description divergence makes the inventory misleading for anyone reading it without the probe.
+**Fix applied**: Updated line 170 to `"Timezone vs locale-country consistency (network-free proxy for IP geolocation)"`.
 
-**Proposed fix**: Update line 170 to `"Timezone vs locale-country consistency (network-free proxy for IP geolocation)"` or similar.
-
-**Acceptance**: Inventory description matches what the probe actually measures.
-
-**Owner action**: one-line inventory.yml edit; can be done in next session.
+**Status**: closed.
 
 ---
 
