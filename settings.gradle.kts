@@ -15,3 +15,6 @@ rootProject.name = "cloud-phone-research-planner"
 
 include(":detection")
 project(":detection").projectDir = file("agents/detection")
+
+include(":detection-cli")
+project(":detection-cli").projectDir = file("agents/detection-cli")

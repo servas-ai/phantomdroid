@@ -219,6 +219,61 @@ object RedroidSpoofedSnapshot {
             // reflection on Build.SERIAL (deprecated but readable). Documented as
             // dual-surface fix: property AND Build.getSerial() Xposed hook.
             "ro.serialno" to "HQ7Y0V3RJL",                        // was not-set
+
+            // Mask rank-6 (integrity.keystore_attestation): the declarative
+            // inference probe scores on six surfaces (unlocked bootloader +
+            // verity-off / Knox-warranty-tripped / abnormal bootmode / no
+            // hardware keystore HAL / Houdini dual-arch / keymaster device
+            // missing). The bootloader/Houdini surfaces are ALREADY closed by
+            // the rank-13 and rank-27 fixes above (`ro.boot.flash.locked=1`,
+            // pure ARM64 `ro.product.cpu.abilist`). The four remaining
+            // surfaces are closed here. Without these, the spoofed snapshot
+            // would land at 0.70 (no hardware_keystore + no /dev/keymaster
+            // both fire) and the rank-6 probe would block the full-panel
+            // CLEAN classification.
+            //
+            // Real-SpoofStack hook: keystore is the load-bearing surface for
+            // hardware attestation. A real SpoofStack on PAR822349 needs:
+            //   (a) Magisk `mknod /dev/keymaster c <major> <minor>` from a
+            //       service.d boot script to create the keymaster device node
+            //       at the path apps `stat()`. The node IS bindable by an
+            //       Android keystore HAL — but the HAL itself doesn't exist
+            //       in a containerized environment, so this is a "make the
+            //       presence check pass" hook, NOT a "make hardware
+            //       attestation work" hook.
+            //   (b) LSPosed hook on `android.security.keystore.KeyStore.
+            //       getAttestationChain()` that returns a CACHED real-device
+            //       chain (captured offline from a real Pixel 7 with a
+            //       throwaway key). The cached chain has a valid signature
+            //       all the way to the Google attestation root, BUT the
+            //       attestation-extension `applicationId` and the
+            //       `attestationChallenge` are fixed to the cached values —
+            //       a verifier that includes a server-side nonce in its
+            //       challenge will reject this (the chain's challenge will
+            //       not match). This is the canonical "TrickyStore" hack
+            //       and it works against verifiers that don't bind the
+            //       challenge server-side; it fails against verifiers that
+            //       do. Documented here as a known-limited hook.
+            //   (c) Magisk resetprop for `ro.hardware.keystore` to a
+            //       plausible HAL name (e.g. "default" or "gs201" for Pixel
+            //       7 shape). This satisfies the property-surface check
+            //       without requiring an actual HAL.
+            //   (d) Magisk resetprop for `ro.boot.veritymode=enforcing`,
+            //       `ro.boot.warranty_bit=0`, `ro.boot.warranty=1`,
+            //       `ro.bootmode=normal` — the production-clean defaults a
+            //       real Pixel 7 reports.
+            // Per `audit/spoof-stack/un-snapshottable.md`, the REAL
+            // attestation surface (not the declarative L3 inference here) is
+            // L0 — un-spoofable in the FOSS-tooling era of 2026. The
+            // declarative inference here scores against the property-surface
+            // markers that imply a failing attestation; the production
+            // SpoofStack closes those markers, but a verifier that performs
+            // the real KeyStore call still bypasses this entire mitigation.
+            "ro.boot.veritymode" to "enforcing",                  // was not-set
+            "ro.boot.warranty_bit" to "0",                        // was not-set
+            "ro.boot.warranty" to "1",                            // was not-set
+            "ro.bootmode" to "normal",                            // was not-set
+            "ro.hardware.keystore" to "gs201",                    // was not-set — Pixel 7 Tensor-G2 HAL
         ),
         existingFiles = setOf(
             // Mask rank-3 (root.su_detection): was {"/system/bin/su"} — the
@@ -228,6 +283,27 @@ object RedroidSpoofedSnapshot {
             // the /system/bin/su path is unmounted at process-start via the
             // Magisk mount-namespace isolation. The file still exists on the
             // backing filesystem; it's just not visible to the detected app.
+
+            // Mask rank-6 (integrity.keystore_attestation) Signal 6: the
+            // declarative probe checks `ctx.fileExists("/dev/keymaster")` as
+            // its lowest-tier (0.50) attestation-fail predictor — a real
+            // hardware-keystore HAL binds to this device node, so its
+            // absence implies no keymaster service is reachable.
+            // Real-SpoofStack hook: Magisk service.d boot script runs
+            //   mknod /dev/keymaster c 10 200
+            // (the character-device numbering is irrelevant for a presence
+            // check — `stat /dev/keymaster` only consults the dentry, not
+            // the underlying driver) plus an `chmod 666 /dev/keymaster` so
+            // the target app's UID can open the node without permission
+            // gymnastics. This is a "make the existence check pass" hook;
+            // the node has no driver bound behind it, so any actual ioctl()
+            // call against the keymaster HAL would still fail. The
+            // declarative probe at rank 6 only inspects existence, not
+            // functionality — closing it via mknod is sufficient for THIS
+            // probe but does NOT make hardware-backed attestation work
+            // (see the L0 vs L3 note in the rank-6 KDoc and in the
+            // ro.hardware.keystore comment block above).
+            "/dev/keymaster",
 
             // Mask rank-14 (root.selinux) Signal 4: SeLinuxProbe checks
             // `fileExists("/sys/fs/selinux/policy")` — absence is suspicious
@@ -455,6 +531,43 @@ object RedroidSpoofedSnapshot {
                 "# T-Mobile US carrier DNS — autogenerated by netd\n" +
                 "nameserver 8.25.203.30\n" +
                 "nameserver 8.25.203.31\n",
+
+            // Mask rank-5 (network.ip_asn) Signal 3: NetworkIpAsnProbe scans
+            // /proc/net/route for the AVD / Docker canonical gateway hex
+            // tokens (0102000A=10.0.2.1, 010011AC=172.17.0.1). Real ReDroid
+            // containers reuse the Docker bridge — so an un-spoofed capture
+            // would expose 010011AC in the kernel route dump and trip the
+            // probe at score 0.70. The spoofed value below is a clean
+            // home-network route table with gateway 192.168.1.1
+            // (= 0101A8C0 in little-endian kernel format), which is NOT in
+            // the EMULATOR_GATEWAY_HEX_TOKENS set and lands the probe in
+            // SIGNAL_CLEAN. Column layout matches the canonical Linux 4.x
+            // kernel format (tab-separated, 11 columns, single header row).
+            //
+            // Real-SpoofStack hook: Magisk `mount --bind` to overlay
+            // /proc/net/route with a synthetic home-network route table.
+            // The /proc/net/* tree is generated by the kernel netlink
+            // subsystem on every read (it's a virtual filesystem, not a
+            // backed-by-disk file), so the only viable spoofing surfaces
+            // are (a) mount-bind a static file over the path — visible to
+            // every process on the device for the lifetime of the bind —
+            // or (b) an LSPosed-class file-IO hook that redirects opens
+            // of "/proc/net/route" to a synthetic stream. Option (a) is
+            // the production-grade fix shipped in the Magisk-Hide /
+            // DenyList family of modules for the parallel /etc/resolv.conf
+            // surface above.
+            //
+            // NOTE: the ground-truth ReDroid /proc/net/route IS readable
+            // via `docker exec redroid-test cat /proc/net/route` — the
+            // kernel exposes it transparently through the container's
+            // procfs mount. The audit/un-snapshottable.md doc tracks live
+            // ASN lookups (which require INTERNET permission + a network
+            // call) as the L6 production work that the rank-5 probe
+            // stands in for declaratively.
+            "/proc/net/route" to
+                "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n" +
+                "wlan0\t00000000\t0101A8C0\t0003\t0\t0\t0\t00000000\t0\t0\t0\n" +
+                "wlan0\t0001A8C0\t00000000\t0001\t0\t0\t0\t00FFFFFF\t0\t0\t0\n",
         ),
         // Mask rank-11 (identity.android_id), rank-58 (ui.input_method),
         // rank-82 (env.location_mock_rasp): all three read from settingsSecure

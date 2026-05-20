@@ -77,10 +77,35 @@ object RedroidV12Snapshot {
             // rank 14 selinux
             "ro.boot.selinux" to "",
             "ro.build.selinux" to "",
+
+            // rank 6 keystore_attestation — ReDroid containers have NO
+            // hardware keystore HAL. Both `ro.hardware.keystore` and the
+            // Knox/verity property surface are EMPTY on the captured
+            // container — the kernel-virtual `/proc/sys/kernel/<keystore>`
+            // namespace simply doesn't exist when the host kernel is a
+            // generic Ubuntu kernel rather than an Android GKI kernel
+            // with the keystore HAL pre-bound. Encoded as empty-string
+            // (not omitted) so the rank-6 declarative probe sees the
+            // captured "set-but-empty" answer (which lands in the
+            // `hardwareKeystoreAbsent` 0.70 tier).
+            "ro.boot.veritymode" to "",
+            "ro.boot.warranty_bit" to "",
+            "ro.boot.warranty" to "",
+            "ro.bootmode" to "",
+            "ro.hardware.keystore" to "",
         ),
         existingFiles = setOf(
             // rank 3 su_detection — ReDroid ships /system/bin/su
             "/system/bin/su",
+            // rank 6 keystore_attestation — `/dev/keymaster` is NOT present
+            // in the captured ReDroid /dev tree. The container shares the
+            // host's /dev namespace (a generic Ubuntu /dev with no
+            // android-vendor keymaster node bound), so the probe's
+            // `keymasterMissing` predicate fires (0.50 tier). Declared by
+            // omission below — the set explicitly does NOT include
+            // "/dev/keymaster", which is the captured ground-truth and
+            // mirrors what `docker exec redroid-test ls /dev/keymaster`
+            // returned in the audit run.
         ),
         readableFiles = mapOf(
             // rank 30 proc_version — leaks host (Ubuntu 18.04 launchpad
@@ -89,6 +114,21 @@ object RedroidV12Snapshot {
                 "Linux version 4.15.0-213-generic (buildd@lcy02-amd64-079) " +
                 "(gcc version 7.5.0 (Ubuntu 7.5.0-3ubuntu1~18.04)) " +
                 "#224-Ubuntu SMP Mon Jun 19 13:30:12 UTC 2023",
+
+            // rank 5 network.ip_asn — NOT captured in this ground-truth
+            // snapshot (the 2026-05-20 audit run did not snapshot
+            // /proc/net/route), but the path IS readable via
+            // `docker exec redroid-test cat /proc/net/route` against the
+            // live container. What we'd see on the un-spoofed container:
+            // a route table whose default-route gateway hex is `010011AC`
+            // (= 172.17.0.1, the Docker bridge) — the canonical
+            // EMULATOR_GATEWAY_HEX_TOKEN for Docker. NetworkIpAsnProbe
+            // would score 0.70 (SIGNAL_EMULATOR_GATEWAY_ROUTE) on the
+            // un-spoofed container. The matching spoofed counterpart in
+            // RedroidSpoofedSnapshot populates the path with a clean
+            // home-network 192.168.1.1 gateway to disarm the rule.
+            // Future re-captures SHOULD populate this entry verbatim from
+            // the live container for full-fidelity replay parity.
         ),
         // No Android settings or telephony state in this capture — empty maps
         // give the conservative "key not in map → null" answer.

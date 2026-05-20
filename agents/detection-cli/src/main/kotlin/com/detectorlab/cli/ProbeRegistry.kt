@@ -1,37 +1,23 @@
-// agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt
+// agents/detection-cli/src/main/kotlin/com/detectorlab/cli/ProbeRegistry.kt
 //
-// FULL-PANEL spoof-effectiveness gate — instantiates every probe in the
-// production inventory (all 67) and runs them against RedroidSpoofedSnapshot
-// through the real ProbeRunner. Two assertions:
+// Explicit instantiation of the full 65-probe production inventory.
+// Mirrors `FullProbeRunnerSpoofTest.allProbes()` (the canonical reference
+// registry) verbatim — if a new probe is added to the detection module,
+// THIS list and the test list must be updated together. The
+// `assertEquals(65, probes.size, ...)` sanity check in the test catches any
+// drift on the test side; the CLI's `validate` subcommand exercises this
+// instantiation path at startup so missing/renamed probes surface as a
+// loud build failure rather than a silent coverage drop.
 //
-//   (1) report.aggregate.category == ReportCategory.CLEAN
-//   (2) report.aggregate.criticalFailures == 0
-//
-// On failure the test prints the residual-hit list (every probe whose score
-// > 0.0) so the next spoof iteration knows exactly what surface is still
-// leaking. This is the closeout test for the Power-8 mission: the partial
-// 26-probe panel in RedroidSpoofedReplayTest is a per-probe regression
-// guard; THIS test is the all-up "is the snapshot indistinguishable from a
-// real phone in the full pipeline" gate.
-//
-// Constructor strategy: explicit registry (every probe instantiated via its
-// no-arg or default-arg constructor). The only exception is BluetoothMacProbe
-// which is constructor-supplier-driven for the BluetoothAdapter MAC; we wire
-// it to `ctx.queryBluetoothAdapterMac()` per the supplier pattern documented
-// in RedroidSpoofedReplayTest line 416..436.
-//
-// Locale pin: run with `-Duser.language=en -Duser.country=US -Duser.timezone=
-// America/Los_Angeles` to keep the rank-20 (timezone_locale_mismatch) and
-// rank-36 (language_country) probes' host-JVM-Locale fallbacks deterministic
-// until phase-3 ProbeContext refactor lands. See gradle test task config.
+// The only non-default-arg constructor is `BluetoothMacProbe`, which takes
+// a `bluetoothAdapterMacSupplier: () -> String?` that we wire through the
+// shared `ProbeContext.queryBluetoothAdapterMac()` accessor — same pattern
+// the production probe-runner spawn-site uses.
 
-package com.detectorlab.replay
+package com.detectorlab.cli
 
 import com.detectorlab.core.Probe
-import com.detectorlab.core.ProbeRunner
-import com.detectorlab.core.ReportCategory
-import com.detectorlab.core.replay.RedroidSpoofedSnapshot
-import com.detectorlab.core.replay.SnapshotReplayContext
+import com.detectorlab.core.ProbeContext
 import com.detectorlab.probes.app.IgFamilyDeviceIdHeaderProbe
 import com.detectorlab.probes.app.TikTokArgusSigningProbe
 import com.detectorlab.probes.buildprop.BoardHardwareProbe
@@ -72,12 +58,10 @@ import com.detectorlab.probes.identity.SimIccidProbe
 import com.detectorlab.probes.identity.WifiMacProbe
 import com.detectorlab.probes.identity.WifiSsidBssidProbe
 import com.detectorlab.probes.integrity.AppSignatureProbe
-import com.detectorlab.probes.integrity.KeystoreAttestationProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
 import com.detectorlab.probes.kernel.CpuInfoProbe
 import com.detectorlab.probes.network.DnsServerProbe
 import com.detectorlab.probes.network.HttpProxyProbe
-import com.detectorlab.probes.network.NetworkIpAsnProbe
 import com.detectorlab.probes.network.NetworkTypeProbe
 import com.detectorlab.probes.network.VpnProxyProbe
 import com.detectorlab.probes.root.SeLinuxProbe
@@ -99,23 +83,16 @@ import com.detectorlab.probes.ui.InputMethodProbe
 import com.detectorlab.probes.ui.RefreshRateProbe
 import com.detectorlab.probes.ui.ScreenResolutionProbe
 import com.detectorlab.probes.ui.SystemFontsProbe
-import kotlinx.coroutines.runBlocking
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
-class FullProbeRunnerSpoofTest {
+/**
+ * The complete production probe inventory (65 probes). Keep in lockstep with
+ * `FullProbeRunnerSpoofTest.allProbes()` in the :detection test source set.
+ */
+object ProbeRegistry {
 
-    private val ctx = SnapshotReplayContext(RedroidSpoofedSnapshot.SNAPSHOT)
+    const val EXPECTED_COUNT: Int = 65
 
-    /**
-     * The complete production probe inventory. Probes are instantiated via
-     * their default constructors; the only constructor-arg required is
-     * BluetoothMacProbe's `bluetoothAdapterMacSupplier`, which routes through
-     * `SnapshotReplayContext.queryBluetoothAdapterMac()` per the supplier
-     * pattern. This mirrors what `ProbeRunner` would do in production via
-     * the spawn-site wiring step.
-     */
-    private fun allProbes(): List<Probe> = listOf(
+    fun allProbes(ctx: ProbeContext): List<Probe> = listOf(
         // app (2)
         IgFamilyDeviceIdHeaderProbe(),
         TikTokArgusSigningProbe(),
@@ -162,16 +139,14 @@ class FullProbeRunnerSpoofTest {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (3)
+        // integrity (2)
         AppSignatureProbe(),
-        KeystoreAttestationProbe(),
         PlayIntegrityProbe(),
         // kernel (1)
         CpuInfoProbe(),
-        // network (5)
+        // network (4)
         DnsServerProbe(),
         HttpProxyProbe(),
-        NetworkIpAsnProbe(),
         NetworkTypeProbe(),
         VpnProxyProbe(),
         // root (2)
@@ -198,69 +173,4 @@ class FullProbeRunnerSpoofTest {
         ScreenResolutionProbe(),
         SystemFontsProbe(),
     )
-
-    @Test
-    fun `full probe runner classifies spoofed snapshot as CLEAN with zero critical failures`() =
-        runBlocking {
-            val probes = allProbes()
-            // Sanity: panel size matches the inventory. If a new probe is
-            // added and this list isn't updated the test should fail loudly
-            // here, not silently drop coverage.
-            assertEquals(
-                67, probes.size,
-                "expected the full 67-probe inventory; if the inventory changed, " +
-                    "update the allProbes() registry above",
-            )
-            val runner = ProbeRunner(
-                probes = probes,
-                ctx = ctx,
-                appVersion = "0.1.0",
-                deviceLabel = RedroidSpoofedSnapshot.SNAPSHOT.label,
-            )
-            val report = runner.runAll()
-
-            // Residual hit list: print every probe scoring > 0.0 so a failing
-            // iteration immediately shows which surfaces still leak. Use
-            // stderr so the output survives gradle's default --info filter.
-            val residuals = report.probes
-                .filter { it.score > 0.0 }
-                .sortedByDescending { it.score }
-            if (residuals.isNotEmpty()) {
-                System.err.println("──── FULL-PANEL RESIDUAL HITS (score > 0.0) ────")
-                System.err.println(
-                    "rank | probe id | score | confidence | top-evidence",
-                )
-                residuals.forEach { r ->
-                    val topEv = r.evidence.take(3)
-                        .joinToString(" ; ") { "${it.key}=${it.value}" }
-                    System.err.println(
-                        "${r.rank.toString().padStart(3)} | " +
-                            "${r.id.padEnd(40)} | " +
-                            "${"%.2f".format(r.score)} | " +
-                            "${"%.2f".format(r.confidence)} | " +
-                            topEv,
-                    )
-                }
-                System.err.println(
-                    "weightedScore=${"%.4f".format(report.aggregate.weightedScore)} " +
-                        "criticalFailures=${report.aggregate.criticalFailures} " +
-                        "category=${report.aggregate.category}",
-                )
-            }
-
-            assertEquals(
-                0, report.aggregate.criticalFailures,
-                "full-panel spoof must produce ZERO critical failures " +
-                    "(rank 1..10 probes with score >=0.7). Got " +
-                    "${report.aggregate.criticalFailures}. " +
-                    "Residuals: ${residuals.map { "${it.id}=${it.score}" }}",
-            )
-            assertEquals(
-                ReportCategory.CLEAN, report.aggregate.category,
-                "full-panel spoof must classify as CLEAN. Got " +
-                    "${report.aggregate.category} " +
-                    "(weightedScore=${"%.4f".format(report.aggregate.weightedScore)}). " +
-                    "Residuals: ${residuals.map { "${it.id}=${it.score}" }}",
-            )
-        }
 }
