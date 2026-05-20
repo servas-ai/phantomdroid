@@ -362,6 +362,39 @@ object RedroidV12Snapshot {
         // The asymmetry is the Power-13 Gap #3 signal — Magisk
         // mounts in init only fires PATTERN_MAGISK_IN_INIT_ONLY
         // at score 0.95.
+        // Power-13 Gap #2 (runtime.init_svc_enumeration) — Magisk
+        // injects 3 randomized service names at boot via its
+        // post-fs-data + service init hooks. The names change per-
+        // boot (Magisk-25+ randomized) but the COUNT and SHAPE
+        // (hex-only 8-char names) are dispositive. This fixture
+        // models a real Magisk-rooted Redroid boot — 3 random-shape
+        // services + the standard AOSP set.
+        initSvcProps = mapOf(
+            // Standard AOSP services (always present)
+            "zygote" to "running",
+            "zygote_secondary" to "running",
+            "servicemanager" to "running",
+            "surfaceflinger" to "running",
+            "mediaserver" to "running",
+            "audioserver" to "running",
+            "installd" to "running",
+            "vold" to "running",
+            "netd" to "running",
+            "logd" to "running",
+            "lmkd" to "running",
+            "ueventd" to "running",
+            "healthd" to "running",
+            "hwservicemanager" to "running",
+            "adbd" to "running",
+            // Power-13 Gap #2 — 3 Magisk-injected random-shape
+            // services. Hex-only 8-char names matching the
+            // canonical Magisk-25+ injection pattern. Power-13
+            // rule PATTERN_RANDOM_SHAPE_INJECTION fires at 0.95.
+            "5a3f1c2b" to "running",
+            "8d6e9700" to "running",
+            "f1a2b3c4" to "running",
+        ),
+
         // Power-13 Gap #1 (root.magisk_uds) — Magisk-rooted ReDroid
         // ships the magiskd UDS in /proc/net/unix. Pre-Magisk-25
         // canonical: literal `@MAGISK` abstract-namespace socket

@@ -249,4 +249,15 @@ data class DeviceSnapshot(
      * `/.magisk` path-fragments).
      */
     val procNetUnixSockets: List<String> = emptyList(),
+
+    /**
+     * Enumerated `init.svc.<name>` system properties harvested via
+     * `__system_property_foreach()`. Keys are service-name suffixes
+     * (e.g. `"zygote"`, `"surfaceflinger"`); values are init-service
+     * state literals (`"running"`, `"stopped"`, etc.). Empty map =
+     * no init.svc observation captured. Consumed by Power-13
+     * Gap #2 (`runtime.init_svc_enumeration`, rank 3.7) — compares
+     * observed service-name set against the known-AOSP baseline.
+     */
+    val initSvcProps: Map<String, String> = emptyMap(),
 )

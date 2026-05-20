@@ -1286,6 +1286,34 @@ object RedroidSpoofedSnapshot {
         // (/sbin/.magisk, /data/adb, magisk_tmp), not the overlay
         // filesystem itself — that's a legitimate Android 11+
         // mount type.
+        // Power-13 Gap #2 (runtime.init_svc_enumeration) —
+        // Shamiko-class spoof filters `init.svc.*` property
+        // enumeration to remove Magisk-injected services. The
+        // resulting service set matches the AOSP baseline cleanly.
+        // Real-SpoofStack hook: hook
+        // `__system_property_foreach()` to filter out the 3
+        // randomized magisk service names, OR ensure the magisk
+        // post-fs-data + service hooks register the services
+        // under canonical-looking names that match the spoofed
+        // brand's known service prefixes (e.g. `vendor.magiskd`
+        // pretending to be a Pixel-vendor service).
+        initSvcProps = mapOf(
+            "zygote" to "running",
+            "zygote_secondary" to "running",
+            "servicemanager" to "running",
+            "surfaceflinger" to "running",
+            "mediaserver" to "running",
+            "audioserver" to "running",
+            "installd" to "running",
+            "vold" to "running",
+            "netd" to "running",
+            "logd" to "running",
+            "lmkd" to "running",
+            "ueventd" to "running",
+            "healthd" to "running",
+            "hwservicemanager" to "running",
+        ),
+
         // Power-13 Gap #1 (root.magisk_uds) — spoofed-clean
         // /proc/net/unix output. The Shamiko-class spoof stack
         // hooks the read of /proc/net/unix and filters out any

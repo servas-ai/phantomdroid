@@ -331,6 +331,37 @@ object Pixel7CleanSnapshot {
         // sees /system mounted read-only (the production state).
         // Gap #12 sees NO overlay over /system (Pixel 7 uses
         // dynamic-partition ext4 mounts, not overlayfs).
+        // Power-13 Gap #2 (runtime.init_svc_enumeration) — clean
+        // Pixel 7 init.svc.* enumeration. Standard AOSP services
+        // plus a few Pixel-vendor services that satisfy the
+        // KNOWN_OEM_PREFIXES check (`google.*` prefix).
+        initSvcProps = mapOf(
+            "zygote" to "running",
+            "zygote_secondary" to "running",
+            "servicemanager" to "running",
+            "surfaceflinger" to "running",
+            "mediaserver" to "running",
+            "audioserver" to "running",
+            "installd" to "running",
+            "vold" to "running",
+            "netd" to "running",
+            "logd" to "running",
+            "lmkd" to "running",
+            "ueventd" to "running",
+            "healthd" to "running",
+            "hwservicemanager" to "running",
+            "bluetooth" to "running",
+            "wifi" to "running",
+            "fingerprintd" to "running",
+            "gatekeeperd" to "running",
+            "keystore2" to "running",
+            "statsd" to "running",
+            // Pixel-vendor services (KNOWN_OEM_PREFIXES allowlist
+            // covers `google.*` so these don't fire the rule).
+            "google.cellbroadcastreceiver" to "running",
+            "google.firewall" to "running",
+        ),
+
         // Power-13 Gap #1 (root.magisk_uds) — clean Pixel 7
         // /proc/net/unix output. AOSP system daemons only; no
         // magisk fingerprints.

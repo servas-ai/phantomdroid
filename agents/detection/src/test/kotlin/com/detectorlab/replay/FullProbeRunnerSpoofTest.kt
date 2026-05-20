@@ -92,6 +92,7 @@ import com.detectorlab.probes.root.SystemRwMountProbe
 import com.detectorlab.probes.runtime.AutomationToolsProbe
 import com.detectorlab.probes.runtime.DebuggerTracerPidProbe
 import com.detectorlab.probes.runtime.FridaMemoryMapsProbe
+import com.detectorlab.probes.runtime.InitSvcEnumerationProbe
 import com.detectorlab.probes.runtime.InstalledAppsProbe
 import com.detectorlab.probes.runtime.MultiInstanceProbe
 import com.detectorlab.probes.runtime.NativePrologueHashProbe
@@ -196,10 +197,11 @@ class FullProbeRunnerSpoofTest {
         SeLinuxProbe(),
         SuDetectionProbe(),
         SystemRwMountProbe(),
-        // runtime (9)
+        // runtime (10) — Power-13 Gap #2 added InitSvcEnumerationProbe
         AutomationToolsProbe(),
         DebuggerTracerPidProbe(),
         FridaMemoryMapsProbe(),
+        InitSvcEnumerationProbe(),
         InstalledAppsProbe(),
         MultiInstanceProbe(),
         NativePrologueHashProbe(),
@@ -234,10 +236,10 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                78, probes.size,
-                "expected the full 78-probe inventory (73 base + Power-13 Gaps " +
-                    "#4 + #3 + #10 + #12 + #1); if the inventory changed, " +
-                    "update the allProbes() registry above",
+                79, probes.size,
+                "expected the full 79-probe inventory (73 base + Power-13 Gaps " +
+                    "#4 + #3 + #10 + #12 + #1 + #2); if the inventory " +
+                    "changed, update the allProbes() registry above",
             )
             val runner = ProbeRunner(
                 probes = probes,

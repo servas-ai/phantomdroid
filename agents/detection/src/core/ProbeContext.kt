@@ -315,6 +315,28 @@ interface ProbeContext {
      * the rank-3.5 probe documents in its KDoc.
      */
     fun queryProcNetUnixSockets(): List<String> = emptyList()
+
+    /**
+     * Enumerate all system properties matching `init.svc.<name>`.
+     * Returns a `Map<service-name, state-value>` where service-name
+     * is the property suffix (e.g. `"zygote"` for `init.svc.zygote`)
+     * and state-value is the standard init-service state literal
+     * (`"running"`, `"stopped"`, `"restarting"`, `"stopping"`).
+     * Returns an empty map by default — fakes / contexts that
+     * predate this accessor report "no init.svc observation" (the
+     * conservative answer for a Power-13-pre-iteration JVM ctx).
+     *
+     * Power-13 Gap #2 closure. Magisk's pre-init service-injection
+     * mechanism (`magisk --post-fs-data` and `magisk --service`)
+     * registers 3 randomized service names at boot — the exact
+     * names change per-boot, but the COUNT and SHAPE of these
+     * services (non-AOSP-canonical names, present at all init
+     * states) is dispositive. HuskyDG documents this as
+     * UNCOUNTERED by RootBeer pattern-matching because the random
+     * names defeat literal-string matchers; the probe must compare
+     * the full set against the known-AOSP-service baseline.
+     */
+    fun queryInitSvcProps(): Map<String, String> = emptyMap()
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

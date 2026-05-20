@@ -332,6 +332,39 @@ object SamsungS22CleanSnapshot {
         // Power-13 Gap #3 lands in PATTERN_DIGEST_DIFF_NO_MAGISK
         // at 0.0. Gap #10 sees /system read-only. Gap #12 sees no
         // overlay over /system.
+        // Power-13 Gap #2 (runtime.init_svc_enumeration) — clean
+        // Samsung S22 init.svc.* enumeration. Standard AOSP services
+        // plus Samsung Knox / SecBio services satisfying the
+        // KNOWN_OEM_PREFIXES check (`sec.*` prefix).
+        initSvcProps = mapOf(
+            "zygote" to "running",
+            "zygote_secondary" to "running",
+            "servicemanager" to "running",
+            "surfaceflinger" to "running",
+            "mediaserver" to "running",
+            "audioserver" to "running",
+            "installd" to "running",
+            "vold" to "running",
+            "netd" to "running",
+            "logd" to "running",
+            "lmkd" to "running",
+            "ueventd" to "running",
+            "healthd" to "running",
+            "hwservicemanager" to "running",
+            "bluetooth" to "running",
+            "wifi" to "running",
+            "fingerprintd" to "running",
+            "gatekeeperd" to "running",
+            "keystore2" to "running",
+            "statsd" to "running",
+            // Samsung Knox/OneUI vendor services — `sec.*` and
+            // `qti.*` prefixes are in KNOWN_OEM_PREFIXES so they
+            // don't fire the rule.
+            "sec.knoxguard" to "running",
+            "sec.secbio" to "running",
+            "qti.thermal-engine" to "running",
+        ),
+
         // Power-13 Gap #1 (root.magisk_uds) — clean Samsung S22
         // /proc/net/unix output. AOSP + Samsung Knox / OneUI
         // daemons; no magisk fingerprints.

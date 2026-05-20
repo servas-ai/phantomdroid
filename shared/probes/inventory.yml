@@ -550,6 +550,14 @@ probes:
     description: "Magisk magiskd UDS socket in /proc/net/unix (@MAGISK literal or magisk-substring path) — RootBeerFresh target (Power-13 Gap #1)"
     mitigation_layer: L4
 
+  - rank: 3.7
+    id: runtime.init_svc_enumeration
+    category: runtime
+    severity: high
+    android_layer: native
+    description: "Enumerate init.svc.* props; match against AOSP baseline + OEM-prefix allowlist; detect Magisk-injected services by literal substring or random-shape (hex-only) name (Power-13 Gap #2)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime

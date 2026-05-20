@@ -240,6 +240,14 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      * Empty list = no observation captured.
      */
     override fun queryProcNetUnixSockets(): List<String> = snapshot.procNetUnixSockets
+
+    /**
+     * Snapshot-side bridge for Power-13 Gap #2
+     * (`InitSvcEnumerationProbe`). Returns the snapshot's
+     * `initSvcProps` map verbatim. Empty map = no observation
+     * captured.
+     */
+    override fun queryInitSvcProps(): Map<String, String> = snapshot.initSvcProps
 }
 
 /**
