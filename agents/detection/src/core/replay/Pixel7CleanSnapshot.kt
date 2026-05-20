@@ -331,6 +331,14 @@ object Pixel7CleanSnapshot {
         // sees /system mounted read-only (the production state).
         // Gap #12 sees NO overlay over /system (Pixel 7 uses
         // dynamic-partition ext4 mounts, not overlayfs).
+        // Power-13 Gap #8 (root.magisk_module_dir) — clean Pixel
+        // 7 has no /data/adb directory. Accessor returns null
+        // (no entry in the map) → PATTERN_NO_OBSERVATION at 0.0.
+        // Honest signal: the rank-3.9 probe degrades confidence
+        // (acknowledging both clean and well-hidden-Magisk produce
+        // the same observation) but doesn't elevate the score.
+        dirEntries = emptyMap(),
+
         // Power-13 Gap #2 (runtime.init_svc_enumeration) — clean
         // Pixel 7 init.svc.* enumeration. Standard AOSP services
         // plus a few Pixel-vendor services that satisfy the

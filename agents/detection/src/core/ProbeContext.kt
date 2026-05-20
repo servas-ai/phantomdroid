@@ -337,6 +337,39 @@ interface ProbeContext {
      * the full set against the known-AOSP-service baseline.
      */
     fun queryInitSvcProps(): Map<String, String> = emptyMap()
+
+    /**
+     * List the entries (files and subdirectories) of a directory.
+     * `path` is an absolute filesystem path. Returns a list of
+     * basename entries — the per-entry names, not full paths.
+     * Returns `null` by default — fakes / contexts that predate
+     * this accessor report "no directory listing possible" (the
+     * conservative answer).
+     *
+     * Power-13 Gap #8 closure. Magisk's module directory
+     * `/data/adb/modules/` contains one subdirectory per installed
+     * module. The mere presence of entries is dispositive: an
+     * un-rooted device has no `/data/adb` directory at all, and
+     * even a clean-Magisk install (no modules) shows an empty
+     * directory listing — which is itself a Magisk-present tell
+     * because `/data/adb` is the Magisk runtime root.
+     *
+     * Also reusable for cross-cutting #8 follow-up: rank-66
+     * TikTokArgusSigningProbe documents that full A10+ path
+     * enumeration requires `listDirectory` access on
+     * `/data/app/~~<base64>==/`. This accessor closes that
+     * dependency at the same time.
+     *
+     * Returning null is distinct from returning an empty list:
+     *   - null      → directory does not exist OR caller has no
+     *                 read access (cannot enumerate). The probe's
+     *                 confidence drops to DEGRADED.
+     *   - emptyList → directory exists and is empty. For
+     *                 `/data/adb/modules/` this means Magisk is
+     *                 installed but has no active modules — still
+     *                 dispositive.
+     */
+    fun queryDirEntries(path: String): List<String>? = null
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

@@ -362,6 +362,22 @@ object RedroidV12Snapshot {
         // The asymmetry is the Power-13 Gap #3 signal — Magisk
         // mounts in init only fires PATTERN_MAGISK_IN_INIT_ONLY
         // at score 0.95.
+        // Power-13 Gap #8 (root.magisk_module_dir) — Magisk-rooted
+        // ReDroid has /data/adb/modules/ populated with active
+        // modules. Modeled here with 3 real-world-common modules:
+        // ZygiskNext (the modern Zygisk implementation),
+        // safetynet-fix (PI / SafetyNet bypass), and MagiskHide
+        // Props Config (the prop-spoofing module that backs many
+        // Cloud-phone fingerprint fakes). Power-13 Gap #8 rule
+        // PATTERN_MODULES_PRESENT fires at 1.0 on this fixture.
+        dirEntries = mapOf(
+            "/data/adb/modules" to listOf(
+                "zygisksu",
+                "safetynet-fix",
+                "MagiskHidePropsConf",
+            ),
+        ),
+
         // Power-13 Gap #2 (runtime.init_svc_enumeration) — Magisk
         // injects 3 randomized service names at boot via its
         // post-fs-data + service init hooks. The names change per-

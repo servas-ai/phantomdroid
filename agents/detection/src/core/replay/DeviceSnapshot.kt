@@ -260,4 +260,18 @@ data class DeviceSnapshot(
      * observed service-name set against the known-AOSP baseline.
      */
     val initSvcProps: Map<String, String> = emptyMap(),
+
+    /**
+     * Directory-listing observations. Keys are absolute filesystem
+     * paths; values are lists of basename entries within those
+     * directories. Missing key → `queryDirEntries(path)` returns
+     * `null` (no observation OR directory doesn't exist OR
+     * permission denied). Empty list value → directory observed
+     * and confirmed empty.
+     *
+     * Consumed by Power-13 Gap #8 (`root.magisk_module_dir`,
+     * rank 3.9) — checks `/data/adb/modules/` for any entries
+     * (including empty-but-present which still indicates Magisk).
+     */
+    val dirEntries: Map<String, List<String>> = emptyMap(),
 )

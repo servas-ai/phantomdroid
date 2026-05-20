@@ -248,6 +248,14 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      * captured.
      */
     override fun queryInitSvcProps(): Map<String, String> = snapshot.initSvcProps
+
+    /**
+     * Snapshot-side bridge for Power-13 Gap #8
+     * (`MagiskModuleDirProbe`). Returns the snapshot's
+     * `dirEntries[path]` entry. Missing key → null (no
+     * observation; directory does not exist OR permission denied).
+     */
+    override fun queryDirEntries(path: String): List<String>? = snapshot.dirEntries[path]
 }
 
 /**

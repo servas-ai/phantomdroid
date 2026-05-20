@@ -1286,6 +1286,21 @@ object RedroidSpoofedSnapshot {
         // (/sbin/.magisk, /data/adb, magisk_tmp), not the overlay
         // filesystem itself — that's a legitimate Android 11+
         // mount type.
+        // Power-13 Gap #8 (root.magisk_module_dir) — Shamiko-class
+        // spoof stack hooks the openat() / readdir() calls for
+        // /data/adb/* and either denies the access (ENOENT) or
+        // returns a synthetic empty result. We model the ENOENT
+        // case (no entry for the path) so queryDirEntries returns
+        // null — PATTERN_NO_OBSERVATION at 0.0. This is the
+        // dispositive-clean behaviour for a well-hidden Magisk.
+        //
+        // (Note: not specifying a dirEntries entry for
+        // `/data/adb/modules` is the spoof — `dirEntries` map
+        // missing this key means the accessor returns null,
+        // identical to a clean device where the directory
+        // genuinely doesn't exist.)
+        dirEntries = emptyMap(),
+
         // Power-13 Gap #2 (runtime.init_svc_enumeration) —
         // Shamiko-class spoof filters `init.svc.*` property
         // enumeration to remove Magisk-injected services. The

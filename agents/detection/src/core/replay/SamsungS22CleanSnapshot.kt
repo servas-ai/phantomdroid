@@ -332,6 +332,11 @@ object SamsungS22CleanSnapshot {
         // Power-13 Gap #3 lands in PATTERN_DIGEST_DIFF_NO_MAGISK
         // at 0.0. Gap #10 sees /system read-only. Gap #12 sees no
         // overlay over /system.
+        // Power-13 Gap #8 (root.magisk_module_dir) — clean
+        // Samsung S22 has no /data/adb directory. Accessor
+        // returns null → PATTERN_NO_OBSERVATION at 0.0.
+        dirEntries = emptyMap(),
+
         // Power-13 Gap #2 (runtime.init_svc_enumeration) — clean
         // Samsung S22 init.svc.* enumeration. Standard AOSP services
         // plus Samsung Knox / SecBio services satisfying the

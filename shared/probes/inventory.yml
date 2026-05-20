@@ -558,6 +558,14 @@ probes:
     description: "Enumerate init.svc.* props; match against AOSP baseline + OEM-prefix allowlist; detect Magisk-injected services by literal substring or random-shape (hex-only) name (Power-13 Gap #2)"
     mitigation_layer: L4
 
+  - rank: 3.9
+    id: root.magisk_module_dir
+    category: root
+    severity: high
+    android_layer: kernel
+    description: "/data/adb/modules/ directory enumeration — Magisk-present tell (Power-13 Gap #8)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime
