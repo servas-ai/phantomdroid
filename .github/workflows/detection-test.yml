@@ -1,0 +1,63 @@
+name: "Detection :: Tests"
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  detection-tests:
+    name: Run :detection:test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run detection tests
+        run: ./gradlew :detection:test --no-daemon --info
+
+      - name: Regression guard — assert test count >= 3000
+        if: always()
+        run: |
+          set -euo pipefail
+          REPORT_DIR="agents/detection/build/test-results/test"
+          if [ ! -d "$REPORT_DIR" ]; then
+            echo "::error::Test results directory not found: $REPORT_DIR"
+            exit 1
+          fi
+          # Sum the `tests=` attribute across all JUnit XML reports.
+          TOTAL=$(grep -hoE 'tests="[0-9]+"' "$REPORT_DIR"/TEST-*.xml \
+                  | grep -oE '[0-9]+' \
+                  | awk '{s+=$1} END {print s+0}')
+          echo "Detection test count: $TOTAL"
+          if [ "$TOTAL" -lt 3000 ]; then
+            echo "::error::Detection test count ($TOTAL) is below regression threshold (3000). Tests may have been accidentally disabled."
+            exit 1
+          fi
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detection-test-reports
+          path: agents/detection/build/reports/tests/test/
+          retention-days: 14
+          if-no-files-found: ignore

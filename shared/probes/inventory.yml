@@ -599,3 +599,11 @@ probes:
     mitigation_layer: L4
     fragility: HIGH
     versions_table: tiktok_argus_versions.json
+
+  - rank: 71
+    id: integrity.play_integrity_signals
+    category: integrity
+    severity: high
+    android_layer: framework
+    description: "Play Integrity API verdict prediction from build-property surface"
+    mitigation_layer: L3
