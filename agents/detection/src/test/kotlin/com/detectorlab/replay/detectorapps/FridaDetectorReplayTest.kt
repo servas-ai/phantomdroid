@@ -42,19 +42,34 @@
 //                                     Magisk-rooted)
 //   - RedroidSpoofed                → NOT detected (no Frida in the
 //                                     spoof fixture either)
+//   - FridaInjectedRedroid          → MUST be detected (Power-15 A1
+//                                     positive-path fixture: Redroid 12
+//                                     with frida-server pushed to
+//                                     /data/local/tmp/re.frida.server/
+//                                     and started — all three UNION
+//                                     checks fire)
 //
-// **Test honesty note**: DetectFrida is the one detector class
-// where ALL FOUR snapshots return "not detected" because Frida is
-// not modeled in any of our fixtures. That's the correct outcome:
-// the spoof-stack is NOT a Frida bypass mechanism (Frida runs in
-// the analyst's instrumentation harness, not on the target
-// device). The test is included for completeness — when a future
-// snapshot DOES inject Frida signals, this same decision rule
-// will correctly classify it.
+// **Test honesty note (Power-15 amendment 2026-05-21)**: prior to
+// Power-15 ALL FOUR snapshots returned "not detected" because no
+// fixture modeled Frida. Power-15 A1 closed that gap by committing
+// `FridaInjectedRedroidSnapshot` (commit e74997d) — a 5th snapshot
+// that intentionally encodes the three HIGH-confidence Frida
+// surfaces (library tokens in /proc/self/maps, gum-js-loop+gmain
+// thread names, ports 27042+27043). The replay-decision rule below
+// is UNCHANGED; only the per-snapshot expected-verdict matrix
+// expanded. The spoof-stack itself is still NOT a Frida bypass
+// mechanism — Frida runs in the analyst's instrumentation harness,
+// not on the target device — but the detector's positive-path is
+// now exercised end-to-end against a realistic injected fixture.
+//
+// Power-15 (2026-05-21): FridaInjectedRedroidSnapshot added as
+// positive-path 5th snapshot. Replay-decision rule unchanged; only
+// the per-snapshot expected-verdict matrix expanded.
 
 package com.detectorlab.replay.detectorapps
 
 import com.detectorlab.core.ProbeContext
+import com.detectorlab.core.replay.FridaInjectedRedroidSnapshot
 import com.detectorlab.core.replay.Pixel7CleanSnapshot
 import com.detectorlab.core.replay.RedroidSpoofedSnapshot
 import com.detectorlab.core.replay.RedroidV12Snapshot
@@ -70,6 +85,7 @@ class FridaDetectorReplayTest {
     private val samsung = SnapshotReplayContext(SamsungS22CleanSnapshot.SNAPSHOT)
     private val redroidDirty = SnapshotReplayContext(RedroidV12Snapshot.SNAPSHOT)
     private val redroidSpoofed = SnapshotReplayContext(RedroidSpoofedSnapshot.SNAPSHOT)
+    private val fridaInjected = SnapshotReplayContext(FridaInjectedRedroidSnapshot.SNAPSHOT)
 
     // ── Decision rule ────────────────────────────────────────────────────────
 
@@ -127,6 +143,28 @@ class FridaDetectorReplayTest {
     @Test
     fun `RedroidSpoofed — NOT detected (no Frida in spoof fixture either)`() {
         assertFalse(fridaDetected(redroidSpoofed))
+    }
+
+    // ── Positive-path E2E (Power-15 A2 — FridaInjectedRedroidSnapshot) ───────
+
+    @Test
+    fun `FridaInjectedRedroid — MUST be detected (positive-path E2E)`() {
+        assertTrue(fridaDetected(fridaInjected))
+    }
+
+    @Test
+    fun `FridaInjectedRedroid — library check fires`() {
+        assertTrue(fridaLibrariesInProcMaps(fridaInjected))
+    }
+
+    @Test
+    fun `FridaInjectedRedroid — thread-name check fires`() {
+        assertTrue(fridaThreadNames(fridaInjected))
+    }
+
+    @Test
+    fun `FridaInjectedRedroid — port check fires`() {
+        assertTrue(fridaPortsBound(fridaInjected))
     }
 
     // ── Synthetic-injection unit tests for the decision rule itself ──────────
