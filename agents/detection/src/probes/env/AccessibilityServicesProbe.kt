@@ -59,13 +59,27 @@ import com.detectorlab.probes.runtime.InstalledAppsProbe
  * first):
  *   1.00  PATTERN_SUSPICIOUS_SERVICE — any
  *         [SUSPICIOUS_ACCESSIBILITY_SUBSTRINGS] substring matches
- *         the colon-joined list
+ *         the colon-joined list. **FP class acknowledgment**
+ *         (per the rank-51 honest-framing pattern): a legitimate
+ *         AirWatch / VMware Workspace ONE / Intune MDM-enrolled
+ *         corporate device fires this rule at 1.0 because the
+ *         `com.airwatch` substring (and equivalent MDM markers) are
+ *         intentionally included — MDM remote-control accessibility
+ *         services are functionally equivalent to RAT accessibility
+ *         services from the kernel's perspective. The 1.0 score is
+ *         calibrated for production cloud-phone evaluation where
+ *         MDM enrollment is anomalous; consumer-side aggregator
+ *         should ignore the rule when the target is a known-MDM
+ *         device per the rank-50 / rank-51 / rank-52 consumer-
+ *         gating-pattern family.
  *   0.70  PATTERN_MANY_SERVICES_ON_PHONE — > 3 services enabled
  *         AND model is phone-class. FP class: managed-device
  *         (MDM) profiles legitimately enable many services on
- *         corporate handsets — consumer-side aggregator should
- *         combine with rank-50 services_processes for high-
- *         confidence reject.
+ *         corporate handsets — same FP class as the 1.0 rule above
+ *         but here applies at a structural threshold rather than a
+ *         marker-match. Consumer-side aggregator should combine
+ *         with rank-50 services_processes for high-confidence
+ *         reject.
  *   0.00  PATTERN_CLEAN — empty list or 1-3 services with none
  *         in the suspicious list
  *
