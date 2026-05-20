@@ -46,6 +46,25 @@ package com.detectorlab.core.replay
  *     map.
  *   * `installedPackages` — `PackageManager.getInstalledPackages()`
  *     output as a flat package-name set.
+ *   * `sensorTypes` — `SensorManager.getSensorList(TYPE_ALL)` reduced to
+ *     the set of Android sensor-type integer constants the device claims
+ *     to expose. Empty set = "no sensors installed" (the ReDroid-without-
+ *     HAL default and the conservative answer for snapshots that don't
+ *     capture sensor inventory). Values are the canonical Android
+ *     `Sensor.TYPE_*` integers (e.g. 1 = TYPE_ACCELEROMETER, 4 =
+ *     TYPE_GYROSCOPE, 5 = TYPE_LIGHT, 8 = TYPE_PROXIMITY); see
+ *     `AccelerometerGyroProbe.companion` for the canonical lookup table
+ *     used by the sensor probe family.
+ *   * `bluetoothMac` — `BluetoothAdapter.getDefaultAdapter().getAddress()`
+ *     as reported by the framework, normalized to lowercase colon-separated
+ *     form (e.g. `"3c:5a:b4:00:11:22"`). `null` = "no BluetoothAdapter
+ *     accessor available" (the production / non-injected default — same
+ *     answer `BluetoothMacProbe`'s default supplier gives). Snapshots that
+ *     model a real-device adapter populate this so test code can construct
+ *     `BluetoothMacProbe(adapterMacSupplier = { snapshot.bluetoothMac })`
+ *     and exercise the supplier-driven rank-31 surface. `ProbeContext`
+ *     itself exposes no Bluetooth accessor (rank-31 KDoc lines 29-32);
+ *     this field is the snapshot-side bridge.
  *   * `sdkInt` — `Build.VERSION.SDK_INT` claimed by the runtime.
  *
  * `null`-valued entries are equivalent to missing entries — the same
@@ -64,4 +83,6 @@ data class DeviceSnapshot(
     val settingsSystem: Map<String, String?> = emptyMap(),
     val installedPackages: Set<String> = emptySet(),
     val telephony: Map<String, String?> = emptyMap(),
+    val sensorTypes: Set<Int> = emptySet(),
+    val bluetoothMac: String? = null,
 )

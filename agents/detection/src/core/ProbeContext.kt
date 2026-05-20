@@ -37,6 +37,30 @@ interface ProbeContext {
     fun querySettingSystem(key: String): String? = querySettingSecure(key)
 
     /**
+     * Read the default `BluetoothAdapter.getAddress()` value for the calling
+     * thread. Returns `null` by default — same backward-compat shape as
+     * `queryKeyguardManager` / `queryWifiManager` / `querySettingGlobal`:
+     * fakes that predate this method continue to compile and report "no
+     * Bluetooth observation possible". Production impls override with a
+     * wrapper around `android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+     * .getAddress()`.
+     *
+     * `BluetoothMacProbe` (rank 31) consumes this via its
+     * `bluetoothAdapterMacSupplier` constructor parameter — the supplier
+     * resolves to `{ ctx.queryBluetoothAdapterMac() }` at the spawn site so
+     * `ProbeRunner.runAll` continues to work with the default no-arg probe
+     * ctor on any `ProbeContext` impl that overrides this method. The
+     * accessor returns a normalized lowercase colon-separated MAC string
+     * (e.g. `"3c:5a:b4:8d:f1:27"`) or `null` when:
+     *   - the platform has no BluetoothAdapter (containerized hosts), OR
+     *   - the calling app lacks LOCAL_MAC_ADDRESS permission AND
+     *     `BluetoothAdapter.getAddress()` redacts to the Android-6+ privacy
+     *     default (the probe handles the redaction case explicitly via its
+     *     `02:00:00:00:00:00` branch).
+     */
+    fun queryBluetoothAdapterMac(): String? = null
+
+    /**
      * Default returns the "unknown" view so existing fakes that predate this
      * method continue to compile. Production impls override with a wrapper
      * around `android.app.KeyguardManager`.

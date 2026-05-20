@@ -135,5 +135,36 @@ object Pixel7CleanSnapshot {
             "com.google.android.tts",                  // Google Text-to-Speech
             "com.android.vending",                     // Play Store
         ),
+        // Canonical Pixel 7 (`panther`, Tensor G2) sensor inventory.
+        // `SensorManager.getSensorList(TYPE_ALL)` on a factory-clean Pixel 7
+        // returns at minimum the six "Tier 1" sensors the rank-24/42/43/44/45
+        // probes key on. Source: Google factory image documentation for
+        // `panther` device tree + Android CDD 7.3 sensor requirements.
+        // Sensor type constants are the canonical Android `Sensor.TYPE_*`
+        // integers (see `AccelerometerGyroProbe.companion`):
+        //   TYPE_ACCELEROMETER   = 1   (Tier 1 — required on every Android)
+        //   TYPE_MAGNETIC_FIELD  = 2   (Tier 1 — compass)
+        //   TYPE_GYROSCOPE       = 4   (Tier 1 — rotation)
+        //   TYPE_LIGHT           = 5   (Tier 1 — auto-brightness)
+        //   TYPE_PRESSURE        = 6   (flagship — Pixel 6+ ships barometer)
+        //   TYPE_PROXIMITY       = 8   (phone-class — earpiece)
+        // A real Pixel 7 also reports a longer tail (step counter, rotation
+        // vector, gravity, etc.) — these six are the load-bearing subset
+        // every probe in the current inventory checks. Tail sensors can be
+        // added when a future probe scores on them.
+        sensorTypes = setOf(1, 2, 4, 5, 6, 8),
+
+        // Canonical Pixel 7 BluetoothAdapter address surface. The OUI
+        // 3C:5A:B4 is one of Google Inc.'s IEEE-registered OUI blocks —
+        // first-byte 0x3C has the locally-administered bit (0x02) clear,
+        // and it's not in any of the WifiMacProbe emulator OUI sets
+        // (QEMU/VBox/VMware/HyperV/Xen). Reported by `BluetoothAdapter.
+        // getDefaultAdapter().getAddress()` to LOCAL_MAC_ADDRESS-permitted
+        // callers; non-system apps in Android 6+ see the
+        // 02:00:00:00:00:00 privacy default (BluetoothMacProbe handles
+        // that case via the SCORE_PRIVACY_DEFAULT_BENIGN branch when
+        // sysfs is unreadable). Mirrors the RedroidSpoofedSnapshot value
+        // for cross-snapshot consistency in the test harness.
+        bluetoothMac = "3c:5a:b4:8d:f1:27",
     )
 }

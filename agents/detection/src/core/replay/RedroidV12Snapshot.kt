@@ -100,5 +100,22 @@ object RedroidV12Snapshot {
             "com.android.systemui",
             "com.android.settings",
         ),
+        // ReDroid containerized = no real sensor HAL → empty set is GROUND
+        // TRUTH, not a missing data point. Containerized ReDroid runs on the
+        // Linux host kernel directly; it has no iio / sensor-hub HAL backend,
+        // so `SensorManager.getSensorList(TYPE_ALL)` legitimately returns an
+        // empty list. Declared explicitly (not relying on the data-class
+        // default) so the negative-class semantics are visible at the call
+        // site — preserves the contract that this snapshot represents an
+        // un-spoofed ReDroid capture and not a snapshot-author oversight.
+        sensorTypes = emptySet(),
+
+        // ReDroid container has no Bluetooth HAL backend either —
+        // BluetoothAdapter.getDefaultAdapter() returns null, and
+        // /sys/class/bluetooth/hci0/address does not exist in the
+        // container's /sys tree. Declared explicitly as the negative-class
+        // ground truth (rather than relying on the data-class default)
+        // for the same reasons as sensorTypes above.
+        bluetoothMac = null,
     )
 }

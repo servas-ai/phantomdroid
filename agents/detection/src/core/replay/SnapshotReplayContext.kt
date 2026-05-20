@@ -31,10 +31,13 @@ import com.detectorlab.core.TelephonyField
  *  * `querySettingSecure/Global/System(key)` → respective map lookups.
  *  * `queryTelephonyManager(field)` → `telephony[field.name]`.
  *  * `queryPackageManager()` → view backed by `installedPackages`.
- *  * `querySensorManager()` → empty sensor inventory (snapshots do not
- *    yet capture sensor samples; probes that read sensors will see
- *    "no sensors installed" which is the realistic ReDroid-without-HAL
- *    answer anyway).
+ *  * `querySensorManager()` → view backed by `snapshot.sensorTypes`.
+ *    Sensors in the set are reported present via `listSensorTypes()`;
+ *    `sampleSensor(type, _)` returns an empty `SensorSample` (no live
+ *    samples in snapshot capture). An empty `sensorTypes` set reports
+ *    "no sensors installed" — the realistic ReDroid-without-HAL answer
+ *    and the conservative default for snapshots that don't capture
+ *    sensor inventory.
  *
  * The Unknown* views inherited from `ProbeContext` defaults cover
  * Keyguard / Wifi / MediaProjection / UserHandle / TimeView — every
@@ -63,7 +66,28 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
     override fun queryPackageManager(): PackageManagerView =
         SnapshotPackageManagerView(snapshot.installedPackages)
 
-    override fun querySensorManager(): SensorManagerView = EmptySensorManagerView
+    override fun querySensorManager(): SensorManagerView =
+        SnapshotSensorManagerView(snapshot.sensorTypes)
+
+    /**
+     * Snapshot-side bridge for `BluetoothMacProbe` (rank 31). Overrides the
+     * `ProbeContext` default (`= null`) to return the snapshot's
+     * `bluetoothMac` field. Test code wires the probe with a supplier that
+     * delegates here:
+     *
+     * ```
+     * val ctx = SnapshotReplayContext(snap)
+     * val probe = BluetoothMacProbe(
+     *     bluetoothAdapterMacSupplier = { ctx.queryBluetoothAdapterMac() }
+     * )
+     * ```
+     *
+     * Closes the BluetoothAdapter contract gap that the rank-31 KDoc lines
+     * 29-32 document; uniform with the `querySettingGlobal` /
+     * `queryWifiManager` / `queryKeyguardManager` "default returns the
+     * conservative answer, production impl overrides" pattern.
+     */
+    override fun queryBluetoothAdapterMac(): String? = snapshot.bluetoothMac
 }
 
 /**
@@ -81,13 +105,24 @@ internal class SnapshotPackageManagerView(
 }
 
 /**
- * Sensor manager that reports zero installed sensors. Matches the
- * `ReDroid-without-HAL` reality (containerized ReDroid has no physical
- * sensor stack), and is the most conservative answer when replaying
- * a snapshot that does not include sensor data.
+ * Sensor manager backed by a snapshot's `sensorTypes` set. The set holds
+ * canonical Android `Sensor.TYPE_*` integers (e.g. 1 = TYPE_ACCELEROMETER,
+ * 4 = TYPE_GYROSCOPE, 5 = TYPE_LIGHT, 8 = TYPE_PROXIMITY).
+ *
+ * `sampleSensor()` returns an empty `SensorSample`: snapshot capture does
+ * not include live sensor time-series. Sensor-family probes (rank 24/42/
+ * 43/44/45) handle empty samples gracefully — they require ≥2 samples to
+ * trigger the constant-stub rule and the implausible-value rule needs at
+ * least one reading, so an empty sample produces neither false positive.
+ *
+ * An empty `sensorTypes` set degrades to the previous `EmptySensorManagerView`
+ * behavior: zero installed sensors (the ReDroid-without-HAL reality and
+ * the conservative default for snapshots that don't declare sensors).
  */
-internal object EmptySensorManagerView : SensorManagerView {
-    override fun listSensorTypes(): List<Int> = emptyList()
+internal class SnapshotSensorManagerView(
+    private val sensorTypes: Set<Int>,
+) : SensorManagerView {
+    override fun listSensorTypes(): List<Int> = sensorTypes.toList()
     override fun sampleSensor(sensorType: Int, durationMs: Long): SensorSample =
         SensorSample(timestamps = LongArray(0), values = emptyArray())
 }
