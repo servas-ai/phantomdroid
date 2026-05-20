@@ -299,5 +299,29 @@ object SamsungS22CleanSnapshot {
         gpsAccuracy = 5.5f,
         gpsProvider = "gps",
         gpsIsMock = false,
+
+        // Power-12 rank-9.0 (runtime.frida_memory_maps) — DECLARATIVE.
+        // A factory-clean Samsung S22 process has none of the frida-class
+        // libraries mapped, none of the gum-runtime thread names spawned,
+        // and ports 27042/27043 unbound. Empty sets across all three
+        // surfaces match the clean ground truth.
+        procSelfMapsLibs = emptySet(),
+        runtimeThreadNames = emptySet(),
+        openTcpPorts = emptySet(),
+
+        // Power-12 rank-9.7 (runtime.native_prologue_hash) — DECLARATIVE,
+        // mitigation_layer not_spoofable. Empty/zero = "no measurement
+        // performed" (same shape as the other clean snapshots). A real
+        // native-side scan against a clean S22 would also produce empty
+        // deltas + zero trampolines, so the empty state is consistent
+        // with a clean device.
+        prologueHashDeltas = emptyMap(),
+        trampolinePatternCount = 0,
+
+        // Power-12 rank-9.8 (integrity.prologue_got_hooks) — DECLARATIVE,
+        // mitigation_layer not_spoofable. Clean GOT/PLT table + no rwxp
+        // memory pages = empty map + empty list, the clean ground truth.
+        gotPltAnomalies = emptyMap(),
+        rwxpMemorySegments = emptyList(),
     )
 }

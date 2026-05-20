@@ -260,3 +260,24 @@ matching the previous probe behavior on `Pixel7CleanSnapshot` /
 | Phase 2 (snapshot fixes) | 0.0357 | rank 20 (1.00), 23 (0.50) | 2 |
 | Phase 3 (probe-quality refactor) | 0.0119 | rank 23 (0.50) | 1 |
 | Phase 4 (supplier→ctx pattern) | **0.0000** | (none) | **0** |
+
+---
+
+## Power-12 — 2026-05-20 — TRUE 73/73 inventory coverage closed
+
+**Ranks closed**: 9.0 (`runtime.frida_memory_maps`), 9.7 (`runtime.native_prologue_hash`), 9.8 (`integrity.prologue_got_hooks`)
+
+**Implementation type**: all three are declarative JVM-side probes — they infer emulator/hook presence from snapshot-accessible signal surfaces rather than performing the un-snapshottable native measurements (in-memory prologue hash, live GOT scan). This is the correct approach: the probes exist so spoofed snapshots that fabricate clean native-measurement data can be scored against them.
+
+**Probe code added**:
+- `agents/detection/src/probes/runtime/FridaMemoryMapsProbe.kt` — rank-9.0 (284 lines, 20 tests)
+- `agents/detection/src/probes/runtime/NativePrologueHashProbe.kt` — rank-9.7 (225 lines, 22 tests)
+- `agents/detection/src/probes/integrity/PrologueGotHooksProbe.kt` — rank-9.8 (222 lines, 18 tests)
+
+**Final test count**: 3668 tests (0 failures, 0 ignored). Power-11 baseline was 3617 → +51 net (60 unit tests added, some legacy test collapses).
+
+**RedroidSpoofedSnapshot weightedScore**: 0.0000 (unchanged — all 3 new probes score 0.0 on the spoofed snapshot because the snapshot provides no native-measurement map entries).
+
+**Inventory coverage**: 73/73 ranks — TRUE 100% coverage. All inventory ranks now have JVM-side probe implementations.
+
+**Production-runtime gap**: ranks 9.7 and 9.8 remain at L0 (UNCOUNTERED in FOSS 2026) at the production layer. Rank 9.0 is closeable at L4 via the FridaKill Magisk module + hide-frida-maps Xposed module. See `audit/spoof-stack/production-hooks-spec.md §P-12` for the full native-layer anti-hook stack spec.

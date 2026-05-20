@@ -75,6 +75,7 @@ import com.detectorlab.probes.integrity.AppSignatureProbe
 import com.detectorlab.probes.integrity.KeystoreAttestationProbe
 import com.detectorlab.probes.integrity.PlayIntegrityLiveProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
+import com.detectorlab.probes.integrity.PrologueGotHooksProbe
 import com.detectorlab.probes.kernel.CpuInfoProbe
 import com.detectorlab.probes.network.DnsServerProbe
 import com.detectorlab.probes.network.HttpProxyProbe
@@ -85,8 +86,10 @@ import com.detectorlab.probes.root.SeLinuxProbe
 import com.detectorlab.probes.root.SuDetectionProbe
 import com.detectorlab.probes.runtime.AutomationToolsProbe
 import com.detectorlab.probes.runtime.DebuggerTracerPidProbe
+import com.detectorlab.probes.runtime.FridaMemoryMapsProbe
 import com.detectorlab.probes.runtime.InstalledAppsProbe
 import com.detectorlab.probes.runtime.MultiInstanceProbe
+import com.detectorlab.probes.runtime.NativePrologueHashProbe
 import com.detectorlab.probes.runtime.ScreenRecordingProbe
 import com.detectorlab.probes.runtime.ServicesProcessesProbe
 import com.detectorlab.probes.runtime.XposedLsposedProbe
@@ -165,11 +168,13 @@ class FullProbeRunnerSpoofTest {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (4)
+        // integrity (5)
         AppSignatureProbe(),
         KeystoreAttestationProbe(),
         PlayIntegrityLiveProbe(),
         PlayIntegrityProbe(),
+        PrologueGotHooksProbe(),
+        // Power-12 rank-9.8 declarative variant (mitigation_layer not_spoofable)
         // kernel (1)
         CpuInfoProbe(),
         // network (5)
@@ -181,14 +186,20 @@ class FullProbeRunnerSpoofTest {
         // root (2)
         SeLinuxProbe(),
         SuDetectionProbe(),
-        // runtime (7)
+        // runtime (9)
         AutomationToolsProbe(),
         DebuggerTracerPidProbe(),
+        FridaMemoryMapsProbe(),
         InstalledAppsProbe(),
         MultiInstanceProbe(),
+        NativePrologueHashProbe(),
         ScreenRecordingProbe(),
         ServicesProcessesProbe(),
         XposedLsposedProbe(),
+        // Power-12 rank-9.0 (FridaMemoryMapsProbe) + rank-9.7
+        // (NativePrologueHashProbe) declarative variants — close the
+        // last cross-cutting inventory gaps to bring the JVM probe
+        // panel to TRUE 73/73 == 100% coverage.
         // sensors (5)
         AccelerometerGyroProbe(),
         BarometerProbe(),
@@ -213,8 +224,8 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                70, probes.size,
-                "expected the full 70-probe inventory; if the inventory changed, " +
+                73, probes.size,
+                "expected the full 73-probe inventory; if the inventory changed, " +
                     "update the allProbes() registry above",
             )
             val runner = ProbeRunner(

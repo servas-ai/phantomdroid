@@ -202,6 +202,75 @@ interface ProbeContext {
      * TimeView that reads SystemClock, System.currentTimeMillis, Location, and NTP.
      */
     fun queryTimeView(): TimeView = UnknownTimeView
+
+    /**
+     * Read library/object names observed in `/proc/self/maps` for the
+     * calling process. Returns an empty set by default — fakes/contexts
+     * that predate this accessor report "no libraries observed" (the
+     * conservative answer). Production wrappers parse `/proc/self/maps`
+     * once and return the case-folded set of basename tokens.
+     *
+     * Consumed by `FridaMemoryMapsProbe` (rank 9.0). The accessor surfaces
+     * the static-library half of the rank-9.0 detection cascade.
+     */
+    fun queryProcSelfMapsLibs(): Set<String> = emptySet()
+
+    /**
+     * Read thread names from `/proc/self/task/<tid>/comm`. Returns an
+     * empty set by default. Production wrappers enumerate the task tree
+     * and read each `comm` file. Consumed by `FridaMemoryMapsProbe` —
+     * Frida's gum runtime spawns canonical thread names (`gum-js-loop`,
+     * `gmain`, `gdbus`) that are dispositive evidence of in-process
+     * instrumentation.
+     */
+    fun queryRuntimeThreadNames(): Set<String> = emptySet()
+
+    /**
+     * Read currently bound TCP ports from `/proc/net/tcp`. Returns an
+     * empty set by default. Consumed by `FridaMemoryMapsProbe` — port
+     * 27042 / 27043 are Frida's canonical server-listen ports.
+     */
+    fun queryOpenTcpPorts(): Set<Int> = emptySet()
+
+    /**
+     * Read the per-function prologue-hash delta map produced by a runtime
+     * native-side comparison of in-memory bytes against the on-disk
+     * baseline. Returns an empty map by default — JVM-side contexts
+     * cannot perform this measurement, and the conservative "no
+     * observation" answer is "absent" (NOT "clean"; signal absence is
+     * scored as zero, not as a negative signal).
+     *
+     * Consumed by `NativePrologueHashProbe` (rank 9.7, mitigation_layer
+     * `not_spoofable`). Snapshot-side context overrides this method to
+     * surface a previously captured measurement.
+     */
+    fun queryPrologueHashDeltas(): Map<String, Boolean> = emptyMap()
+
+    /**
+     * Read the count of MOV X16 / BR X16 (AArch64) trampoline patterns
+     * observed across scanned function prologues. Returns 0 by default —
+     * the conservative "no observation" answer. Consumed by
+     * `NativePrologueHashProbe` (rank 9.7).
+     */
+    fun queryTrampolinePatternCount(): Int = 0
+
+    /**
+     * Read the GOT/PLT entry anomaly map produced by a runtime native-side
+     * comparison of resolved global-offset-table function pointers against
+     * the expected (canonical) target library. Returns an empty map by
+     * default. Consumed by `PrologueGotHooksProbe` (rank 9.8,
+     * mitigation_layer `not_spoofable`).
+     */
+    fun queryGotPltAnomalies(): Map<String, String> = emptyMap()
+
+    /**
+     * Read the list of `rwxp` (simultaneously writable AND executable)
+     * memory segments observed in `/proc/self/maps`. Returns an empty
+     * list by default. Each non-empty entry is a smoking-gun signal of a
+     * patched-text-section / inline-hook installer. Consumed by
+     * `PrologueGotHooksProbe` (rank 9.8).
+     */
+    fun queryRwxpMemorySegments(): List<String> = emptyList()
 }
 
 /** Conservative default: claims sdkInt=0 and answers `null` for every probe. */

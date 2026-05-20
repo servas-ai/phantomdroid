@@ -279,5 +279,34 @@ object RedroidV12Snapshot {
         gpsAccuracy = null,
         gpsProvider = null,
         gpsIsMock = null,
+
+        // Power-12 rank-9.0 (runtime.frida_memory_maps) — DECLARATIVE.
+        // The un-spoofed ReDroid container has no Frida payload mapped
+        // into its system processes by default — no frida-server is
+        // installed in the container image, no embedded gadget link.
+        // Empty across all three surfaces (libs / threads / ports) is
+        // the ground-truth ReDroid baseline. (If a future spoof iteration
+        // installed Frida itself into the container, the probe would
+        // fire; but the un-spoofed capture is clean of these markers.)
+        procSelfMapsLibs = emptySet(),
+        runtimeThreadNames = emptySet(),
+        openTcpPorts = emptySet(),
+
+        // Power-12 rank-9.7 (runtime.native_prologue_hash) — DECLARATIVE,
+        // mitigation_layer not_spoofable. The JVM-side ReDroid capture
+        // does NOT perform native-side ptrace measurements; the snapshot
+        // therefore declares the conservative "no measurement" answer
+        // (empty map + zero trampolines). The probe scores zero against
+        // this — distinguishable from a real native-side scan returning
+        // empty (= measurement happened and saw no hooks).
+        prologueHashDeltas = emptyMap(),
+        trampolinePatternCount = 0,
+
+        // Power-12 rank-9.8 (integrity.prologue_got_hooks) — DECLARATIVE,
+        // mitigation_layer not_spoofable. Same shape as rank-9.7: no
+        // native-side GOT/PLT walk was performed at capture time, so
+        // the anomaly map and rwxp segment list are both empty.
+        gotPltAnomalies = emptyMap(),
+        rwxpMemorySegments = emptyList(),
     )
 }

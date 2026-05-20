@@ -624,3 +624,73 @@ Counts by category:
 Total surface area: **~104 production hooks** consolidated into **one Magisk
 module + one LSPosed module + one ReDroid launch-config change**. This is
 the minimum production SpoofStack to close every probe in the inventory.
+
+---
+
+## P-12 — Native-Layer Anti-Hook Stack
+
+**Date added**: 2026-05-20
+**Scope**: Production-runtime defenses for inventory ranks 9.0, 9.7, 9.8.
+
+> **PAR822349 deployment gap**: these defenses are out-of-scope for the current Magisk + LSPosed deployment plan. They require kernel work and are listed in BEST-STACK §IV. Do not represent them as implemented on the live host until the kernel module work is complete.
+
+### P-12.1 — Rank-9.0: Frida process elimination (FridaKill Magisk module)
+
+**Detection vector**: rank-9.0 `runtime.frida_memory_maps` scans `/proc/self/maps` for Frida gadget / agent / gum library names. A real container running Frida (even via gadget injection) will expose these entries to any app that reads its own maps.
+
+**Production defense**: install a Magisk module `FridaKill` at `post-fs-data.sh` that:
+
+1. Scans `/proc/*/cmdline` and `/proc/*/maps` at boot for any process whose argv or mapped libs match `/frida-gadget|frida-agent|gum/`.
+2. Kills matching processes with `SIGKILL` before user-space app launch.
+3. Installs iptables rules to drop inbound and outbound traffic on Frida's default TCP listener ports:
+   ```sh
+   iptables -I INPUT -p tcp --dport 27042 -j DROP
+   iptables -I INPUT -p tcp --dport 27043 -j DROP
+   iptables -I OUTPUT -p tcp --sport 27042 -j DROP
+   iptables -I OUTPUT -p tcp --sport 27043 -j DROP
+   ip6tables -I INPUT -p tcp --dport 27042 -j DROP
+   ip6tables -I INPUT -p tcp --dport 27043 -j DROP
+   ```
+
+The `hide-frida-maps` Xposed module (already in repo at `stack/L4/hide-frida-maps/`) handles the per-app `/proc/self/maps` redirect for any residual Frida presence the process-kill doesn't catch. Both defenses are complementary; FridaKill is the stronger one.
+
+**Mitigation layer**: **L4 + Magisk post-fs-data** — viable, no kernel work required.
+
+### P-12.2 — Rank-9.7: Native prologue-hash bypass (kernel W^X policy)
+
+**Detection vector**: rank-9.7 `runtime.native_prologue_hash` hashes the first 16-32 bytes of `libc.so` / `libart.so` exported functions in memory and compares to on-disk baseline. Any inline hook (Frida `Interceptor.attach`, LSPosed inline hook) overwrites these bytes with a `MOV X16, #addr / BR X16` trampoline — the hash diverges.
+
+**Real defense**: prevent the inline hook from being placed in the first place. The mechanism is a kernel-level no-modify-text-segment policy:
+
+- **SELinux enforcing + W^X** (Write XOR Execute): configure the SELinux policy so that `.text` segments of system libraries (`libc.so`, `libart.so`, `libdvm.so`) are marked `PROT_READ|PROT_EXEC` only. Any attempt to `mprotect()` them to `PROT_WRITE` for hook patching fails with `EACCES`.
+- On ReDroid, enforcing this policy requires a kernel module that marks all `.text` segments as immutable at ELF-load time. The module hooks `mmap` / `mprotect` syscalls to enforce the W^X invariant.
+
+**Current status on PAR822349**: not implemented. ReDroid's kernel (Ubuntu HWE 5.4) does not ship with this policy enabled by default. SELinux on the host may be in permissive mode for ReDroid containerization compatibility.
+
+**Mitigation layer**: **L0 in current state** — UNCOUNTERED in FOSS 2026. The W^X kernel module approach is theoretically sound but has no public FOSS implementation.
+
+### P-12.3 — Rank-9.8: GOT/PLT integrity scanning (sealed native lib)
+
+**Detection vector**: rank-9.8 `integrity.prologue_got_hooks` looks for rwxp (read-write-execute-private) memory segments in `/proc/self/maps` and scans GOT entries for values that deviate from known-good offsets. Hook frameworks overwrite GOT entries to redirect calls to trampolines.
+
+**Real defense**: pair the W^X policy from P-12.2 with periodic GOT integrity scans:
+
+1. A sealed native library (`libgotscan.so`) is loaded at Zygote start. It is compiled with `--sealed-sections` and its own `.so` hash is verified at load time.
+2. At probe-call time, `libgotscan.so` linearly scans the GOT region of `libc.so` and `libart.so`, comparing each entry to the expected offset (computed from the on-disk ELF at load time, stored in a read-only memory-mapped region).
+3. Any GOT entry that points outside the expected `.text` range of the owning library is flagged.
+
+This defense is only meaningful if the W^X policy from P-12.2 is also in place; without it, an attacker can trivially restore GOT entries after hooking.
+
+**Current status on PAR822349**: not implemented. Requires the sealed `libgotscan.so` native library (out of scope for current Magisk + LSPosed deployment) and kernel W^X policy (same as P-12.2).
+
+**Mitigation layer**: **L0 in current state** — UNCOUNTERED in FOSS 2026.
+
+### P-12 Summary
+
+| Rank | Defense | Layer | Status on PAR822349 | Kernel work required? |
+|---|---|---|---|---|
+| 9.0 `frida_memory_maps` | FridaKill module + hide-frida-maps | L4 + Magisk | **Deployable now** | No |
+| 9.7 `native_prologue_hash` | SELinux W^X + kernel no-modify-text module | L0 | **Not implemented** | Yes |
+| 9.8 `prologue_got_hooks` | GOT integrity scan + W^X (requires P-12.2) | L0 | **Not implemented** | Yes |
+
+**The 9.0 defense is actionable today.** The 9.7 and 9.8 defenses require kernel-level work and are classified in BEST-STACK §IV Hard Ceiling — they are documented here for completeness but should not be committed to as deliverables without an explicit kernel-module development workstream.

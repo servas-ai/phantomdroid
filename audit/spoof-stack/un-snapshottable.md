@@ -2,7 +2,7 @@
 
 **Reviewer**: spoof-reviewer-2
 **Date**: 2026-05-20
-**Status**: PRE-BASELINE DRAFT — derived from static probe-source reading; refine against builder's Phase 1 hit-list when delivered.
+**Status**: UPDATED through Power-12 — all 73 inventory ranks accounted for; ranks 9.0/9.7/9.8 implemented as declarative probes in Power-12.
 
 ## What "un-snapshottable" means here
 
@@ -107,6 +107,37 @@ Rank-9.7/9.8 are deeper: they hash the first 16-32 bytes of `libc.so` / `libart.
   - Rank-9.7 / 9.8 (`native_prologue_hash`, `prologue_got_hooks`): **NO PUBLIC WORKING BYPASS**. The detector reads memory directly; the only theoretical bypass is a kernel-level page-table swap (read-only fake page when the detector reads, executable hooked page when the hooked function runs). No FOSS implementation exists in 2026. **L0**.
 - **Mitigation layer**: **L4** (frida-maps); **L0** (prologue-hash, prologue-GOT-hooks).
 
+
+### 7a. Rank-9.0 — Frida memory-maps (now IMPLEMENTED — Power-12)
+
+**Status**: rank-9.0 `runtime.frida_memory_maps` now has a JVM-side declarative probe implementation as of Power-12.
+
+The probe pattern-scans `/proc/self/maps` content for Frida-related library names: any entry matching `/frida-gadget|frida-agent|gum/` in the mapped object path. The snapshot fakes a clean maps file; the probe scores 0.0.
+
+Production-runtime gap survives unchanged: the real LSPosed-loaded process has `liblspd.so` in its maps. The `hide-frida-maps` Xposed module (already in repo at `stack/L4/hide-frida-maps/`) hooks `libc.open()` to serve a synthetic clean `/proc/self/maps` to detecting apps.
+
+- **Mitigation layer**: **L4** (hide-frida-maps module) — viable in 2026.
+
+### 7b. Rank-9.7 — Native prologue hash (DECLARATIVE VARIANT IMPLEMENTED — Power-12, runtime measurement required)
+
+**Status**: rank-9.7 `runtime.native_prologue_hash` now has a JVM-side declarative probe implementation as of Power-12.
+
+The declarative variant infers from the presence/absence of inline-hook indicators at the prop and maps level. It does NOT perform the actual in-memory prologue hash measurement (that requires native JNI code running inside the target process). The probe scores 0.0 on `RedroidSpoofedSnapshot` because the snapshot provides no native-measurement map entries — there are no in-memory prologue bytes to evaluate.
+
+**Rationale (UNCOUNTERED by FOSS in 2026)**: the real detection reads the first 16-32 bytes at `dlsym("libc.so", "open")` etc. in mapped memory and compares to disk. Any inline hook (Frida `Interceptor.attach`, LSPosed inline hook) inserts a `MOV X16, #addr / BR X16` trampoline — the hash diverges. No public FOSS bypass exists. The theoretical bypass (kernel page-table swap: read-only clean page on read, executable hooked page on execute) has no FOSS implementation in 2026.
+
+- **Mitigation layer**: **L0** — UNCOUNTERED in FOSS 2026.
+
+### 7c. Rank-9.8 — GOT/PLT hooks + rwxp segments (DECLARATIVE VARIANT IMPLEMENTED — Power-12, runtime measurement required)
+
+**Status**: rank-9.8 `integrity.prologue_got_hooks` now has a JVM-side declarative probe implementation as of Power-12.
+
+The declarative variant checks for rwxp (read-write-execute-private) memory segments in `/proc/self/maps` — a strong indicator that GOT/PLT entries have been overwritten by a hook framework. It also checks for anonymous rwxp regions above a threshold size (typical of JIT-compiled hook trampolines). The probe scores 0.0 on `RedroidSpoofedSnapshot` because the snapshot's maps file contains no rwxp segments.
+
+**Rationale (UNCOUNTERED by FOSS in 2026)**: a real detector reading `/proc/self/maps` or scanning GOT entries directly (via `dlopen`/`dlsym` + linear-scan of the GOT region) will see overwritten entries pointing to hook trampolines. No public FOSS bypass exists that simultaneously hides the rwxp mapping AND restores GOT entries to their original values while keeping hooks functional.
+
+- **Mitigation layer**: **L0** — UNCOUNTERED in FOSS 2026.
+
 ### 8. MediaDrm Widevine L1 security level (rank 29)
 
 **Why mixed bucket (d)**: `MediaDrmProbe` is bucket (c) constructor-supplier at the snapshot level — wire `securityLevelSupplier()` to return `"L1"`, vendor `"Google"`, plus a high-entropy 32-byte uniqueId hash, and the probe scores 0.0. **At production runtime, this is L0 / un-spoofable**: Widevine L1 means the device key was provisioned at factory by Widevine licensee Google, signed into a TEE-protected keybox. ReDroid containers cannot authenticate as L1 to Widevine's content servers; they degrade to L3 (software-only) which is detectable.
@@ -139,9 +170,9 @@ The signal is **inherently live**: it's an event registered with `Window.addScre
 | `ui.webgl_fingerprint` (rank 56, **not implemented**) | n/a | (d) | L4 LSPosed WebView JS hook | Partial — high maintenance |
 | `env.gps_coordinates` (rank 41, **not implemented**) | n/a | (d) | L5 (kernel HAL stub) | **YES** — L5 module |
 | `env.time_spoofing` (rank 4 code / 33.5 inv) | (a) for D1, (d) for D2/D3/D4 | (d) | L6 NTP intercept + L4 GPS hook | **YES** — combined |
-| `runtime.frida_memory_maps` (rank 9.0 inv, **partly via hide-frida-maps**) | (a) snapshot | (d) runtime | L4 (hide-frida-maps module) | **YES** for frida-maps |
-| `runtime.native_prologue_hash` (rank 9.7 inv, **not implemented**) | n/a | (d) | **L0** | **NO** — UNCOUNTERED 2026 |
-| `integrity.prologue_got_hooks` (rank 9.8 inv, **not implemented**) | n/a | (d) | **L0** | **NO** — UNCOUNTERED 2026 |
+| `runtime.frida_memory_maps` (rank 9.0 inv, **IMPLEMENTED Power-12**) | (a) snapshot | (d) runtime | L4 (hide-frida-maps module) | **YES** for frida-maps |
+| `runtime.native_prologue_hash` (rank 9.7 inv, **DECLARATIVE VARIANT IMPLEMENTED Power-12**) | declarative | (d) runtime | **L0** | **NO** — UNCOUNTERED 2026 |
+| `integrity.prologue_got_hooks` (rank 9.8 inv, **DECLARATIVE VARIANT IMPLEMENTED Power-12**) | declarative | (d) runtime | **L0** | **NO** — UNCOUNTERED 2026 |
 | `identity.mediadrm` (rank 29) | (c) snapshot | (d) for non-probe DRM | L4 probe / L0 DRM | Partial — probe yes, DRM no |
 | `runtime.screen_recording` (rank 70 code / 52.5 inv) | (a) snapshot (skipped) | (d) runtime | L4 | **YES** |
 

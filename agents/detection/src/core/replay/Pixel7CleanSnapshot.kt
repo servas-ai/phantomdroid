@@ -289,5 +289,36 @@ object Pixel7CleanSnapshot {
         // sysfs is unreadable). Mirrors the RedroidSpoofedSnapshot value
         // for cross-snapshot consistency in the test harness.
         bluetoothMac = "3c:5a:b4:8d:f1:27",
+
+        // Power-12 rank-9.0 (runtime.frida_memory_maps) — DECLARATIVE.
+        // A factory-clean Pixel 7 process has none of the frida-class
+        // libraries mapped, none of the gum-runtime thread names spawned,
+        // and ports 27042/27043 unbound. Empty sets capture this clean
+        // ground truth across all three surfaces.
+        procSelfMapsLibs = emptySet(),
+        runtimeThreadNames = emptySet(),
+        openTcpPorts = emptySet(),
+
+        // Power-12 rank-9.7 (runtime.native_prologue_hash) — DECLARATIVE,
+        // mitigation_layer not_spoofable. JVM-side snapshots cannot
+        // capture this surface — the production runtime would populate
+        // these fields via a native ptrace measurement at capture time.
+        // Empty/zero means "no measurement performed"; the probe scores
+        // this as absent (NOT clean) signal, contributing zero. A real
+        // Pixel 7 with NO injected hooks would also produce empty
+        // deltas + zero trampolines if the measurement DID run, so the
+        // empty state is consistent with a clean device.
+        prologueHashDeltas = emptyMap(),
+        trampolinePatternCount = 0,
+
+        // Power-12 rank-9.8 (integrity.prologue_got_hooks) — DECLARATIVE,
+        // mitigation_layer not_spoofable. Same shape as rank-9.7 above:
+        // empty map / empty list = "no measurement performed" OR "clean
+        // GOT/PLT + no rwxp pages observed". A factory-clean Pixel 7
+        // process has no GOT entries pointing into /data/local/tmp or
+        // other anomalous targets, and no `rwxp` memory pages — both
+        // surfaces empty by ground truth.
+        gotPltAnomalies = emptyMap(),
+        rwxpMemorySegments = emptyList(),
     )
 }

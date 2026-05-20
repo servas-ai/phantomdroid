@@ -1202,5 +1202,60 @@ object RedroidSpoofedSnapshot {
         gpsAccuracy = 5.5f,           // realistic Pixel-7 GPS accuracy
         gpsProvider = "gps",          // canonical GPS provider (not fused)
         gpsIsMock = false,            // framework explicitly says "real fix"
+
+        // Power-12 rank-9.0 (runtime.frida_memory_maps) — DECLARATIVE.
+        // The spoof story for this surface is "absent signal == clean":
+        // a SpoofStack-protected container has no Frida payload in its
+        // address space, no gum threads spawned, no frida-server ports
+        // bound. Empty sets match the ground-truth ReDroid baseline AND
+        // the clean-Pixel ground truth — no spoofing required because
+        // the source data is already clean. (The probe lands at
+        // PATTERN_CLEAN score 0.0.)
+        // Real-SpoofStack hook: NONE NEEDED on the un-spoofed ReDroid
+        // baseline. If a future container image bundled Frida (which it
+        // currently does not), the SpoofStack would need:
+        //   (a) Magisk DenyList for the target app's UID to unmount any
+        //       /data/local/tmp/frida-server binary so the binary itself
+        //       cannot mmap into the calling process.
+        //   (b) LSPosed module hooking `java.io.File`/`libc.open` reads
+        //       of `/proc/self/maps`, `/proc/self/task/*/comm`, and
+        //       `/proc/net/tcp` to filter out lines containing the
+        //       frida-class tokens / ports. Per
+        //       audit/spoof-stack/un-snapshottable.md the REAL surface
+        //       (a native attacker walking /proc directly via syscalls
+        //       not routed through libc) is L0 — un-spoofable in the
+        //       FOSS-tooling era of 2026.
+        procSelfMapsLibs = emptySet(),
+        runtimeThreadNames = emptySet(),
+        openTcpPorts = emptySet(),
+
+        // Power-12 rank-9.7 (runtime.native_prologue_hash) — DECLARATIVE,
+        // mitigation_layer not_spoofable. The spoof story is "no
+        // measurement OR no hooks observed". The probe scores zero
+        // against an empty deltas + zero trampolines, which is the
+        // intended state for a spoofed-but-not-hooked container.
+        // Real-SpoofStack hook: CRITICAL — this surface CANNOT be
+        // spoofed by a JVM-side hook. If the SpoofStack itself uses
+        // inline hooks to mask other probes (e.g. an LSPosed hook on
+        // Build.* readers), those hooks leave MOV X16/BR X16 trampolines
+        // in the patched function prologues which a native-side
+        // ptrace-equipped detector would observe directly. The only
+        // mitigation is to use a HOOK-FREE detection-evasion stack
+        // (Magisk DenyList + bind-mount overlays, no LSPosed hooks). Per
+        // audit/spoof-stack/un-snapshottable.md and the inventory note
+        // "UNCOUNTERED by FOSS in 2026" — this is BEST-STACK §IV Hard
+        // Ceiling #1.
+        prologueHashDeltas = emptyMap(),
+        trampolinePatternCount = 0,
+
+        // Power-12 rank-9.8 (integrity.prologue_got_hooks) — DECLARATIVE,
+        // mitigation_layer not_spoofable. Same shape and same hard-
+        // ceiling story as rank-9.7. A clean GOT/PLT table and zero
+        // `rwxp` memory pages are the intended state. Real-SpoofStack
+        // hook: same constraint as rank-9.7 — a hook-FREE detection-
+        // evasion stack is required to keep this surface clean. BEST-
+        // STACK §IV Hard Ceiling #1 — UNCOUNTERED.
+        gotPltAnomalies = emptyMap(),
+        rwxpMemorySegments = emptyList(),
     )
 }

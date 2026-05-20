@@ -145,4 +145,78 @@ data class DeviceSnapshot(
      * `false` = real fix; `true` = mock-location framework injection.
      */
     val gpsIsMock: Boolean? = null,
+
+    /**
+     * Library names observed in `/proc/self/maps` for the calling process.
+     * Consumed by `FridaMemoryMapsProbe` (rank 9.0). Tokens are case-
+     * insensitive substrings the probe scans for — entries like
+     * `"frida-agent"`, `"libfrida-gadget"`, `"libgum"`, `"linjector"`.
+     * Empty set = "no frida-class libraries mapped" (the clean state).
+     */
+    val procSelfMapsLibs: Set<String> = emptySet(),
+
+    /**
+     * Thread names harvested from `/proc/self/task/<tid>/comm`. Consumed
+     * by `FridaMemoryMapsProbe` (rank 9.0). Frida's gum runtime spawns
+     * threads named `"gum-js-loop"`, `"gmain"`, `"gdbus"` etc.; their
+     * presence is dispositive. Empty set = no observed threads / no
+     * suspicious threads — both clean from the probe's perspective.
+     */
+    val runtimeThreadNames: Set<String> = emptySet(),
+
+    /**
+     * TCP ports observed bound in `/proc/net/tcp`. Consumed by
+     * `FridaMemoryMapsProbe` (rank 9.0). Frida's default server listens
+     * on 27042 / 27043; their presence in the bound-port set is a
+     * smoking-gun signal. Empty set = no relevant ports observed.
+     */
+    val openTcpPorts: Set<Int> = emptySet(),
+
+    /**
+     * Per-function prologue-hash mismatch map produced by a runtime
+     * native-side comparison of the first 16-32 bytes of libc.so /
+     * libart.so functions against the on-disk baseline. Keys are
+     * function symbols; values are `true` when the in-memory bytes
+     * differ from the disk image (typically because an inline-hook
+     * trampoline was patched in).
+     *
+     * Consumed by `NativePrologueHashProbe` (rank 9.7, mitigation_layer
+     * `not_spoofable`). Cannot be measured from the JVM — the snapshot
+     * MUST be populated by a native ptrace-style harness at capture
+     * time. An empty map means "no measurement performed", which the
+     * probe scores as zero signal (absent != clean).
+     */
+    val prologueHashDeltas: Map<String, Boolean> = emptyMap(),
+
+    /**
+     * Count of MOV X16 / BR X16 (AArch64) trampoline patterns observed
+     * across the scanned function prologues. Each occurrence is a
+     * single inline-hook indicator; any non-zero count is a critical
+     * signal. Consumed by `NativePrologueHashProbe` (rank 9.7).
+     */
+    val trampolinePatternCount: Int = 0,
+
+    /**
+     * GOT/PLT entry anomaly map produced by a runtime native-side
+     * comparison of resolved global-offset-table function pointers
+     * against the expected (canonical) target library. Keys are
+     * function symbols; values are short descriptions of the
+     * unexpected target (e.g. `"resolves to /data/local/tmp/frida.so"`).
+     *
+     * Consumed by `PrologueGotHooksProbe` (rank 9.8, mitigation_layer
+     * `not_spoofable`). Cannot be measured from the JVM — captured
+     * at runtime by a native-side GOT-table walker. Empty map means
+     * "no measurement performed" — absent != clean.
+     */
+    val gotPltAnomalies: Map<String, String> = emptyMap(),
+
+    /**
+     * Memory segments observed with simultaneous write + execute (`rwxp`)
+     * permissions in `/proc/self/maps`. Each entry is a smoking-gun
+     * signal that text-section memory has been made writable — the
+     * canonical state right after an inline-hook installer patches a
+     * function prologue. Consumed by `PrologueGotHooksProbe` (rank 9.8).
+     * Empty list = clean (no rwxp pages observed).
+     */
+    val rwxpMemorySegments: List<String> = emptyList(),
 )

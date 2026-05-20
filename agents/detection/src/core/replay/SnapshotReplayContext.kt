@@ -176,6 +176,55 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
         if (!anyPresent) return com.detectorlab.core.UnknownLocationManagerView
         return SnapshotLocationManagerView(snapshot)
     }
+
+    /**
+     * Snapshot-side bridge for `FridaMemoryMapsProbe` (rank 9.0). Returns
+     * the snapshot's `procSelfMapsLibs` field so the probe sees the
+     * captured library set rather than the empty default.
+     */
+    override fun queryProcSelfMapsLibs(): Set<String> = snapshot.procSelfMapsLibs
+
+    /**
+     * Snapshot-side bridge for `FridaMemoryMapsProbe` thread-name surface.
+     * Returns the snapshot's `runtimeThreadNames` field.
+     */
+    override fun queryRuntimeThreadNames(): Set<String> = snapshot.runtimeThreadNames
+
+    /**
+     * Snapshot-side bridge for `FridaMemoryMapsProbe` open-port surface.
+     * Returns the snapshot's `openTcpPorts` field.
+     */
+    override fun queryOpenTcpPorts(): Set<Int> = snapshot.openTcpPorts
+
+    /**
+     * Snapshot-side bridge for `NativePrologueHashProbe` (rank 9.7).
+     * Returns the snapshot's `prologueHashDeltas` field. Empty map =
+     * "no native-side measurement recorded at capture time" — probe
+     * scores zero, NOT a clean signal.
+     */
+    override fun queryPrologueHashDeltas(): Map<String, Boolean> =
+        snapshot.prologueHashDeltas
+
+    /**
+     * Snapshot-side bridge for `NativePrologueHashProbe` trampoline-count
+     * surface. Returns the snapshot's `trampolinePatternCount` field.
+     */
+    override fun queryTrampolinePatternCount(): Int =
+        snapshot.trampolinePatternCount
+
+    /**
+     * Snapshot-side bridge for `PrologueGotHooksProbe` (rank 9.8).
+     * Returns the snapshot's `gotPltAnomalies` field.
+     */
+    override fun queryGotPltAnomalies(): Map<String, String> =
+        snapshot.gotPltAnomalies
+
+    /**
+     * Snapshot-side bridge for `PrologueGotHooksProbe` rwxp-segment
+     * surface. Returns the snapshot's `rwxpMemorySegments` field.
+     */
+    override fun queryRwxpMemorySegments(): List<String> =
+        snapshot.rwxpMemorySegments
 }
 
 /**
