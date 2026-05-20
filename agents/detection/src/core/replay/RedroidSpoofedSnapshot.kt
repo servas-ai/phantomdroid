@@ -776,5 +776,53 @@ object RedroidSpoofedSnapshot {
         displayDensityDpi = 420,      // Pixel 7 logical density (multiple of 20)
         displayXdpi = 411.0f,         // Pixel 7 physical horizontal pixels-per-inch
         displayYdpi = 413.0f,         // Pixel 7 physical vertical pixels-per-inch
+
+        // Mask rank-41 (env.gps_coordinates). Power-8 GPS-surface phase
+        // added `queryLocationManager(): LocationManagerView` default-method
+        // to ProbeContext (defaults to `UnknownLocationManagerView`). The
+        // SnapshotReplayContext override synthesizes a LocationManagerView
+        // over the snapshot's flat `gps*` fields below. GpsCoordinatesProbe
+        // reads the view directly — no constructor supplier needed.
+        //
+        // Value selection: Googleplex (Mountain View, CA) is the
+        // canonical "plausible Android user" location — most Pixel devices
+        // have it as their last-known fix at some point. The (37.4221,
+        // -122.0841) coordinate is the Google HQ visitor lot, NOT (0,0)
+        // null-island, NOT the test-fixture (1,1)/(45,45) values.
+        // Accuracy 5.5m is realistic for a phone GPS in good sky-view
+        // (Pixel 7 spec sheet: 3-5m typical, 1-3m with WiFi-assist;
+        // 5.5m comfortably above the 1.0m S4 implausibility floor).
+        // Provider "gps" lands the probe in PATTERN_CLEAN — distinct
+        // from the "fused" S5 mock-framework branch. gpsIsMock=false is
+        // the explicit "framework says this fix is real" answer, which
+        // disarms the S1 mock-provider rule.
+        //
+        // Real-SpoofStack hook: LocationManager.getLastKnownLocation()
+        // is a system-service IPC call into the location-service backed
+        // by /data/system/locationManagerService.xml + the LocationProvider
+        // bound to each registered provider. Production approaches:
+        //   (a) LSPosed module hooking
+        //       android.location.LocationManager.getLastKnownLocation()
+        //       to return a fabricated Location with the spoofed lat/lng,
+        //       accuracy, provider, and isFromMockProvider=false. The
+        //       hook also needs to fabricate FusedLocationProviderClient.
+        //       getLastLocation() (com.google.android.gms.location.*) on
+        //       the same surface — Play-Services-using apps hit that path
+        //       instead of the framework LocationManager.
+        //   (b) A recorded-fix-history backing-store: ship the LSPosed
+        //       module with a JSON of timestamp -> Location records
+        //       captured from a real Pixel session, and replay them in
+        //       monotonic order on each getLastKnownLocation() call.
+        //       Avoids the static-coordinates flag a future probe could
+        //       add by checking if the fix is identical across N seconds.
+        // Option (b) is the production-grade fix; production SpoofStack
+        // (NeoZygisk's location-spoof package) ships this as a separate
+        // module from the rank-39 isFromMockProvider hook (which is also
+        // needed but addresses a different probe surface).
+        gpsLat = 37.4221,             // Googleplex Mountain View — "I'm an Android user"
+        gpsLng = -122.0841,
+        gpsAccuracy = 5.5f,           // realistic Pixel-7 GPS accuracy
+        gpsProvider = "gps",          // canonical GPS provider (not fused)
+        gpsIsMock = false,            // framework explicitly says "real fix"
     )
 }

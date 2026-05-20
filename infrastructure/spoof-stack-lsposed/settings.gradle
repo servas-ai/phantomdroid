@@ -1,0 +1,6 @@
+// Standalone LSPosed module — NOT integrated into the main project gradle build.
+// This is a self-contained source tree shipped to a deployer who has the
+// LSPosed-api jar available locally.
+
+rootProject.name = 'spoof-stack-lsposed'
+include ':app'

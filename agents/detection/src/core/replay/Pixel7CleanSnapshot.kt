@@ -154,6 +154,22 @@ object Pixel7CleanSnapshot {
         // added when a future probe scores on them.
         sensorTypes = setOf(1, 2, 4, 5, 6, 8),
 
+        // Canonical Pixel 7 GPS fix-frame for rank-41 (env.gps_coordinates).
+        // A factory-clean Pixel 7 that has ever booted with location
+        // services enabled reports a realistic last-known fix; Googleplex
+        // (the same Mountain View coordinate the RedroidSpoofedSnapshot
+        // uses) keeps the two snapshots cross-consistent. Accuracy 5.5m
+        // is the canonical Pixel 7 GPS accuracy in good sky-view
+        // conditions — well above the 1.0m S4 implausibility floor.
+        // Provider "gps" → distinct from the S5 fused-without-GPS branch.
+        // gpsIsMock=false is the framework's explicit "this is a real
+        // fix" answer, disarming the S1 mock-provider rule.
+        gpsLat = 37.4221,
+        gpsLng = -122.0841,
+        gpsAccuracy = 5.5f,
+        gpsProvider = "gps",
+        gpsIsMock = false,
+
         // Canonical Pixel 7 BluetoothAdapter address surface. The OUI
         // 3C:5A:B4 is one of Google Inc.'s IEEE-registered OUI blocks —
         // first-byte 0x3C has the locally-administered bit (0x02) clear,

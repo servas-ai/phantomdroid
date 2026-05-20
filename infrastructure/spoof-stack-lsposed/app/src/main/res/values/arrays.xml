@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default LSPosed scope for the module. The deployer adds target package
+  names here (e.g. <item>com.target.app</item>) before building the APK,
+  OR uses the LSPosed Manager UI to configure scope at install time.
+
+  An empty list means "no apps targeted" — the module loads but does
+  nothing until scope is configured.
+-->
+<resources>
+    <string-array name="xposedscope">
+        <!-- e.g. <item>com.example.targetapp</item> -->
+    </string-array>
+</resources>

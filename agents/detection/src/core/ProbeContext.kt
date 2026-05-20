@@ -155,6 +155,25 @@ interface ProbeContext {
     /**
      * Default returns the "unknown" view so existing fakes that predate this
      * method continue to compile. Production impls override with a wrapper
+     * around `android.location.LocationManager.getLastKnownLocation()` plus
+     * `Location.isFromMockProvider()` (API >= 18) on the most recently
+     * delivered fix.
+     *
+     * Consumed by `GpsCoordinatesProbe` (rank 41) — same backward-compat
+     * shape as `queryKeyguardManager`. The view exposes the small set of
+     * fields the probe scores against (mock-provider flag, sentinel
+     * coordinates, accuracy floor, provider name) and intentionally does
+     * NOT expose PII-grade fix history beyond the single most recent
+     * fix-frame. `null` from any per-field accessor means "permission
+     * missing OR no fix recorded yet" — probes must distinguish that
+     * from "fix observed with field literally zero" by combining the
+     * `hasLastKnownLocation()` boolean with the per-field reads.
+     */
+    fun queryLocationManager(): LocationManagerView = UnknownLocationManagerView
+
+    /**
+     * Default returns the "unknown" view so existing fakes that predate this
+     * method continue to compile. Production impls override with a wrapper
      * around `android.net.wifi.WifiManager`.
      */
     fun queryWifiManager(): WifiManagerView = UnknownWifiManagerView
@@ -190,6 +209,77 @@ object UnknownKeyguardManagerView : KeyguardManagerView {
     override fun sdkInt(): Int = 0
     override fun isDeviceSecure(): Boolean? = null
     override fun isKeyguardSecure(): Boolean? = null
+}
+
+/**
+ * Read-only view of `android.location.LocationManager` reduced to the single
+ * most-recent fix-frame the probe surface needs. Implementations must return:
+ *   - `hasLastKnownLocation() == null` when the caller lacks `ACCESS_FINE_LOCATION`
+ *     / `ACCESS_COARSE_LOCATION` OR the production wrapper threw — probes
+ *     read `null` as "permission missing, signal unavailable".
+ *   - `hasLastKnownLocation() == false` when the framework is reachable but
+ *     no provider has yet delivered a fix (cold-boot, airplane mode, indoors
+ *     without network locality). This is the load-bearing branch for the
+ *     phone-class missing-fix rule in `GpsCoordinatesProbe`.
+ *   - Per-field accessors return `null` when `hasLastKnownLocation()` is null
+ *     or false; they may also return `null` individually when the underlying
+ *     `Location` field is unset on the most recent fix (e.g. some providers
+ *     omit `accuracy`).
+ *
+ * `isMockProvider()` reads `Location.isFromMockProvider()` introduced in API 18.
+ * On older SDKs it returns `null` (the conservative answer). Distinct from
+ * the rank-39 `LocationMockProbe` settings-secure sentinel: this is the
+ * runtime fix-frame flag, not the package/permission audit.
+ */
+interface LocationManagerView {
+    /** Android `Build.VERSION.SDK_INT` — gates the API-18 `isMockProvider` path. */
+    fun sdkInt(): Int
+
+    /**
+     * Returns true iff `LocationManager.getLastKnownLocation()` returned a
+     * non-null `Location` for at least one provider. Returns `false` when
+     * the framework is reachable but no fix exists yet. Returns `null` when
+     * permission is missing OR the accessor failed.
+     */
+    fun hasLastKnownLocation(): Boolean?
+
+    /** Latitude (decimal degrees, WGS84) of the most-recent fix, or null. */
+    fun lastKnownLatitude(): Double?
+
+    /** Longitude (decimal degrees, WGS84) of the most-recent fix, or null. */
+    fun lastKnownLongitude(): Double?
+
+    /**
+     * Horizontal accuracy radius in meters (`Location.getAccuracy()`) of the
+     * most-recent fix, or null. Real GPS fixes are rarely better than ~3m;
+     * sub-meter values are a mock-provider tell.
+     */
+    fun lastKnownAccuracy(): Float?
+
+    /**
+     * Provider that produced the most-recent fix
+     * (`LocationManager.GPS_PROVIDER` / `NETWORK_PROVIDER` / `FUSED_PROVIDER`).
+     * Canonical lowercase strings: `"gps"`, `"network"`, `"fused"`.
+     */
+    fun lastKnownProvider(): String?
+
+    /**
+     * `Location.isFromMockProvider()` on the most-recent fix. API 18+.
+     * Returns `null` on API <18 OR when no fix exists. `true` is the
+     * canonical mock-location ground-truth signal.
+     */
+    fun isMockProvider(): Boolean?
+}
+
+/** Conservative default: claims sdkInt=0 and answers null/false for every field. */
+object UnknownLocationManagerView : LocationManagerView {
+    override fun sdkInt(): Int = 0
+    override fun hasLastKnownLocation(): Boolean? = null
+    override fun lastKnownLatitude(): Double? = null
+    override fun lastKnownLongitude(): Double? = null
+    override fun lastKnownAccuracy(): Float? = null
+    override fun lastKnownProvider(): String? = null
+    override fun isMockProvider(): Boolean? = null
 }
 
 /**

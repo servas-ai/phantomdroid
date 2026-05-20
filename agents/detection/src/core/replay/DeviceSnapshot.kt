@@ -89,6 +89,18 @@ package com.detectorlab.core.replay
  *     `DisplayMetricsView` over these fields when at least one is populated,
  *     else returns `null` (the "no display observation possible"
  *     conservative default).
+ *   * `gpsLat` / `gpsLng` / `gpsAccuracy` / `gpsProvider` / `gpsIsMock` —
+ *     flat representation of the most-recent `Location` fix backing the
+ *     `LocationManagerView` accessor cluster. Drive
+ *     `SnapshotReplayContext.queryLocationManager()` which synthesizes a
+ *     `LocationManagerView` over these fields. When ALL five are null the
+ *     view's `hasLastKnownLocation()` returns null (= "permission missing
+ *     or no observation"), which `GpsCoordinatesProbe` (rank 41) reads as
+ *     CONFIDENCE_DEGRADED. When at least lat OR lng is populated,
+ *     `hasLastKnownLocation()` returns true. `gpsIsMock=null` (the field
+ *     not captured) is distinct from `false` (the runtime explicitly said
+ *     "this fix is not from a mock provider"); both branches matter to
+ *     the rank-41 scoring cascade.
  *   * `sdkInt` — `Build.VERSION.SDK_INT` claimed by the runtime.
  *
  * `null`-valued entries are equivalent to missing entries — the same
@@ -119,4 +131,18 @@ data class DeviceSnapshot(
     val displayDensityDpi: Int? = null,
     val displayXdpi: Float? = null,
     val displayYdpi: Float? = null,
+    /** Last-known-fix latitude (decimal degrees, WGS84). `null` = no fix in snapshot. */
+    val gpsLat: Double? = null,
+    /** Last-known-fix longitude (decimal degrees, WGS84). `null` = no fix in snapshot. */
+    val gpsLng: Double? = null,
+    /** Last-known-fix horizontal accuracy radius in meters. `null` = field unrecorded. */
+    val gpsAccuracy: Float? = null,
+    /** Provider that produced the last-known fix: `"gps"` / `"network"` / `"fused"`. */
+    val gpsProvider: String? = null,
+    /**
+     * `Location.isFromMockProvider()` reading on the last-known fix. `null`
+     * = field unrecorded (API <18 or snapshot pre-dates the accessor);
+     * `false` = real fix; `true` = mock-location framework injection.
+     */
+    val gpsIsMock: Boolean? = null,
 )

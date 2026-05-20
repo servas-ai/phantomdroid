@@ -1,0 +1,24 @@
+# Gradle build artifacts
+build/
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+
+# APK outputs
+*.apk
+*.aab
+*.aar
+
+# Signing
+*.keystore
+*.jks
+
+# OS noise
+.DS_Store
+Thumbs.db

@@ -13,6 +13,7 @@
 package com.detectorlab.core.replay
 
 import com.detectorlab.core.DisplayMetricsView
+import com.detectorlab.core.LocationManagerView
 import com.detectorlab.core.PackageManagerView
 import com.detectorlab.core.ProbeContext
 import com.detectorlab.core.SensorManagerView
@@ -153,6 +154,28 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
         if (!anyPresent) return null
         return SnapshotDisplayMetricsView(snapshot)
     }
+
+    /**
+     * Snapshot-side bridge for `GpsCoordinatesProbe` (rank 41). Overrides the
+     * `ProbeContext` default (`= UnknownLocationManagerView`) to synthesize a
+     * `LocationManagerView` over the snapshot's flat `gps*` fields. Returns
+     * the singleton `UnknownLocationManagerView` (= "permission missing / no
+     * observation possible") when ALL of `gpsLat` / `gpsLng` /
+     * `gpsAccuracy` / `gpsProvider` / `gpsIsMock` are null — this is the
+     * conservative "snapshot did not capture GPS state" answer, matching the
+     * rank-41 KDoc CONFIDENCE_DEGRADED branch. When at least one field is
+     * populated, returns a view that delegates each accessor to the
+     * corresponding snapshot field.
+     */
+    override fun queryLocationManager(): LocationManagerView {
+        val anyPresent = snapshot.gpsLat != null ||
+            snapshot.gpsLng != null ||
+            snapshot.gpsAccuracy != null ||
+            snapshot.gpsProvider != null ||
+            snapshot.gpsIsMock != null
+        if (!anyPresent) return com.detectorlab.core.UnknownLocationManagerView
+        return SnapshotLocationManagerView(snapshot)
+    }
 }
 
 /**
@@ -212,4 +235,30 @@ internal class SnapshotDisplayMetricsView(
     override fun densityDpi(): Int? = snapshot.displayDensityDpi
     override fun xdpi(): Float? = snapshot.displayXdpi
     override fun ydpi(): Float? = snapshot.displayYdpi
+}
+
+/**
+ * `LocationManagerView` backed by a `DeviceSnapshot`'s flat `gps*` fields.
+ * `hasLastKnownLocation()` returns true iff at least one of `gpsLat` / `gpsLng`
+ * is populated — a "lat-only" or "lng-only" fix is still a fix-frame, just
+ * with one coordinate omitted by the provider (matches the per-field
+ * nullability the `LocationManagerView` contract permits).
+ *
+ * `sdkInt()` is taken from `snapshot.sdkInt` so the API-18 mock-provider
+ * gate in `GpsCoordinatesProbe` reflects the captured runtime, not a fixed
+ * value. Used by `SnapshotReplayContext.queryLocationManager()`; only
+ * instantiated when at least one of the snapshot's `gps*` fields is
+ * populated (else the override returns `UnknownLocationManagerView`).
+ */
+internal class SnapshotLocationManagerView(
+    private val snapshot: DeviceSnapshot,
+) : LocationManagerView {
+    override fun sdkInt(): Int = snapshot.sdkInt
+    override fun hasLastKnownLocation(): Boolean? =
+        snapshot.gpsLat != null || snapshot.gpsLng != null
+    override fun lastKnownLatitude(): Double? = snapshot.gpsLat
+    override fun lastKnownLongitude(): Double? = snapshot.gpsLng
+    override fun lastKnownAccuracy(): Float? = snapshot.gpsAccuracy
+    override fun lastKnownProvider(): String? = snapshot.gpsProvider
+    override fun isMockProvider(): Boolean? = snapshot.gpsIsMock
 }

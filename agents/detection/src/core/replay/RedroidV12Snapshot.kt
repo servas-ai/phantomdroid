@@ -117,5 +117,21 @@ object RedroidV12Snapshot {
         // ground truth (rather than relying on the data-class default)
         // for the same reasons as sensorTypes above.
         bluetoothMac = null,
+
+        // ReDroid container has no GPS HAL backend — LocationManager
+        // exists as a system service stub but no provider has ever
+        // delivered a fix, so `getLastKnownLocation()` returns null for
+        // every provider. Declared explicitly (all five gps* fields
+        // null) as the negative-class ground truth: rank-41 will read
+        // this as UnknownLocationManagerView → hasLastKnownLocation()
+        // == null → CONFIDENCE_PERMISSION_MISSING. The probe still
+        // scores 0.0 (no positive signal fires) — the LOW severity +
+        // confidence-degraded result is the correct conservative answer
+        // for "container with no real GPS hardware".
+        gpsLat = null,
+        gpsLng = null,
+        gpsAccuracy = null,
+        gpsProvider = null,
+        gpsIsMock = null,
     )
 }

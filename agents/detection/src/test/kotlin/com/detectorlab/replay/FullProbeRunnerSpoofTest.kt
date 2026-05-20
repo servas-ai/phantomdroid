@@ -1,7 +1,7 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt
 //
 // FULL-PANEL spoof-effectiveness gate — instantiates every probe in the
-// production inventory (all 63) and runs them against RedroidSpoofedSnapshot
+// production inventory (all 65) and runs them against RedroidSpoofedSnapshot
 // through the real ProbeRunner. Two assertions:
 //
 //   (1) report.aggregate.category == ReportCategory.CLEAN
@@ -51,6 +51,7 @@ import com.detectorlab.probes.env.BootloaderProbe
 import com.detectorlab.probes.env.CameraInfoProbe
 import com.detectorlab.probes.env.ChargingStateProbe
 import com.detectorlab.probes.env.DeveloperOptionsProbe
+import com.detectorlab.probes.env.GpsCoordinatesProbe
 import com.detectorlab.probes.env.LanguageCountryProbe
 import com.detectorlab.probes.env.LocationMockProbe
 import com.detectorlab.probes.env.LocationMockRaspProbe
@@ -70,6 +71,7 @@ import com.detectorlab.probes.identity.MediaDrmProbe
 import com.detectorlab.probes.identity.SimIccidProbe
 import com.detectorlab.probes.identity.WifiMacProbe
 import com.detectorlab.probes.identity.WifiSsidBssidProbe
+import com.detectorlab.probes.integrity.AppSignatureProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
 import com.detectorlab.probes.kernel.CpuInfoProbe
 import com.detectorlab.probes.network.DnsServerProbe
@@ -125,7 +127,7 @@ class FullProbeRunnerSpoofTest {
         GpuRendererProbe(),
         ProcVersionProbe(),
         QemuArtifactsProbe(),
-        // env (18)
+        // env (19)
         AccessibilityServicesProbe(),
         AccountsProbe(),
         BatteryLevelProbe(),
@@ -135,6 +137,7 @@ class FullProbeRunnerSpoofTest {
         CameraInfoProbe(),
         ChargingStateProbe(),
         DeveloperOptionsProbe(),
+        GpsCoordinatesProbe(),
         LanguageCountryProbe(),
         LocationMockProbe(),
         LocationMockRaspProbe(),
@@ -157,7 +160,8 @@ class FullProbeRunnerSpoofTest {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (1)
+        // integrity (2)
+        AppSignatureProbe(),
         PlayIntegrityProbe(),
         // kernel (1)
         CpuInfoProbe(),
@@ -199,8 +203,8 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                63, probes.size,
-                "expected the full 63-probe inventory; if the inventory changed, " +
+                65, probes.size,
+                "expected the full 65-probe inventory; if the inventory changed, " +
                     "update the allProbes() registry above",
             )
             val runner = ProbeRunner(

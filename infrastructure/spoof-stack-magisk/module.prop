@@ -1,0 +1,7 @@
+id=spoof-stack-redroid-12
+name=SpoofStack Power-8 (ReDroid 12)
+version=v1.0.0
+versionCode=100
+author=cloud-phone-research
+description=Pixel-7 spoof overlay for ReDroid 12 (closes all 63 production probes from production-hooks-spec.md). Bundles 30 resetprop calls, 13 settings-put calls, 38 magic-mount files, and 3 sysfs bind-mounts. Pair with the companion LSPosed module for full coverage.
+minMagisk=20400
