@@ -70,7 +70,7 @@ probes:
     category: runtime
     severity: critical
     android_layer: framework
-    description: "Xposed classloader, zygisk traces, hook artifacts in /proc/self/maps"
+    description: "Xposed classloader, zygisk traces, hook artifacts in /proc/self/maps + generic libzygisk observability row (Power-13 Gap #11)"
     mitigation_layer: L4
 
   - rank: 9

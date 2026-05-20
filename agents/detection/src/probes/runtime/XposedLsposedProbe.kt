@@ -31,19 +31,33 @@ import com.detectorlab.core.ProbeSeverity
  *   3. **`/proc/self/maps` Xposed-family hook libraries** — `libxposed_art`,
  *      `libxposed_dalvik`, `liblspd`, `libriru_lsposed`, `libriru_edxposed`
  *      mapped into the current process. Markers are deliberately narrow:
- *      generic `libriru`, `libzygisk`, and `libsandhook` are NOT used because
- *      they fire on benign Riru modules, every Magisk-zygisk install, and
- *      unrelated RASP/anti-cheat frameworks. Riru modules follow the
- *      `libriru_<modulename>.so` convention so the `libriru_{lsposed,edxposed}`
- *      substrings disambiguate Xposed-family modules from benign ones.
- *      LSPosed-via-zygisk surfaces through `liblspd`, so no separate zygisk
- *      marker is needed.
+ *      generic `libriru`, `libzygisk`, and `libsandhook` are NOT used to
+ *      elevate the score because they fire on benign Riru modules, every
+ *      Magisk-zygisk install, and unrelated RASP/anti-cheat frameworks.
+ *      Riru modules follow the `libriru_<modulename>.so` convention so the
+ *      `libriru_{lsposed,edxposed}` substrings disambiguate Xposed-family
+ *      modules from benign ones. LSPosed-via-zygisk surfaces through
+ *      `liblspd`, so no separate zygisk marker is needed for SCORING.
+ *
+ *   4. **Power-13 Gap #11 — generic `libzygisk` presence (observability
+ *      only, NON-scoring)**. Momo specifically scans for raw `libzygisk`
+ *      mapped in `/proc/self/maps`. A consumer-side aggregator may want
+ *      to surface this signal because the absence of `libzygisk` IS
+ *      itself a tell about the device's Magisk configuration: a
+ *      cloud-phone target running Magisk with zygisk DISABLED is
+ *      configured to hide from this exact heuristic. We emit the
+ *      observation as a distinct evidence row (`xposed.generic_zygisk_present`)
+ *      WITHOUT elevating the score — the FP rate on a benign-Magisk-
+ *      zygisk install is too high for the signal to be probative on
+ *      its own. The row is informational and feeds the consumer's
+ *      cross-rank aggregation.
  *
  * Scoring:
  *   - 1.00  any installation artifact present
  *   - 0.85  only manager package installed (UI without active runtime)
- *   - 0.70  only `/proc/self/maps` hook library detected (ambiguous w/ other hook frameworks)
- *   - 0.00  otherwise
+ *   - 0.70  only narrow Xposed-family `/proc/self/maps` hook library detected
+ *   - 0.00  otherwise (INCLUDING when only generic `libzygisk` is observed —
+ *           Power-13 Gap #11 observability rule)
  *
  * Confidence cap: 0.85 normal (instead of the 0.95 used by file+package-only
  * probes like rank 3) — we lack the classloader-introspection signal class and
@@ -51,7 +65,10 @@ import com.detectorlab.core.ProbeSeverity
  * device where the filesystem and package signals were both wiped (Magisk
  * DenyList + manager-uninstall). 0.5 when every filesystem accessor throws.
  *
- * Reference: shared/probes/inventory.yml rank 8 (mitigation_layer L4).
+ * Reference: shared/probes/inventory.yml rank 8 (mitigation_layer L4);
+ * audit/spoof-stack/real-world-detectors.md row "Zygisk traces in
+ * /proc/self/maps" (Momo target surface); HuskyDG blog entry
+ * `detect_magisk_xposed` for the generic-zygisk discussion.
  */
 class XposedLsposedProbe : Probe {
     override val id = "runtime.xposed_lsposed"
@@ -82,10 +99,11 @@ class XposedLsposedProbe : Probe {
         )
 
         /**
-         * Substrings to look for inside `/proc/self/maps`. Deliberately narrow
-         * to Xposed-family-specific names: generic `libriru`, `libzygisk`, and
-         * `libsandhook` are excluded because they fire on benign Riru modules,
-         * every Magisk-zygisk install, and unrelated hook frameworks.
+         * Substrings to look for inside `/proc/self/maps` that DRIVE the
+         * 0.70 hook-library score. Deliberately narrow to Xposed-family-
+         * specific names: generic `libriru`, `libzygisk`, and `libsandhook`
+         * are excluded because they fire on benign Riru modules, every
+         * Magisk-zygisk install, and unrelated hook frameworks.
          */
         val HOOK_LIB_MARKERS: List<String> = listOf(
             "libxposed_art",
@@ -94,6 +112,19 @@ class XposedLsposedProbe : Probe {
             "libriru_lsposed",
             "libriru_edxposed",
         )
+
+        /**
+         * Generic-zygisk marker emitted as observability-only evidence
+         * (Power-13 Gap #11). NOT in `HOOK_LIB_MARKERS` because the FP
+         * class — every Magisk-zygisk install on a benign device —
+         * makes the signal non-dispositive on its own. The evidence
+         * row exists for consumer-side cross-rank aggregation: a
+         * detector that has independent reason to suspect Magisk can
+         * use the absence-of-libzygisk as a "Magisk-DenyList-with-
+         * zygisk-disabled" tell, and the presence-of-libzygisk as a
+         * Momo-target tell that corroborates other signals.
+         */
+        const val GENERIC_ZYGISK_MARKER = "libzygisk"
 
         const val PROC_SELF_MAPS = "/proc/self/maps"
 
@@ -107,7 +138,10 @@ class XposedLsposedProbe : Probe {
 
         const val METHOD =
             "Filesystem path + package-list scan + /proc/self/maps " +
-                "hook-library detection (classloader signal class deferred — see KDoc)"
+                "hook-library detection (narrow Xposed-family scoring " +
+                "markers, generic libzygisk emitted as observability- " +
+                "only evidence — Power-13 Gap #11). " +
+                "Classloader signal class deferred — see KDoc."
 
         /**
          * Confidence cap when the classloader signal class is unavailable
@@ -185,6 +219,16 @@ class XposedLsposedProbe : Probe {
             }
             val anyHookLibLoaded = matchedHookLibs.isNotEmpty()
 
+            // Power-13 Gap #11 — Generic libzygisk presence as
+            // observability-only evidence. Does NOT participate in
+            // the score cascade because the FP class (every
+            // benign-Magisk-zygisk install) is too large for the
+            // signal to be probative standalone. Emitted so a
+            // consumer-side aggregator can cross-correlate against
+            // independent Magisk signals.
+            val genericZygiskPresent = mapsContent != null &&
+                GENERIC_ZYGISK_MARKER in mapsContent
+
             evidence.add(
                 Evidence(
                     key = "proc.self.maps.readable",
@@ -197,6 +241,20 @@ class XposedLsposedProbe : Probe {
                     key = "proc.self.maps.hook_lib_matches",
                     value = matchedHookLibs.joinToString(",").ifEmpty { "none" },
                     expected = "none",
+                )
+            )
+            evidence.add(
+                Evidence(
+                    key = "xposed.generic_zygisk_present",
+                    value = genericZygiskPresent,
+                    // Power-13 Gap #11 — observability-only row. The
+                    // expected value is `null` because both true
+                    // (Magisk-zygisk loaded) and false (zygisk
+                    // disabled OR not running on Magisk) are
+                    // legitimate states on a real consumer device.
+                    // A consumer-side aggregator interprets this row
+                    // against its independent Magisk evidence.
+                    expected = null,
                 )
             )
 

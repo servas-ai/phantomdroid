@@ -372,9 +372,103 @@ class XposedLsposedProbeTest {
         val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
         assertEquals(
             "Filesystem path + package-list scan + /proc/self/maps " +
-                "hook-library detection (classloader signal class deferred — see KDoc)",
+                "hook-library detection (narrow Xposed-family scoring " +
+                "markers, generic libzygisk emitted as observability- " +
+                "only evidence — Power-13 Gap #11). " +
+                "Classloader signal class deferred — see KDoc.",
             result.method,
         )
+    }
+
+    // ── Power-13 Gap #11 — generic libzygisk observability ───────────────────
+
+    @Test
+    fun `generic libzygisk present — score stays 0_0 (observability-only)`() = runBlocking {
+        // FP class: every benign-Magisk-zygisk install. Score must
+        // NOT elevate from generic libzygisk alone — that's the
+        // whole point of the Power-13 Gap #11 design.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libzygisk")))
+        assertFalse(result.failed)
+        assertEquals(0.0, result.score)
+    }
+
+    @Test
+    fun `generic libzygisk present — evidence row is true`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libzygisk")))
+        val ev = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(true, ev?.value)
+    }
+
+    @Test
+    fun `generic libzygisk absent — evidence row is false`() = runBlocking {
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
+        val ev = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(false, ev?.value)
+    }
+
+    @Test
+    fun `generic libzygisk evidence has null expected (informational)`() = runBlocking {
+        // expected=null signals an observability-only row that does
+        // NOT have a canonical "good" value: both true and false are
+        // legitimate states on a real device.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libzygisk")))
+        val ev = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(null, ev?.expected)
+    }
+
+    @Test
+    fun `proc maps unreadable — generic libzygisk evidence row is false`() = runBlocking {
+        // mapsContent == null. Generic zygisk cannot be observed
+        // either way; default to false (the conservative "not observed"
+        // answer that won't trigger consumer-side aggregation).
+        val result = probe.run(fakeCtx(procSelfMaps = null))
+        val ev = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(false, ev?.value)
+    }
+
+    @Test
+    fun `generic libzygisk + Xposed lib both present — score is 0_70 (Xposed scoring wins)`() = runBlocking {
+        // Co-fire: narrow Xposed marker drives score, generic libzygisk
+        // co-emits the observability row.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libxposed_art", "libzygisk")))
+        assertEquals(0.70, result.score)
+        val zygiskEv = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(true, zygiskEv?.value)
+    }
+
+    @Test
+    fun `generic libzygisk + installation artifact present — score is 1_0`() = runBlocking {
+        // 1.00 (artifact) wins; both observability rows fire.
+        val result = probe.run(
+            fakeCtx(
+                presentFiles = setOf("/system/framework/XposedBridge.jar"),
+                procSelfMaps = mapsWith("libzygisk"),
+            ),
+        )
+        assertEquals(1.0, result.score)
+        val zygiskEv = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(true, zygiskEv?.value)
+    }
+
+    @Test
+    fun `evidence list includes xposed_generic_zygisk_present row on every run`() = runBlocking {
+        // Regression guard — the row must be ALWAYS emitted (true or
+        // false) so a consumer can rely on its presence in the
+        // schema.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith()))
+        assertTrue(
+            result.evidence.any { it.key == "xposed.generic_zygisk_present" },
+            "xposed.generic_zygisk_present must be in the evidence list on every run",
+        )
+    }
+
+    @Test
+    fun `narrow Xposed markers do NOT count as generic libzygisk false-fire`() = runBlocking {
+        // libxposed_art does NOT contain "libzygisk" substring — narrow
+        // marker must not falsely set the generic row.
+        val result = probe.run(fakeCtx(procSelfMaps = mapsWith("libxposed_art")))
+        val ev = result.evidence.find { it.key == "xposed.generic_zygisk_present" }
+        assertEquals(false, ev?.value)
     }
 
     // ── Probe metadata ────────────────────────────────────────────────────────
