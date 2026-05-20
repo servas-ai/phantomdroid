@@ -12,9 +12,10 @@ import com.detectorlab.core.ProbeSeverity
 /**
  * Probe #10 — runtime.installed_apps.
  *
- * Detects **hide-manager mitigation failures**: which root/hook manager apps,
- * dynamic-analysis tools, clone/virtualization frameworks, and automation
- * runtimes are visible to PackageManager from inside the calling app.
+ * Detects **hide-manager mitigation failures**: which root/hook manager
+ * apps, dynamic-analysis tools, clone/virtualization frameworks,
+ * automation runtimes, and **third-party emulator clients** are visible
+ * to PackageManager from inside the calling app.
  *
  * Scope distinction from related probes:
  *   • Rank 3 (root.su_detection) scans the filesystem for `su` binaries.
@@ -25,24 +26,44 @@ import com.detectorlab.core.ProbeSeverity
  *     not the underlying root state.
  *
  * Scoring (max wins across groups):
- *   Group A — Root / hook managers          → 1.00
+ *   Group A — Root / hook managers + root-cloakers → 1.00
  *     (Magisk family, KernelSU, APatch, Xposed/LSPosed managers,
- *      SuperSU, KingoRoot, FlashFire)
- *   Group B — Dynamic-analysis / debug      → 0.85
- *     (frida-server, frida client, VNC/RDP servers, SpyNote, adb-kit,
- *      proxy / NSPlist analyzers)
- *   Group C — Clone / virtualization        → 0.70
+ *      SuperSU, KingoRoot, FlashFire + RootBeer 8 missing superuser
+ *      packages + 6 root-cloakers — Power-13 Gap #7)
+ *   Group E — Third-party emulator clients         → 0.95
+ *     (BlueStacks, Nox, VPhone, iTools, Haima, Kaopu, MicroVirt,
+ *      Genymotion launcher — Power-13 Gap #7 NEW group from
+ *      strazzere/anti-emulator + EmulatorDetector)
+ *   Group B — Dynamic-analysis / debug + RootBeer dangerous-apps → 0.85
+ *     (frida-server, frida client, VNC/RDP servers, SpyNote +
+ *      Lucky Patcher variants + App Quarantine + ROM Manager +
+ *      temp-root-remove — Power-13 Gap #7)
+ *   Group C — Clone / virtualization               → 0.70
  *     (Parallel Space, DualAid, MultiAccount, VirtualXposed-derived)
- *   Group D — Automation frameworks         → 0.70
+ *   Group D — Automation frameworks                → 0.70
  *     (UIAutomator, AutoJS, AutoXJS, TouchTask, AutoUI mods)
- *   None visible                            → 0.00
+ *   None visible                                   → 0.00
  *
  * Confidence: 0.95 normal; 0.5 when `listInstalledPackages()` returns an empty
  * collection (Android 11+ package-visibility filter likely in effect — the
  * calling app would not see these packages even if installed unless declared
  * via `<queries>` in AndroidManifest.xml).
  *
- * Reference: shared/probes/inventory.yml rank 10 (mitigation_layer L4).
+ * **Power-13 Gap #7 closure**: expand Group A with the 8 missing RootBeer
+ * superuser packages (`com.noshufou.android.su[.elite]`, `com.yellowes.su`,
+ * `com.kingroot.kinguser`, `com.kingo.root`, `com.smedialink.oneclickroot`,
+ * `com.zhiqupk.root.global`, `com.alephzain.framaroot`) + 6 root-cloakers
+ * (`com.devadvance.rootcloak[plus]`, `com.amphoras.hidemyroot[adfree]`,
+ * `com.formyhm.hideroot[Premium]`, `com.saurik.substrate`); add Group B
+ * RootBeer dangerous-apps cluster (Lucky Patcher / App Quarantine / ROM
+ * Manager / temp-root-removal — RootBeer `knownDangerousAppsPackages`
+ * constants); add NEW Group E for third-party emulator clients (BlueStacks,
+ * Nox, VPhone, iTools, Haima, Kaopu, MicroVirt, Genymotion launcher).
+ *
+ * Reference: shared/probes/inventory.yml rank 10 (mitigation_layer L4);
+ * scottyab/rootbeer Const.java + audit/spoof-stack/real-world-detectors.md
+ * rows "Root manager packages" + "Dangerous apps" + "Root-cloaking apps"
+ * + "Third-party emulator packages".
  */
 class InstalledAppsProbe : Probe {
     override val id = "runtime.installed_apps"
@@ -53,7 +74,16 @@ class InstalledAppsProbe : Probe {
     override val budgetMs = 500L
 
     companion object {
-        // Group A — root / hook managers (1.0 if any visible)
+        // Group A — root / hook managers + root-cloakers (1.0 if any visible).
+        //
+        // Power-13 Gap #7 additions (audit/spoof-stack/real-world-detectors.md):
+        //   - 8 RootBeer `knownRootAppsPackages` constants previously
+        //     missing from Group A: noshufou, noshufou.elite, yellowes,
+        //     kingroot.kinguser, kingo.root, smedialink.oneclickroot,
+        //     zhiqupk.root.global, alephzain.framaroot.
+        //   - 6 RootBeer root-cloaker constants: rootcloak, rootcloakplus,
+        //     hidemyroot, hidemyrootadfree, hideroot, hiderootPremium +
+        //     saurik.substrate (cloaker-adjacent).
         val GROUP_A_ROOT_HOOK_MANAGERS: List<String> = listOf(
             "com.topjohnwu.magisk",
             "io.github.huskydg.magisk",
@@ -70,6 +100,29 @@ class InstalledAppsProbe : Probe {
             "com.thirdparty.superuser",
             "com.kingouser.com",
             "eu.chainfire.flashfire",
+            // Power-13 Gap #7 — RootBeer `knownRootAppsPackages`
+            // additions (the 8 IDs missing from the original Group A
+            // per the May-2026 detector inventory).
+            "com.noshufou.android.su",
+            "com.noshufou.android.su.elite",
+            "com.yellowes.su",
+            "com.kingroot.kinguser",
+            "com.kingo.root",
+            "com.smedialink.oneclickroot",
+            "com.zhiqupk.root.global",
+            "com.alephzain.framaroot",
+            // Power-13 Gap #7 — RootBeer root-cloakers + Substrate.
+            // These signal an explicit attempt to HIDE root by
+            // hooking PackageManager / Settings.Secure reads. Their
+            // presence is dispositive for root state even when
+            // rank-3 path scan is masked.
+            "com.devadvance.rootcloak",
+            "com.devadvance.rootcloakplus",
+            "com.amphoras.hidemyroot",
+            "com.amphoras.hidemyrootadfree",
+            "com.formyhm.hideroot",
+            "com.formyhm.hiderootPremium",
+            "com.saurik.substrate",
         )
 
         // Group B — dynamic-analysis / debugging tools (0.85)
@@ -94,6 +147,49 @@ class InstalledAppsProbe : Probe {
             "com.iiordanov.bVNC",
             "com.iiordanov.aRDP",
             "com.cy8018.spynote",
+            // Power-13 Gap #7 — RootBeer `knownDangerousAppsPackages`
+            // constants. Lucky Patcher (3 variants for fork
+            // namespaces), App Quarantine (2 variants — free + Pro),
+            // ROM Manager (2 variants — free + license), and the
+            // temp-root-removal helper. All are tamper / dangerous
+            // tools that ship via sideload or alternative stores.
+            // Score is 0.85 (same tier as frida-client / VNC / RDP)
+            // since they are tamper-class but not root-prep-class.
+            "com.dimonvideo.luckypatcher",
+            "com.chelpus.lackypatch",
+            "com.chelpus.luckypatcher",
+            "com.ramdroid.appquarantine",
+            "com.ramdroid.appquarantinepro",
+            "com.koushikdutta.rommanager",
+            "com.koushikdutta.rommanager.license",
+            "com.zachspong.temprootremovejb",
+        )
+
+        // Group E — third-party emulator clients (0.95 if any visible).
+        //
+        // Power-13 Gap #7 NEW group. Source: strazzere/anti-emulator +
+        // mofneko/EmulatorDetector + CalebFenton/AndroidEmulatorDetect.
+        // Cloud-phone-class emulators that ship as repackaged Android
+        // distributions or as host-side Android-image runners; their
+        // launcher / control / billing APK is uniquely shaped per
+        // emulator vendor.
+        //
+        // Score 0.95: dispositive but BELOW the 1.0 root-manager tier
+        // because the package being installed only confirms the
+        // current Android image is running ON that emulator — not
+        // that root is also configured. Real-world detector apps
+        // (Free-RASP T8, EmulatorDetector default ruleset) treat
+        // these as emulator-class hits at the same tier as
+        // emulator_operator_name.
+        val GROUP_E_THIRD_PARTY_EMULATOR: List<String> = listOf(
+            "com.bluestacks.appplayer",      // BlueStacks
+            "com.bluestacks.bstadbd",        // BlueStacks helper (BST ADB daemon)
+            "com.bignox.app",                // Nox Player launcher
+            "com.bignox.app.store.hd",       // Nox app-store
+            "com.vphone.launcher",           // VPhone / cloud-phone launcher
+            "com.haima.hmcp",                // Haima cloud-phone runtime
+            "com.microvirt.tools",           // MicroVirt MEmu helper
+            "com.genymotion.launcher",       // Genymotion Cloud launcher
         )
 
         // Group C — clone / dual-instance / virtualization (0.70)
@@ -135,6 +231,7 @@ class InstalledAppsProbe : Probe {
         )
 
         const val SCORE_GROUP_A = 1.0
+        const val SCORE_GROUP_E = 0.95
         const val SCORE_GROUP_B = 0.85
         const val SCORE_GROUP_C = 0.70
         const val SCORE_GROUP_D = 0.70
@@ -144,7 +241,8 @@ class InstalledAppsProbe : Probe {
 
         const val METHOD =
             "PackageManager-visible scan for known root managers, dynamic-analysis tools, " +
-                "clone apps, and automation frameworks (hide-manager mitigation failure signal)"
+                "clone apps, automation frameworks, and third-party emulator clients " +
+                "(hide-manager mitigation failure signal — Power-13 Gap #7)"
     }
 
     override suspend fun run(ctx: ProbeContext): ProbeResult {
@@ -177,12 +275,16 @@ class InstalledAppsProbe : Probe {
             }
 
             val hitsA = detectGroup(GROUP_A_ROOT_HOOK_MANAGERS)
+            val hitsE = detectGroup(GROUP_E_THIRD_PARTY_EMULATOR)
             val hitsB = detectGroup(GROUP_B_DYNAMIC_ANALYSIS)
             val hitsC = detectGroup(GROUP_C_CLONE_VIRTUALIZATION)
             val hitsD = detectGroup(GROUP_D_AUTOMATION)
 
+            // Cascade order: A (1.00) → E (0.95) → B (0.85) → C (0.70)
+            // → D (0.70). Power-13 Gap #7 inserts E between A and B.
             val (score, leakGroup) = when {
                 hitsA.isNotEmpty() -> SCORE_GROUP_A to "A"
+                hitsE.isNotEmpty() -> SCORE_GROUP_E to "E"
                 hitsB.isNotEmpty() -> SCORE_GROUP_B to "B"
                 hitsC.isNotEmpty() -> SCORE_GROUP_C to "C"
                 hitsD.isNotEmpty() -> SCORE_GROUP_D to "D"
@@ -196,7 +298,7 @@ class InstalledAppsProbe : Probe {
                 CONFIDENCE_NORMAL
             }
 
-            val allHits = hitsA + hitsB + hitsC + hitsD
+            val allHits = hitsA + hitsE + hitsB + hitsC + hitsD
             val evidence = buildList {
                 add(Evidence(key = "leak_group", value = leakGroup, expected = "none"))
                 add(

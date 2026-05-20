@@ -86,7 +86,7 @@ probes:
     category: runtime
     severity: critical
     android_layer: framework
-    description: "Magisk Manager, LSPosed, Xposed Installer visible"
+    description: "Magisk Manager, LSPosed, Xposed Installer + RootBeer root/cloaker/dangerous-apps + third-party emulator clients (BlueStacks/Nox/VPhone/Genymotion — Power-13 Gap #7)"
     mitigation_layer: L4
 
   # ============== HOCH (Rank 11-25) ==============

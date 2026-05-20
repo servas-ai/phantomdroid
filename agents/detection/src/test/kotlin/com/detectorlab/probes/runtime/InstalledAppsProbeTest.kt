@@ -361,10 +361,331 @@ class InstalledAppsProbeTest {
         val result = probe.run(fakeCtx())
         assertEquals(
             "PackageManager-visible scan for known root managers, " +
-                "dynamic-analysis tools, clone apps, and automation frameworks " +
-                "(hide-manager mitigation failure signal)",
+                "dynamic-analysis tools, clone apps, automation frameworks, " +
+                "and third-party emulator clients " +
+                "(hide-manager mitigation failure signal — Power-13 Gap #7)",
             result.method,
         )
+    }
+
+    // ── Power-13 Gap #7 — RootBeer 8 missing superuser packages ──────────────
+
+    @Test
+    fun `RootBeer noshufou su visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.noshufou.android.su"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer noshufou su elite visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.noshufou.android.su.elite"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer yellowes su visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.yellowes.su"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer KingRoot KingUser visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.kingroot.kinguser"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer KingoRoot kingo visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.kingo.root"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer SmediaLink oneclickroot visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.smedialink.oneclickroot"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer Zhiqupk root global visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.zhiqupk.root.global"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootBeer Alephzain framaroot visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.alephzain.framaroot"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `Group A includes 8 missing RootBeer superuser packages`() {
+        // Regression guard — Power-13 Gap #7 add-set must remain in
+        // Group A even after future list reorganizations.
+        val a = InstalledAppsProbe.GROUP_A_ROOT_HOOK_MANAGERS.toSet()
+        val expected = setOf(
+            "com.noshufou.android.su",
+            "com.noshufou.android.su.elite",
+            "com.yellowes.su",
+            "com.kingroot.kinguser",
+            "com.kingo.root",
+            "com.smedialink.oneclickroot",
+            "com.zhiqupk.root.global",
+            "com.alephzain.framaroot",
+        )
+        assertTrue(expected.all { it in a }, "missing from Group A: ${expected - a}")
+    }
+
+    // ── Power-13 Gap #7 — RootBeer root-cloakers ─────────────────────────────
+
+    @Test
+    fun `RootCloak visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.devadvance.rootcloak"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `RootCloakPlus visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.devadvance.rootcloakplus"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `HideMyRoot visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.amphoras.hidemyroot"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `HideMyRoot AdFree visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.amphoras.hidemyrootadfree"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `HideRoot visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.formyhm.hideroot"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `HideRoot Premium visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.formyhm.hiderootPremium"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `Substrate visible — score is 1_0`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.saurik.substrate"))
+        assertEquals(1.0, result.score)
+    }
+
+    @Test
+    fun `Group A includes 7 root-cloakers and Substrate`() {
+        val a = InstalledAppsProbe.GROUP_A_ROOT_HOOK_MANAGERS.toSet()
+        val expected = setOf(
+            "com.devadvance.rootcloak",
+            "com.devadvance.rootcloakplus",
+            "com.amphoras.hidemyroot",
+            "com.amphoras.hidemyrootadfree",
+            "com.formyhm.hideroot",
+            "com.formyhm.hiderootPremium",
+            "com.saurik.substrate",
+        )
+        assertTrue(expected.all { it in a }, "missing from Group A: ${expected - a}")
+    }
+
+    // ── Power-13 Gap #7 — RootBeer dangerous-apps cluster (Group B 0.85) ─────
+
+    @Test
+    fun `Lucky Patcher (dimonvideo) visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.dimonvideo.luckypatcher"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `Lucky Patcher (chelpus lackypatch) visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.chelpus.lackypatch"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `Lucky Patcher (chelpus luckypatcher) visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.chelpus.luckypatcher"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `App Quarantine visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.ramdroid.appquarantine"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `App Quarantine Pro visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.ramdroid.appquarantinepro"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `ROM Manager visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.koushikdutta.rommanager"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `ROM Manager License visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.koushikdutta.rommanager.license"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `Temp Root Remove visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.zachspong.temprootremovejb"))
+        assertEquals(0.85, result.score)
+    }
+
+    @Test
+    fun `Group B includes 8 RootBeer dangerous-apps`() {
+        val b = InstalledAppsProbe.GROUP_B_DYNAMIC_ANALYSIS.toSet()
+        val expected = setOf(
+            "com.dimonvideo.luckypatcher",
+            "com.chelpus.lackypatch",
+            "com.chelpus.luckypatcher",
+            "com.ramdroid.appquarantine",
+            "com.ramdroid.appquarantinepro",
+            "com.koushikdutta.rommanager",
+            "com.koushikdutta.rommanager.license",
+            "com.zachspong.temprootremovejb",
+        )
+        assertTrue(expected.all { it in b }, "missing from Group B: ${expected - b}")
+    }
+
+    // ── Power-13 Gap #7 — Group E third-party emulator clients (0.95) ────────
+
+    @Test
+    fun `BlueStacks app player visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bluestacks.appplayer"))
+        assertFalse(result.failed)
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `BlueStacks BST ADB daemon visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bluestacks.bstadbd"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `Nox Player launcher visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bignox.app"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `Nox app-store visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bignox.app.store.hd"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `VPhone launcher visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.vphone.launcher"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `Haima cloud-phone runtime visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.haima.hmcp"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `MicroVirt MEmu helper visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.microvirt.tools"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `Genymotion Cloud launcher visible only — score is 0_95`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.genymotion.launcher"))
+        assertEquals(0.95, result.score)
+    }
+
+    @Test
+    fun `Group E — leak_group evidence is E`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bluestacks.appplayer"))
+        val ev = result.evidence.find { it.key == "leak_group" }
+        assertEquals("E", ev?.value)
+    }
+
+    @Test
+    fun `Group E — per-package evidence row emitted`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.bluestacks.appplayer"))
+        val ev = result.evidence.find { it.key == "installed_apps.pkg.com.bluestacks.appplayer" }
+        assertEquals("installed", ev?.value)
+    }
+
+    @Test
+    fun `Group E has exactly 8 third-party emulator entries`() {
+        // Regression guard — Power-13 Gap #7 specified exactly 8
+        // entries. If the list grows, this test updates explicitly.
+        assertEquals(8, InstalledAppsProbe.GROUP_E_THIRD_PARTY_EMULATOR.size)
+    }
+
+    // ── Cross-group precedence with new Group E ──────────────────────────────
+
+    @Test
+    fun `Group A plus Group E — A wins (1_0 vs 0_95)`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(baselinePackages + setOf("com.topjohnwu.magisk", "com.bluestacks.appplayer")),
+        )
+        assertEquals(1.0, result.score)
+        val ev = result.evidence.find { it.key == "leak_group" }
+        assertEquals("A", ev?.value)
+    }
+
+    @Test
+    fun `Group E plus Group B — E wins (0_95 vs 0_85)`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(baselinePackages + setOf("com.bluestacks.appplayer", "re.frida.server")),
+        )
+        assertEquals(0.95, result.score)
+        val ev = result.evidence.find { it.key == "leak_group" }
+        assertEquals("E", ev?.value)
+    }
+
+    @Test
+    fun `Group E plus Group C — E wins (0_95 vs 0_70)`() = runBlocking {
+        val result = probe.run(
+            fakeCtx(baselinePackages + setOf("com.bignox.app", "com.lbe.parallel")),
+        )
+        assertEquals(0.95, result.score)
+    }
+
+    // ── Group invariants update for Group E ──────────────────────────────────
+
+    @Test
+    fun `Group A list does not overlap Group E`() {
+        val a = InstalledAppsProbe.GROUP_A_ROOT_HOOK_MANAGERS.toSet()
+        val e = InstalledAppsProbe.GROUP_E_THIRD_PARTY_EMULATOR.toSet()
+        assertTrue((a intersect e).isEmpty())
+    }
+
+    @Test
+    fun `Group E list does not overlap Group B`() {
+        val b = InstalledAppsProbe.GROUP_B_DYNAMIC_ANALYSIS.toSet()
+        val e = InstalledAppsProbe.GROUP_E_THIRD_PARTY_EMULATOR.toSet()
+        assertTrue((b intersect e).isEmpty())
+    }
+
+    @Test
+    fun `Group E list does not overlap Group C or D`() {
+        val c = InstalledAppsProbe.GROUP_C_CLONE_VIRTUALIZATION.toSet()
+        val d = InstalledAppsProbe.GROUP_D_AUTOMATION.toSet()
+        val e = InstalledAppsProbe.GROUP_E_THIRD_PARTY_EMULATOR.toSet()
+        assertTrue((c intersect e).isEmpty())
+        assertTrue((d intersect e).isEmpty())
     }
 
     // ── Group membership invariants ───────────────────────────────────────────
