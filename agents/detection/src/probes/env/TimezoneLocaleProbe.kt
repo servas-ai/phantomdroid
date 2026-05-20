@@ -8,8 +8,6 @@ import com.detectorlab.core.ProbeCategory
 import com.detectorlab.core.ProbeContext
 import com.detectorlab.core.ProbeResult
 import com.detectorlab.core.ProbeSeverity
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * Probe #20 — env.timezone_locale_mismatch.
@@ -41,10 +39,21 @@ import java.util.TimeZone
  * Confidence: 0.95 if both signals were readable (non-null, non-empty);
  * 0.50 if either was missing.
  *
- * **Test injection:** the production constructor reads `TimeZone.getDefault()`
- * and `Locale.getDefault()` at probe-run time. Tests construct via the
- * supplier-injecting constructor so the result is fully deterministic
- * regardless of the JVM's host locale or timezone.
+ * **Test injection:** the no-arg constructor reads from
+ * `ProbeContext.queryTimezoneId()` / `queryLocaleCountry()` /
+ * `queryLocaleLanguage()` / `queryTimezoneOffsetMinutes()` (default-methods
+ * returning `null` on bare `ProbeContext` impls — production `ProbeContext`
+ * wrappers and `SnapshotReplayContext` override). Tests can override per-
+ * signal by passing an explicit supplier; a non-null supplier wins over the
+ * `ctx.queryX()` fallback, and `{ null }` as a supplier explicitly disarms
+ * the surface (results in `PAIR_SIGNAL_UNAVAILABLE`).
+ *
+ * The probe-quality refactor (Power-8 phase 3, 2026-05-20) flipped the
+ * no-arg default from `TimeZone.getDefault().id` / `Locale.getDefault()` to
+ * `ctx.queryTimezoneId()` / `ctx.queryLocale*()`. The previous behavior
+ * leaked the host JVM's timezone/locale into snapshot replays, which scored
+ * 1.00 (`PAIR_MISMATCH`) on `FullProbeRunnerSpoofTest` whenever the test
+ * host happened to be in a different timezone from the spoofed locale.
  *
  * **Maintenance note:** the timezone → country table is a deliberate
  * approximation — ~25 of the most common timezone-country pairs only. The
@@ -56,12 +65,10 @@ import java.util.TimeZone
  * Reference: shared/probes/inventory.yml rank 20 (mitigation_layer L1).
  */
 class TimezoneLocaleProbe(
-    private val timezoneIdSupplier: () -> String? = { TimeZone.getDefault().id },
-    private val timezoneOffsetSupplier: () -> Int = {
-        TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000
-    },
-    private val localeCountrySupplier: () -> String? = { Locale.getDefault().country },
-    private val localeLanguageSupplier: () -> String? = { Locale.getDefault().language },
+    private val timezoneIdSupplier: (() -> String?)? = null,
+    private val timezoneOffsetSupplier: (() -> Int)? = null,
+    private val localeCountrySupplier: (() -> String?)? = null,
+    private val localeLanguageSupplier: (() -> String?)? = null,
 ) : Probe {
     override val id = "env.timezone_locale_mismatch"
     override val rank = 20
@@ -142,10 +149,29 @@ class TimezoneLocaleProbe(
     override suspend fun run(ctx: ProbeContext): ProbeResult {
         val start = System.currentTimeMillis()
         return try {
-            val tzId = try { timezoneIdSupplier() } catch (_: Throwable) { null }
-            val tzOffsetMin = try { timezoneOffsetSupplier() } catch (_: Throwable) { 0 }
-            val country = try { localeCountrySupplier() } catch (_: Throwable) { null }
-            val language = try { localeLanguageSupplier() } catch (_: Throwable) { null }
+            // Per-signal cascade: a non-null supplier wins (caller wants to
+            // pin the value explicitly — even returning null disarms the
+            // surface). When no supplier was provided the probe reads from
+            // ProbeContext default-method accessors, which return null on
+            // bare ProbeContext impls and the snapshot field on
+            // SnapshotReplayContext / a real platform value on the
+            // production ProbeContext wrapper.
+            val tzId = try {
+                if (timezoneIdSupplier != null) timezoneIdSupplier.invoke()
+                else ctx.queryTimezoneId()
+            } catch (_: Throwable) { null }
+            val tzOffsetMin = try {
+                if (timezoneOffsetSupplier != null) timezoneOffsetSupplier.invoke()
+                else ctx.queryTimezoneOffsetMinutes() ?: 0
+            } catch (_: Throwable) { 0 }
+            val country = try {
+                if (localeCountrySupplier != null) localeCountrySupplier.invoke()
+                else ctx.queryLocaleCountry()
+            } catch (_: Throwable) { null }
+            val language = try {
+                if (localeLanguageSupplier != null) localeLanguageSupplier.invoke()
+                else ctx.queryLocaleLanguage()
+            } catch (_: Throwable) { null }
 
             val tzMissing = tzId.isNullOrEmpty()
             // country == "" (Locale.ROOT) is a distinct signal from country == null

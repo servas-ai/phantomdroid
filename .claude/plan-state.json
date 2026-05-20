@@ -1,0 +1,100 @@
+{
+  "title": "Power-8 — Near-Undetectable SpoofStack Iteration",
+  "status": "in_progress",
+  "createdAt": "2026-05-20T12:30:00Z",
+  "owner": "team-lead@spoof-stack-power-8",
+  "goal": "Iterate spoofed snapshot until ProbeRunner.aggregate.category == CLEAN against the FULL implemented probe inventory (all 63 probes, not just the 26 in the current test panel). Produce a production SpoofStack hook spec mapping every snapshot mutation to a real ReDroid host modification (Magisk service.d / LSPosed module / mount-mask / kernel module). Final deliverable: status report quantifying detection-resistance (% probes verifiably masked, residual surface, un-spoofable rationale).",
+  "riskLevel": "low",
+  "fileModifications": [
+    "agents/detection/src/core/replay/RedroidSpoofedSnapshot.kt (further mutations)",
+    "agents/detection/src/test/kotlin/com/detectorlab/replay/RedroidSpoofedReplayTest.kt (full-panel assertions)",
+    "agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt (NEW — runs all 63 probes)",
+    "audit/spoof-stack/iter-N-residual.md (per-iteration reports)",
+    "audit/spoof-stack/production-hooks-spec.md (final SpoofStack hook map)",
+    "audit/spoof-stack/detection-resistance-report.md (status deliverable)"
+  ],
+  "testStrategy": "Each iteration: write full-ProbeRunner test → builder mutates snapshot → reviewer static-traces → re-run. Loop until criticalFailures==0 AND no probe in the full panel scores > 0.5. Acceptance = full ProbeRunner returns ReportCategory.CLEAN.",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Full-panel baseline against current spoofed snapshot",
+      "status": "pending",
+      "owner": "spoof-reviewer-2 (analyst) + spoof-builder-2 (writes the test)",
+      "deliverables": [
+        "FullProbeRunnerSpoofTest.kt that instantiates ALL 63 implementable probes",
+        "audit/spoof-stack/iter-N-baseline.md — table of which-fire with score",
+        "Categorize fires: (a) snapshot-fixable, (b) probe-quality-bug (host JVM), (c) constructor-supplier (not on ProbeContext), (d) inherently un-snapshottable"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Close (a) snapshot-fixable fires",
+      "status": "pending",
+      "owner": "spoof-builder-2",
+      "deliverables": [
+        "Updated RedroidSpoofedSnapshot.kt mutations for each fire in bucket (a)",
+        "All bucket-(a) probes drop to 0.0"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Close (b) probe-quality-bugs via ProbeContext refactor",
+      "status": "pending",
+      "owner": "spoof-builder-2",
+      "deliverables": [
+        "TimezoneLocaleProbe + LanguageCountryProbe refactored to read from ProbeContext.getTimeZone() / getLocale() (new default-methods)",
+        "SnapshotReplayContext overrides + spoof snapshot populates",
+        "Rank 20 and 36 drop to 0.0"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Close (c) constructor-supplier fires via the bluetoothMac pattern",
+      "status": "pending",
+      "owner": "spoof-builder-2",
+      "deliverables": [
+        "For each (c) probe: add a queryX() default-method on ProbeContext, override on SnapshotReplayContext, add a snapshot field if needed",
+        "Test panel grows accordingly"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Document (d) un-snapshottable surface",
+      "status": "pending",
+      "owner": "spoof-reviewer-2",
+      "deliverables": [
+        "audit/spoof-stack/un-snapshottable.md — rationale per probe, with the real-runtime hook needed",
+        "Most likely: WebView fingerprints (rank 54-56), GPS coordinates (rank 41 — needs LocationManager mock), NetworkType ASN (rank 5 — needs network)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Production SpoofStack hook specification",
+      "status": "pending",
+      "owner": "spoof-builder-2",
+      "deliverables": [
+        "audit/spoof-stack/production-hooks-spec.md — for each snapshot mutation, the exact Magisk module / LSPosed hook / service.d script that supplies the value on PAR822349",
+        "Hook categories: resetprop (build-props), service.d (settings.put), LSPosed (Java API spoofing), file mount (sysfs spoofing)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Detection-resistance status report",
+      "status": "pending",
+      "owner": "team-lead",
+      "deliverables": [
+        "audit/spoof-stack/detection-resistance-report.md",
+        "Quantified: X / 63 probes verifiably masked; Y residual implementation; Z un-spoofable",
+        "Comparison vs Pixel 7 clean baseline",
+        "Risk assessment: what could a sophisticated detector still catch?"
+      ]
+    }
+  ],
+  "validationCriteria": [
+    "Full ProbeRunner against RedroidSpoofedSnapshot returns ReportCategory.CLEAN",
+    "criticalFailures == 0",
+    "No probe scores > 0.5 (excluding documented un-snapshottable)",
+    "Production hooks doc covers every snapshot mutation",
+    "Status report quantifies coverage with hard numbers"
+  ]
+}

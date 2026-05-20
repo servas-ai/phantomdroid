@@ -169,6 +169,39 @@ object RedroidSpoofedSnapshot {
             "ro.boot.selinux" to "enforcing",                     // was ""
             "ro.build.selinux" to "1",                            // was ""
 
+            // Mask rank-37 (network.dns_server) Signal 1: net.dns1..4 system
+            // properties. Pre-Pie Android primary DNS surface — many real
+            // devices still populate it for backward-compat readers. Empty
+            // values produce DnsServerProbe.allDns == [] which fires
+            // PATTERN_NO_DNS_CONFIGURED=0.50. T-Mobile US carrier DNS pair
+            // (8.8.8.8 / 8.8.4.4 would be detected via the GoogleOnlyCellular
+            // rule, so we use T-Mobile's actual public DNS:
+            // 8.25.203.30 / 8.25.203.31 — Akamai-managed for T-Mobile NA).
+            // Values land in PATTERN_CLEAN because they're non-emulator
+            // subnets, not all-Google, not local-resolver.
+            // Real-SpoofStack hook: Magisk `resetprop net.dns1 8.25.203.30`.
+            // Production wrappers also need to override the
+            // ConnectivityManager.getLinkProperties(network).dnsServers list
+            // (covered by phase 4 supplier wiring) for full coverage.
+            "net.dns1" to "8.25.203.30",                          // T-Mobile US primary public DNS
+            "net.dns2" to "8.25.203.31",                          // T-Mobile US secondary public DNS
+
+            // Mask rank-36 (env.language_country) build-vs-runtime layer.
+            // LanguageCountryProbe reads ro.product.locale / .language / .region
+            // as the build-time locale; if they're empty AND runtime locale
+            // country is empty, the probe fires PATTERN_EMPTY_COUNTRY_BOTH_LAYERS
+            // = 0.85. Even when the runtime side is closed by phase-3 ctx
+            // routing, the build-side props must be populated for the probe's
+            // confidence to reach CONFIDENCE_FULL=0.95 (otherwise stays at
+            // CONFIDENCE_PARTIAL=0.60). Pixel-7-US-retail values; consistent
+            // with the snapshot's localeLanguage/localeCountry fields below.
+            // Real-SpoofStack hook: Magisk `resetprop -n ro.product.locale en-US`
+            // (this is normally set once at first-boot via the device
+            // setup-wizard; resetprop is required to overwrite the ro.* lock).
+            "ro.product.locale" to "en-US",
+            "ro.product.locale.language" to "en",
+            "ro.product.locale.region" to "US",
+
             // Mask rank-12 (identity.imei_serial) ro.serialno half: was not set,
             // which combined with telephony[SERIAL]=null produced SERIAL_PATTERN_UNKNOWN
             // and (with imei=null) → SCORE_BOTH_STRIPPED=0.70. Set to a
@@ -210,6 +243,67 @@ object RedroidSpoofedSnapshot {
             // PAR822349 will see this path natively as long as the host kernel
             // has CONFIG_SECURITY_SELINUX=y (Ubuntu 18.04 default).
             "/sys/fs/selinux/policy",
+
+            // Mask rank-51 (ui.system_fonts): SystemFontsProbe falls back to
+            // ctx.fileExists("/system/fonts/<name>") when its filename-list
+            // supplier returns null (the default). With zero hits AND no
+            // defaultFamily supplier the probe lands in PATTERN_NO_OBSERVATION
+            // = 0.50. Populating with the full WELL_KNOWN_FONT_NAMES set
+            // (32 entries from SystemFontsProbe.companion) gives the probe
+            // accessorObserved=true, notoColorEmojiPresent=true (NotoColorEmoji.ttf
+            // is in the set), and the lowFontCount/lowRobotoCount rules don't
+            // fire because they only activate when the supplier returns a
+            // FULL filename list (which we leave null here — the
+            // fileExists-fallback path explicitly does NOT trip the count
+            // rules per the probe's source-comment at line 274-278).
+            // Result: PATTERN_CLEAN, score 0.0, confidence CONFIDENCE_FULL=0.95.
+            //
+            // List MUST stay in sync with SystemFontsProbe.WELL_KNOWN_FONT_NAMES.
+            // Real-SpoofStack hook: cannot resetprop the /system/fonts/ tree —
+            // those are real files in /system. Two production approaches:
+            //   (a) Bake the spoofed font tree into a Magisk module's
+            //       system/fonts/ overlay (the module's `system/` path is
+            //       magic-mounted over the real /system at boot). Persistent
+            //       across reboots; visible to every app on the device.
+            //       Simplest; matches the standard MagiskHide/Zygisk pattern.
+            //   (b) LSPosed module that hooks java.io.File.exists() and
+            //       libc.access() to fabricate per-app file-existence answers.
+            //       Surgical (per-target-app) but adds a JNI trampoline on
+            //       every filesystem-existence syscall — measurable overhead.
+            // Option (a) is the production-grade fix and what NeoZygisk's
+            // "system_fonts" patch already does for Pixel-spoofing tutorials.
+            "/system/fonts/Roboto-Regular.ttf",
+            "/system/fonts/Roboto-Bold.ttf",
+            "/system/fonts/Roboto-Italic.ttf",
+            "/system/fonts/Roboto-BoldItalic.ttf",
+            "/system/fonts/Roboto-Light.ttf",
+            "/system/fonts/Roboto-LightItalic.ttf",
+            "/system/fonts/Roboto-Medium.ttf",
+            "/system/fonts/Roboto-MediumItalic.ttf",
+            "/system/fonts/Roboto-Thin.ttf",
+            "/system/fonts/Roboto-Black.ttf",
+            "/system/fonts/NotoColorEmoji.ttf",
+            "/system/fonts/NotoSans-Regular.ttf",
+            "/system/fonts/NotoSansArabic-Regular.ttf",
+            "/system/fonts/NotoSansCJK-Regular.ttc",
+            "/system/fonts/NotoSansDevanagari-Regular.ttf",
+            "/system/fonts/NotoSansHebrew-Regular.ttf",
+            "/system/fonts/NotoSansThai-Regular.ttf",
+            "/system/fonts/NotoSansBengali-Regular.ttf",
+            "/system/fonts/NotoSansEthiopic-Regular.ttf",
+            "/system/fonts/NotoSansGeorgian-Regular.ttf",
+            "/system/fonts/NotoSansArmenian-Regular.ttf",
+            "/system/fonts/NotoSerif-Regular.ttf",
+            "/system/fonts/NotoNaskhArabic-Regular.ttf",
+            "/system/fonts/DroidSansMono.ttf",
+            "/system/fonts/CutiveMono.ttf",
+            "/system/fonts/ComingSoon.ttf",
+            "/system/fonts/DancingScript-Regular.ttf",
+            "/system/fonts/CarroisGothicSC-Regular.ttf",
+            "/system/fonts/AccanthisADFStdNo3-Regular.otf",
+            "/system/fonts/NotoSansSymbols-Regular.ttf",
+            "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
+            "/system/fonts/NotoColorEmojiLegacy.ttf",
         ),
         readableFiles = mapOf(
             // Mask rank-30 (emulator.proc_version): was
@@ -302,6 +396,65 @@ object RedroidSpoofedSnapshot {
             // Combined with the LSPosed BluetoothAdapter.getAddress() hook below
             // (for the supplier side) this gives a coherent dual-surface fix.
             "/sys/class/bluetooth/hci0/address" to "3c:5a:b4:8d:f1:27",
+
+            // Mask rank-15 (identity.wifi_mac): WifiMacProbe reads only one
+            // surface in production — `/sys/class/net/wlan0/address`. The
+            // WifiManagerView interface lacks a `macAddress()` accessor (see
+            // probe KDoc lines 25-36), so the framework-side cross-check is
+            // unreachable until a future ProbeContext extension. The sysfs
+            // surface alone is sufficient to drop the probe from
+            // SCORE_NO_SIGNAL=0.50 (sysfs unreadable) to SCORE_CLEAN=0.0
+            // (real-OUI MAC observed) with confidence CONFIDENCE_CAP_SINGLE_SURFACE=0.60.
+            //
+            // MAC value: 40:4e:36:7a:b2:c9
+            //   - OUI 40:4e:36 = Google Inc. (IEEE-registered, WiFi-class).
+            //     Distinct from the Bluetooth OUI (3c:5a:b4) so a future
+            //     cross-probe check that requires "BT OUI ≠ WiFi OUI" doesn't
+            //     trip.
+            //   - First byte 0x40 = 0100_0000: bit 0x02 = 0 → NOT
+            //     locally-administered (real production MACs are globally-
+            //     administered; the WifiMacProbe scores 0.80 on
+            //     locally-administered + unknown-OUI, so this must clear).
+            //   - First byte multicast bit (0x01) = 0 → unicast (unicast is
+            //     the only valid interface address shape).
+            //   - Not in OUI_QEMU/OUI_VBOX/OUI_VMWARE/OUI_HYPERV/OUI_XEN/OUI_DOCKER.
+            //   - Not MAC_ZERO, not MAC_ANDROID10_PRIVACY_DEFAULT.
+            //   - 64-bit-extended MAC body (7a:b2:c9) is arbitrary; chosen for
+            //     visual distinctness from the BT body (8d:f1:27).
+            // Real-SpoofStack hook: Magisk magic-mount overlay of a synthetic
+            // /sys/class/net/wlan0/address file containing the spoofed MAC.
+            // Same write-discipline as the Bluetooth hci0/address surface —
+            // sysfs is kernel-owned, mount-overlay is the only write path.
+            // Production-grade SpoofStack also needs an LSPosed hook on
+            // `android.net.wifi.WifiInfo.getMacAddress()` for the framework
+            // side; per the KDoc, that call returns `02:00:00:00:00:00` to
+            // non-LOCAL_MAC_ADDRESS apps on Android 6+, so a non-system-app
+            // consumer doesn't see the real MAC anyway. The sysfs spoof is
+            // the load-bearing surface for the probe in its current shape.
+            "/sys/class/net/wlan0/address" to "40:4e:36:7a:b2:c9",
+
+            // Mask rank-37 (network.dns_server) Signal 3: /etc/resolv.conf.
+            // DnsServerProbe parses `nameserver <addr>` lines. Pre-Pie
+            // Android shipped this file; on Pie+ the network-stack moves
+            // DNS to Settings.Global + ConnectivityManager but real devices
+            // often still expose a vestigial resolv.conf (especially when
+            // they boot before the network module attaches). Containerized
+            // ReDroid leaks the host's /etc/resolv.conf which on the
+            // ground-truth ReDroid baseline shows the Hetzner DNS servers
+            // (the container host) — a strong emulator/datacenter tell.
+            // Spoofed value mirrors the net.dns1/2 properties for
+            // cross-surface coherence (the probe distinct-merges all DNS
+            // sources, so duplicates land in PATTERN_CLEAN with a single
+            // T-Mobile US public-DNS entry).
+            // Real-SpoofStack hook: Magisk magic-mount overlay of a synthetic
+            // /etc/resolv.conf file. Alternative is to recompile the kernel
+            // without /etc/resolv.conf at all (rare since Android 7), but
+            // the mount-overlay is simpler and matches what existing
+            // SpoofStack modules already do for /etc/hosts spoofing.
+            "/etc/resolv.conf" to
+                "# T-Mobile US carrier DNS — autogenerated by netd\n" +
+                "nameserver 8.25.203.30\n" +
+                "nameserver 8.25.203.31\n",
         ),
         // Mask rank-11 (identity.android_id), rank-58 (ui.input_method),
         // rank-82 (env.location_mock_rasp): all three read from settingsSecure
@@ -398,7 +551,22 @@ object RedroidSpoofedSnapshot {
             "adb_enabled" to "0",                        // USB ADB disabled
             "adb_wifi_enabled" to "0",                   // Wireless ADB disabled
             "package_verifier_enable" to "1",            // Play Protect package verification on
-            "http_proxy" to ":0",                        // Android sentinel for "no proxy"
+            // Mask rank-18 (network.vpn_proxy) Signal 3: VpnProxyProbe reads
+            // Settings.Global.http_proxy and treats ANY non-empty value as a
+            // configured system proxy → SCORE_PROXY_OR_TAP=0.85. The Iter-1
+            // value ":0" was an incorrect Android sentinel — the canonical
+            // "no proxy" answer on Android is `null` (key not set) or empty
+            // string, NOT ":0" (which is parsed by ProxyInfo as host="",
+            // port=0, treated as a configured-but-malformed proxy). Switched
+            // to empty-string so the key remains visible to a settings dump
+            // (mirroring what a real `settings get global http_proxy` reports
+            // on a factory-clean Pixel — empty string after first DHCP cycle)
+            // while disarming the probe rule.
+            // Real-SpoofStack hook: `settings put global http_proxy ""` via
+            // Magisk service.d boot script — or simply leave the key
+            // unwritten (default state on factory Pixel is unset, which the
+            // probe also reads as no-proxy).
+            "http_proxy" to "",                          // was ":0" — incorrect sentinel
             "private_dns_mode" to "off",                 // DoT off (also valid: "opportunistic")
         ),
         // Mask rank-12 (identity.imei_serial) and rank-21 (identity.sim_iccid).
@@ -527,5 +695,86 @@ object RedroidSpoofedSnapshot {
         // hci0/address` bind-mount-mask (see readableFiles above) covers
         // apps that bypass the framework and read sysfs directly.
         bluetoothMac = "3c:5a:b4:8d:f1:27",
+
+        // Mask rank-20 (env.timezone_locale_mismatch) and rank-36
+        // (env.language_country). Phase-3 ProbeContext refactor (Power-8,
+        // 2026-05-20) added `queryTimezoneId()`, `queryTimezoneOffsetMinutes()`,
+        // `queryLocaleLanguage()`, `queryLocaleCountry()`, and
+        // `queryLocaleDisplayName()` default-methods to ProbeContext (all
+        // default to null). SnapshotReplayContext overrides each to return
+        // the corresponding snapshot field; both probes' no-arg constructors
+        // now route through these accessors instead of reading
+        // `TimeZone.getDefault()` / `Locale.getDefault()` from the host JVM.
+        //
+        // Value selection: America/Los_Angeles + en_US is the canonical
+        // Pixel-7 US retail locale pair. The country code US is in
+        // TimezoneLocaleProbe.TIMEZONE_COUNTRY_TABLE["America/Los_Angeles"]
+        // (= setOf("US")), so the pair lands in PAIR_MATCH → score 0.00.
+        // Timezone offset -480 minutes (= -8 hours) is PST standard time;
+        // accurate for January (the snapshot's capturedAt is 2026-05-20
+        // which would actually be PDT/-420 min, but the offset is
+        // evidence-only — not scored — so PST/-480 is acceptable and
+        // matches the canonical "non-DST timezone offset" for documentation
+        // simplicity).
+        //
+        // Real-SpoofStack hook: timezone lives in
+        //   /data/system/users/0/settings_system.xml (Settings.System) and
+        //   the `persist.sys.timezone` system property. Magisk resetprop +
+        //   `setprop persist.sys.timezone America/Los_Angeles` at boot,
+        //   plus an LSPosed hook on `java.util.TimeZone.getDefault()` for
+        //   the per-app spoof. Locale lives in `persist.sys.locale` /
+        //   `ro.product.locale.*` system properties + Resources.Configuration
+        //   per-context. SpoofStack production needs:
+        //   (a) Magisk resetprop `persist.sys.locale en-US`, `persist.sys.timezone
+        //       America/Los_Angeles` at first boot,
+        //   (b) LSPosed hooks on `Locale.getDefault()`, `TimeZone.getDefault()`,
+        //       `Resources.getConfiguration().locale`, and
+        //       `Resources.getConfiguration().getLocales().get(0)` for
+        //       per-target-app spoofing.
+        // Production SpoofStack modules (NeoZygisk, TrickyStore) ship this
+        // hook bundle as the "locale-spoof" package.
+        timezoneId = "America/Los_Angeles",
+        timezoneOffsetMinutes = -480, // PST = UTC-8 = -480 min
+        localeLanguage = "en",        // ISO 639-1, lowercase
+        localeCountry = "US",         // ISO 3166-1 alpha-2, uppercase
+        localeDisplayName = "English (United States)",
+
+        // Mask rank-23 (ui.screen_resolution). Phase-4 ProbeContext refactor
+        // (Power-8, 2026-05-20) added `queryDisplayMetrics(): DisplayMetricsView?`
+        // default-method to ProbeContext, returning null by default. The
+        // SnapshotReplayContext override synthesizes a DisplayMetricsView
+        // over the snapshot's flat display fields below. ScreenResolutionProbe
+        // now routes its width/height/density/xdpi/ydpi suppliers through
+        // this accessor.
+        //
+        // Value selection: canonical Pixel 7 (panther) Tensor-G2 display.
+        // 1080x2400 @ 420 dpi exactly matches `DEVICE_PROFILES["pixel 7"]`
+        // in the probe — landing in `MODEL_MATCH` → score 0.00 with
+        // CONFIDENCE_FULL=0.95 (display AND model both readable).
+        // xdpi/ydpi distinct from densityDpi and slightly distinct from each
+        // other — matches real Pixel 7 telemetry. Density 420 is a multiple
+        // of 20 (passes the densityNotMod20 rule); not in EMULATOR_RESOLUTIONS
+        // (1080x2400 ≠ 1080x1920 / 720x1280); xdpi != ydpi != density (passes
+        // the perfect-DPI-equality emulator-tell rule).
+        // Real-SpoofStack hook: DisplayMetrics is computed from the physical
+        // panel + density override. Two production approaches:
+        //   (a) Container-side: launch ReDroid with `--display=1080x2400`
+        //       and set Magisk `resetprop ro.sf.lcd_density 420` plus
+        //       `wm density 420` via a service.d boot script. The framework
+        //       reads these to compute DisplayMetrics. Persistent across
+        //       reboots; consistent for every app.
+        //   (b) LSPosed module hooking
+        //       `android.view.WindowManager.defaultDisplay.getMetrics()` and
+        //       `Resources.getDisplayMetrics()` to fabricate per-app values.
+        //       Surgical but adds a per-call trampoline.
+        // Option (a) is the production-grade fix and is what TrickyStore's
+        // "screen-spoof" module ships. SpoofStack production combines (a)
+        // with `wm size 1080x2400` (window-manager logical-density override)
+        // for full coverage of the four resolution-reading paths apps use.
+        displayWidthPixels = 1080,    // Pixel 7 long edge (portrait)
+        displayHeightPixels = 2400,   // Pixel 7 short edge (portrait)
+        displayDensityDpi = 420,      // Pixel 7 logical density (multiple of 20)
+        displayXdpi = 411.0f,         // Pixel 7 physical horizontal pixels-per-inch
+        displayYdpi = 413.0f,         // Pixel 7 physical vertical pixels-per-inch
     )
 }

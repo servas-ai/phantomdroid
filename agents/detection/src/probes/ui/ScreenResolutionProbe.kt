@@ -2,6 +2,7 @@
 package com.detectorlab.probes.ui
 
 import com.detectorlab.core.AndroidLayer
+import com.detectorlab.core.DisplayMetricsView
 import com.detectorlab.core.Evidence
 import com.detectorlab.core.Probe
 import com.detectorlab.core.ProbeCategory
@@ -55,18 +56,18 @@ import com.detectorlab.core.ProbeSeverity
  * Reference: shared/probes/inventory.yml rank 23 (mitigation_layer L1).
  */
 class ScreenResolutionProbe(
-    private val widthPixelsSupplier: () -> Int? = { null },
-    private val heightPixelsSupplier: () -> Int? = { null },
-    private val densityDpiSupplier: () -> Int? = { null },
-    private val xdpiSupplier: () -> Float? = { null },
-    private val ydpiSupplier: () -> Float? = { null },
+    private val widthPixelsSupplier: (() -> Int?)? = null,
+    private val heightPixelsSupplier: (() -> Int?)? = null,
+    private val densityDpiSupplier: (() -> Int?)? = null,
+    private val xdpiSupplier: (() -> Float?)? = null,
+    private val ydpiSupplier: (() -> Float?)? = null,
     /**
      * Model string from `ro.product.model`. The probe reads it independently
      * via `ctx.getSystemProperty` if the supplier returns null, so callers
      * usually leave this at the default and let the production ProbeContext
      * answer.
      */
-    private val modelSupplier: () -> String? = { null },
+    private val modelSupplier: (() -> String?)? = null,
 ) : Probe {
     override val id = "ui.screen_resolution"
     override val rank = 23
@@ -149,13 +150,28 @@ class ScreenResolutionProbe(
     override suspend fun run(ctx: ProbeContext): ProbeResult {
         val start = System.currentTimeMillis()
         return try {
-            val width = readSupplier(widthPixelsSupplier)
-            val height = readSupplier(heightPixelsSupplier)
-            val density = readSupplier(densityDpiSupplier)
-            val xdpi = readSupplier(xdpiSupplier)
-            val ydpi = readSupplier(ydpiSupplier)
+            // Per-signal cascade: a non-null supplier wins (caller-provided
+            // value, including explicit `{ null }`, takes precedence). When
+            // no supplier was provided the probe reads from
+            // ProbeContext.queryDisplayMetrics() which returns null on bare
+            // ProbeContext impls (= "no display observation possible") and
+            // a snapshot/platform view on overriding contexts. Phase-4
+            // closeout (Power-8, 2026-05-20) — mirrors the rank-20/36
+            // refactor pattern.
+            val displayMetrics: DisplayMetricsView? = try {
+                ctx.queryDisplayMetrics()
+            } catch (_: Throwable) {
+                null
+            }
+            val width = readSupplierOr(widthPixelsSupplier) { displayMetrics?.widthPixels() }
+            val height = readSupplierOr(heightPixelsSupplier) { displayMetrics?.heightPixels() }
+            val density = readSupplierOr(densityDpiSupplier) { displayMetrics?.densityDpi() }
+            val xdpi = readSupplierOr(xdpiSupplier) { displayMetrics?.xdpi() }
+            val ydpi = readSupplierOr(ydpiSupplier) { displayMetrics?.ydpi() }
 
-            val modelFromSupplier = readSupplier(modelSupplier)
+            val modelFromSupplier = if (modelSupplier != null) {
+                try { modelSupplier.invoke() } catch (_: Throwable) { null }
+            } else null
             val modelFromCtx: String? = try {
                 ctx.getSystemProperty(PROP_RO_PRODUCT_MODEL)
             } catch (_: Throwable) {
@@ -248,5 +264,16 @@ class ScreenResolutionProbe(
         }
     }
 
-    private fun <T> readSupplier(s: () -> T?): T? = try { s() } catch (_: Throwable) { null }
+    /**
+     * Reads a per-signal supplier with crash-safety; if the supplier is null
+     * (= caller did not override) falls back to the `ctxAccessor` reader.
+     * Mirrors the Power-8 phase-4 cascade pattern across the supplier
+     * refactor — explicit `{ null }` supplier disarms the surface entirely
+     * (no ctx fallback), `null` supplier (the default) routes through ctx.
+     */
+    private fun <T> readSupplierOr(s: (() -> T?)?, ctxAccessor: () -> T?): T? = try {
+        if (s != null) s() else ctxAccessor()
+    } catch (_: Throwable) {
+        null
+    }
 }

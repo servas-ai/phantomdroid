@@ -9,7 +9,6 @@ import com.detectorlab.core.ProbeContext
 import com.detectorlab.core.ProbeResult
 import com.detectorlab.core.ProbeSeverity
 import com.detectorlab.probes.network.NetworkTypeProbe
-import java.util.Locale
 
 /**
  * Probe #36 — env.language_country.
@@ -58,13 +57,23 @@ import java.util.Locale
  *   0.60  Locale readable but no build-time property (one surface)
  *   0.50  Locale unreadable (suppliers all returned null)
  *
+ * **Test injection:** the no-arg constructor reads from
+ * `ProbeContext.queryLocaleLanguage()` / `queryLocaleCountry()` /
+ * `queryLocaleDisplayName()` (default-methods returning `null` on bare
+ * `ProbeContext` impls — production wrappers and `SnapshotReplayContext`
+ * override). Tests can override per-signal by passing an explicit supplier;
+ * a non-null supplier wins over the `ctx.queryX()` fallback, and `{ null }`
+ * as a supplier explicitly disarms the surface. The probe-quality refactor
+ * (Power-8 phase 3, 2026-05-20) flipped the no-arg default from
+ * `Locale.getDefault()` to `ctx.queryLocale*()`.
+ *
  * Reference: shared/probes/inventory.yml rank 36 (mitigation_layer per
  * inventory; L1 per team-lead brief alignment with rank 20).
  */
 class LanguageCountryProbe(
-    private val localeLanguageSupplier: () -> String? = { Locale.getDefault().language },
-    private val localeCountrySupplier: () -> String? = { Locale.getDefault().country },
-    private val localeDisplayNameSupplier: () -> String? = { Locale.getDefault().displayName },
+    private val localeLanguageSupplier: (() -> String?)? = null,
+    private val localeCountrySupplier: (() -> String?)? = null,
+    private val localeDisplayNameSupplier: (() -> String?)? = null,
 ) : Probe {
     override val id = "env.language_country"
     override val rank = 36
@@ -153,18 +162,31 @@ class LanguageCountryProbe(
     override suspend fun run(ctx: ProbeContext): ProbeResult {
         val start = System.currentTimeMillis()
         return try {
+            // Per-signal cascade: a non-null supplier wins (caller wants to
+            // pin the value explicitly — even returning null disarms the
+            // surface). When no supplier was provided the probe reads from
+            // ProbeContext default-method accessors, which return null on
+            // bare ProbeContext impls and the snapshot field on
+            // SnapshotReplayContext / a real platform value on the
+            // production ProbeContext wrapper. Phase-3 refactor closeout
+            // (Power-8, 2026-05-20): replaces the previous JVM-default
+            // fallback that leaked the host Locale.getDefault() into the
+            // probe result.
             val languageRaw: String? = try {
-                localeLanguageSupplier()
+                if (localeLanguageSupplier != null) localeLanguageSupplier.invoke()
+                else ctx.queryLocaleLanguage()
             } catch (_: Throwable) {
                 null
             }
             val countryRaw: String? = try {
-                localeCountrySupplier()
+                if (localeCountrySupplier != null) localeCountrySupplier.invoke()
+                else ctx.queryLocaleCountry()
             } catch (_: Throwable) {
                 null
             }
             val displayNameRaw: String? = try {
-                localeDisplayNameSupplier()
+                if (localeDisplayNameSupplier != null) localeDisplayNameSupplier.invoke()
+                else ctx.queryLocaleDisplayName()
             } catch (_: Throwable) {
                 null
             }

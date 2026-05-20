@@ -61,6 +61,91 @@ interface ProbeContext {
     fun queryBluetoothAdapterMac(): String? = null
 
     /**
+     * Read the device's current Olson timezone identifier (e.g. `"America/Los_Angeles"`).
+     * Returns `null` by default — same backward-compat shape as
+     * `queryBluetoothAdapterMac` / `queryKeyguardManager`: fakes that predate
+     * this method continue to compile and report "no timezone observation
+     * possible". Production impls override with `TimeZone.getDefault().id`.
+     *
+     * `TimezoneLocaleProbe` (rank 20) consumes this via its
+     * `timezoneIdSupplier` constructor parameter — the supplier resolves to
+     * `{ ctx.queryTimezoneId() }` at the spawn site so `ProbeRunner.runAll`
+     * works with the default no-arg probe ctor on any `ProbeContext` impl
+     * that overrides this method. Closes the probe-quality gap where the
+     * Iter-1 default read `java.util.TimeZone.getDefault().id` directly,
+     * which leaked the host JVM timezone into the probe result and scored
+     * 1.00 (`mismatch`) on the FullProbeRunnerSpoofTest when the host JVM
+     * was in Europe/Berlin but the spoofed locale was US.
+     */
+    fun queryTimezoneId(): String? = null
+
+    /**
+     * Read the device's current timezone UTC offset in minutes (positive for
+     * east of UTC, negative for west). Returns `null` by default.
+     * Production impls override with
+     * `TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000`.
+     *
+     * Consumed by `TimezoneLocaleProbe` evidence row `timezone_offset_minutes`.
+     * Score-bearing only as supplementary context — the probe scores the
+     * timezone-id ↔ country mismatch, not the offset directly.
+     */
+    fun queryTimezoneOffsetMinutes(): Int? = null
+
+    /**
+     * Read the device's current locale language code (ISO 639-1, lowercase,
+     * e.g. `"en"`). Returns `null` by default. Production impls override
+     * with `Locale.getDefault().language`.
+     *
+     * Consumed by `TimezoneLocaleProbe` (rank 20) AND `LanguageCountryProbe`
+     * (rank 36). Closes the probe-quality gap where the Iter-1 default
+     * read `java.util.Locale.getDefault().language` directly, which leaked
+     * the host JVM locale into the probe result.
+     */
+    fun queryLocaleLanguage(): String? = null
+
+    /**
+     * Read the device's current locale country code (ISO 3166-1 alpha-2,
+     * uppercase, e.g. `"US"`). Returns `null` by default. Production impls
+     * override with `Locale.getDefault().country`.
+     *
+     * Empty-string is a distinct signal from `null` (locale set to `Locale.ROOT`
+     * with country stripped vs. accessor failed). Probes that distinguish
+     * these two cases must compare against `""` and `null` separately.
+     */
+    fun queryLocaleCountry(): String? = null
+
+    /**
+     * Read the device's current locale display name (e.g. `"English (United States)"`).
+     * Returns `null` by default. Production impls override with
+     * `Locale.getDefault().displayName`.
+     *
+     * Consumed by `LanguageCountryProbe` evidence-only — recorded for
+     * forensic review, not directly scored.
+     */
+    fun queryLocaleDisplayName(): String? = null
+
+    /**
+     * Read the device's `DisplayMetrics` (resolution, density, xdpi/ydpi).
+     * Returns `null` by default — same backward-compat shape as
+     * `queryBluetoothAdapterMac` / `queryTimezoneId`: fakes that predate this
+     * method continue to compile and report "no display observation".
+     * Production impls override with a wrapper around
+     * `WindowManager.defaultDisplay.getMetrics(DisplayMetrics())`.
+     *
+     * Returning a single grouped view rather than five separate accessors
+     * mirrors the existing `KeyguardManagerView` / `WifiManagerView` pattern
+     * (a related cluster of fields share one view object). Probes that need
+     * individual signals do `ctx.queryDisplayMetrics()?.widthPixels` etc.
+     *
+     * `ScreenResolutionProbe` (rank 23) consumes this via its supplier
+     * cascade — the no-arg constructor routes `width/height/density/xdpi/
+     * ydpi` reads through this accessor. Closes the constructor-supplier
+     * gap where the Iter-1 defaults returned `null` and the probe always
+     * scored 0.5 (`SCORE_NO_DISPLAY`) in production.
+     */
+    fun queryDisplayMetrics(): DisplayMetricsView? = null
+
+    /**
      * Default returns the "unknown" view so existing fakes that predate this
      * method continue to compile. Production impls override with a wrapper
      * around `android.app.KeyguardManager`.
@@ -150,6 +235,36 @@ interface PackageManagerView {
 interface SensorManagerView {
     fun listSensorTypes(): List<Int>
     fun sampleSensor(sensorType: Int, durationMs: Long): SensorSample
+}
+
+/**
+ * Read-only view of `android.util.DisplayMetrics` (resolution + density).
+ * Implementations must return `null`-shaped semantics on every field when the
+ * answer cannot be determined (production wrapper threw, OR caller is a
+ * background service without an Activity-attached Window).
+ *
+ * Consumed by `ScreenResolutionProbe` (rank 23). The probe's no-arg
+ * constructor reads `ctx.queryDisplayMetrics()?.widthPixels` and falls back
+ * to `SCORE_NO_DISPLAY=0.5` when the accessor returns `null` (no display
+ * observation possible — the conservative answer).
+ *
+ * Production wrapper: `WindowManager.defaultDisplay.getMetrics(DisplayMetrics())`
+ * on API <30, `WindowManager.getCurrentWindowMetrics().bounds` plus
+ * `Resources.getDisplayMetrics().densityDpi/xdpi/ydpi` on API ≥30.
+ *
+ * @property widthPixels   Display width in physical pixels (long edge)
+ * @property heightPixels  Display height in physical pixels (short edge)
+ * @property densityDpi    Logical density (160/240/320/420/480/560/...)
+ * @property xdpi          Physical horizontal pixels-per-inch (real devices
+ *                         report a value distinct from densityDpi)
+ * @property ydpi          Physical vertical pixels-per-inch
+ */
+interface DisplayMetricsView {
+    fun widthPixels(): Int?
+    fun heightPixels(): Int?
+    fun densityDpi(): Int?
+    fun xdpi(): Float?
+    fun ydpi(): Float?
 }
 
 /**

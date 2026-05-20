@@ -65,6 +65,30 @@ package com.detectorlab.core.replay
  *     and exercise the supplier-driven rank-31 surface. `ProbeContext`
  *     itself exposes no Bluetooth accessor (rank-31 KDoc lines 29-32);
  *     this field is the snapshot-side bridge.
+ *   * `timezoneId` — Olson timezone identifier the runtime claims
+ *     (e.g. `"America/Los_Angeles"`). `null` = "no timezone observation"
+ *     (same conservative answer `TimezoneLocaleProbe`'s default ctx
+ *     accessor gives). Drives `SnapshotReplayContext.queryTimezoneId()`.
+ *   * `timezoneOffsetMinutes` — UTC offset of the runtime's default
+ *     timezone in minutes (positive east, negative west). `null` = unknown.
+ *     Drives `SnapshotReplayContext.queryTimezoneOffsetMinutes()`.
+ *   * `localeLanguage` — ISO 639-1 language code (lowercase, e.g. `"en"`).
+ *     `null` = locale unobserved. Drives
+ *     `SnapshotReplayContext.queryLocaleLanguage()`.
+ *   * `localeCountry` — ISO 3166-1 alpha-2 country code (uppercase, e.g.
+ *     `"US"`). `null` = locale unobserved. Distinct from `""` which means
+ *     "locale set to ROOT" — both forms are preserved verbatim. Drives
+ *     `SnapshotReplayContext.queryLocaleCountry()`.
+ *   * `localeDisplayName` — Human-readable locale name (e.g. `"English
+ *     (United States)"`). `null` = unobserved. Evidence-only.
+ *   * `displayWidthPixels` / `displayHeightPixels` / `displayDensityDpi` /
+ *     `displayXdpi` / `displayYdpi` — flat representation of
+ *     `DisplayMetrics`. Each `null` = "no display observation"
+ *     (= `DisplayMetricsView` accessor returns null on that field). Drive
+ *     `SnapshotReplayContext.queryDisplayMetrics()` which synthesizes a
+ *     `DisplayMetricsView` over these fields when at least one is populated,
+ *     else returns `null` (the "no display observation possible"
+ *     conservative default).
  *   * `sdkInt` — `Build.VERSION.SDK_INT` claimed by the runtime.
  *
  * `null`-valued entries are equivalent to missing entries — the same
@@ -85,4 +109,14 @@ data class DeviceSnapshot(
     val telephony: Map<String, String?> = emptyMap(),
     val sensorTypes: Set<Int> = emptySet(),
     val bluetoothMac: String? = null,
+    val timezoneId: String? = null,
+    val timezoneOffsetMinutes: Int? = null,
+    val localeLanguage: String? = null,
+    val localeCountry: String? = null,
+    val localeDisplayName: String? = null,
+    val displayWidthPixels: Int? = null,
+    val displayHeightPixels: Int? = null,
+    val displayDensityDpi: Int? = null,
+    val displayXdpi: Float? = null,
+    val displayYdpi: Float? = null,
 )

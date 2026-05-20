@@ -12,6 +12,7 @@
 
 package com.detectorlab.core.replay
 
+import com.detectorlab.core.DisplayMetricsView
 import com.detectorlab.core.PackageManagerView
 import com.detectorlab.core.ProbeContext
 import com.detectorlab.core.SensorManagerView
@@ -88,6 +89,70 @@ class SnapshotReplayContext(private val snapshot: DeviceSnapshot) : ProbeContext
      * conservative answer, production impl overrides" pattern.
      */
     override fun queryBluetoothAdapterMac(): String? = snapshot.bluetoothMac
+
+    /**
+     * Snapshot-side bridge for `TimezoneLocaleProbe` (rank 20). Overrides
+     * the `ProbeContext` default (`= null`) to return the snapshot's
+     * `timezoneId` field. Closes the Iter-1 probe-quality bug where the
+     * probe's default supplier read `java.util.TimeZone.getDefault().id`
+     * directly — leaking the host JVM timezone into snapshot replays.
+     */
+    override fun queryTimezoneId(): String? = snapshot.timezoneId
+
+    /**
+     * Snapshot-side bridge for `TimezoneLocaleProbe` evidence row
+     * `timezone_offset_minutes`. Overrides the `ProbeContext` default
+     * (`= null`) to return the snapshot's `timezoneOffsetMinutes` field.
+     */
+    override fun queryTimezoneOffsetMinutes(): Int? = snapshot.timezoneOffsetMinutes
+
+    /**
+     * Snapshot-side bridge for `LanguageCountryProbe` (rank 36) and
+     * `TimezoneLocaleProbe` (rank 20). Overrides the `ProbeContext` default
+     * (`= null`) to return the snapshot's `localeLanguage` field. Closes
+     * the Iter-1 probe-quality bug where the probe's default supplier read
+     * `java.util.Locale.getDefault().language` directly.
+     */
+    override fun queryLocaleLanguage(): String? = snapshot.localeLanguage
+
+    /**
+     * Snapshot-side bridge for `LanguageCountryProbe` and `TimezoneLocaleProbe`.
+     * Overrides the `ProbeContext` default (`= null`) to return the
+     * snapshot's `localeCountry` field. `null` vs `""` distinction preserved
+     * verbatim — see `DeviceSnapshot` field doc.
+     */
+    override fun queryLocaleCountry(): String? = snapshot.localeCountry
+
+    /**
+     * Snapshot-side bridge for `LanguageCountryProbe` (rank 36). Overrides
+     * the `ProbeContext` default (`= null`) to return the snapshot's
+     * `localeDisplayName` field. Evidence-only signal.
+     */
+    override fun queryLocaleDisplayName(): String? = snapshot.localeDisplayName
+
+    /**
+     * Snapshot-side bridge for `ScreenResolutionProbe` (rank 23). Overrides
+     * the `ProbeContext` default (`= null`) to synthesize a
+     * `DisplayMetricsView` over the snapshot's flat display fields. Returns
+     * `null` (= no display observation possible) when ALL of the
+     * `displayWidthPixels` / `displayHeightPixels` / `displayDensityDpi`
+     * fields are null — this is the conservative "snapshot did not capture
+     * display metrics" answer, which the probe reads as
+     * `PATTERN_NO_DISPLAY=0.5`. When at least one of the three load-bearing
+     * fields is populated, returns a view that delegates each accessor to
+     * the corresponding snapshot field (which may individually still be
+     * null — a per-field nullability that matches the
+     * `DisplayMetricsView` contract).
+     */
+    override fun queryDisplayMetrics(): DisplayMetricsView? {
+        val anyPresent = snapshot.displayWidthPixels != null ||
+            snapshot.displayHeightPixels != null ||
+            snapshot.displayDensityDpi != null ||
+            snapshot.displayXdpi != null ||
+            snapshot.displayYdpi != null
+        if (!anyPresent) return null
+        return SnapshotDisplayMetricsView(snapshot)
+    }
 }
 
 /**
@@ -125,4 +190,26 @@ internal class SnapshotSensorManagerView(
     override fun listSensorTypes(): List<Int> = sensorTypes.toList()
     override fun sampleSensor(sensorType: Int, durationMs: Long): SensorSample =
         SensorSample(timestamps = LongArray(0), values = emptyArray())
+}
+
+/**
+ * `DisplayMetricsView` backed by a `DeviceSnapshot`'s flat display fields.
+ * Each accessor returns the corresponding snapshot field verbatim — `null`
+ * means the snapshot didn't capture that signal, matching the
+ * `DisplayMetricsView` contract that any field may be individually
+ * unknown.
+ *
+ * Used by `SnapshotReplayContext.queryDisplayMetrics()`; only instantiated
+ * when at least one of the snapshot's display fields is populated (else
+ * the override returns `null` to indicate "no display observation
+ * possible").
+ */
+internal class SnapshotDisplayMetricsView(
+    private val snapshot: DeviceSnapshot,
+) : DisplayMetricsView {
+    override fun widthPixels(): Int? = snapshot.displayWidthPixels
+    override fun heightPixels(): Int? = snapshot.displayHeightPixels
+    override fun densityDpi(): Int? = snapshot.displayDensityDpi
+    override fun xdpi(): Float? = snapshot.displayXdpi
+    override fun ydpi(): Float? = snapshot.displayYdpi
 }
