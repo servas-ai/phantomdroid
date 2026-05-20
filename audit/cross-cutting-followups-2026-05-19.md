@@ -84,17 +84,16 @@ Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 
 
 ---
 
-## #6 SensorSample ragged-array contract gap
+## #6 SensorSample ragged-array contract gap (FIXED 2026-05-20)
 
-**Observation**: `SensorSample.values: Array<FloatArray>` allows ragged arrays (different axis counts per frame); `AccelerometerGyroProbe` assumes uniform axis count via `sample.values[0].size`. If the production wrapper ever produces ragged arrays, the outer try/catch catches it (`ProbeResult.failed`), but `SensorSample` doesn't document uniform-axis-count as a contract.
+**Observation**: `SensorSample.values: Array<FloatArray>` allowed ragged arrays. `AccelerometerGyroProbe` assumed uniform axis count via `sample.values[0].size`. Silent failure path if a wrapper ever produced ragged arrays.
 
-**Why this matters**: Silent failure path if a future wrapper produces ragged arrays.
+**Fix applied**: KDoc invariants documented on `data class SensorSample` in `agents/detection/src/core/ProbeContext.kt`:
+- `timestamps.size == values.size`
+- All `values[i]` have the same length within a single SensorSample
+- Production wrapper guarantees uniform axis count per sensor type
 
-**Proposed fix**: Add a KDoc invariant to `SensorSample`: "All `values[i]` must have the same length; the wrapper guarantees uniform axis count per sensor type."
-
-**Acceptance**: `SensorSample` data class KDoc documents the invariant.
-
-**Owner action**: ~3 LOC docstring change in `agents/detection/src/core/SensorManagerView.kt` (or wherever SensorSample lives).
+**Status**: closed.
 
 ---
 

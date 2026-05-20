@@ -138,6 +138,20 @@ interface KeyguardManagerView {
     fun isKeyguardSecure(): Boolean?
 }
 
+/**
+ * One sampling window of a single sensor.
+ *
+ * **Invariants (production wrapper guarantees, fakes must honor)**:
+ *  - `timestamps.size == values.size` (one timestamp per sample frame).
+ *  - All `values[i]` have the same length within a single SensorSample
+ *    (uniform axis count per sensor type; e.g. 3 for accelerometer, 1 for
+ *    proximity). Probes that index `values[0].size` may rely on this.
+ *  - `values[i][j]` is the j-th axis reading at `timestamps[i]`.
+ *
+ * Cross-cutting #6 (audit/cross-cutting-followups-2026-05-19.md): the
+ * uniform-axis-count invariant was previously undocumented; this KDoc
+ * closes the contract gap.
+ */
 data class SensorSample(val timestamps: LongArray, val values: Array<FloatArray>)
 
 /**
