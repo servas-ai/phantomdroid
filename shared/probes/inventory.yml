@@ -534,6 +534,14 @@ probes:
     description: "/system partition rw status (or / on Android 10+ system-as-root) — RootBeer checkForRWPaths (Power-13 Gap #10)"
     mitigation_layer: L4
 
+  - rank: 14.7
+    id: root.overlayfs_present
+    category: root
+    severity: high
+    android_layer: kernel
+    description: "overlay filesystem mounted at /system or / — Magisk-on-A11+ tell, Momo target surface (Power-13 Gap #12)"
+    mitigation_layer: L4
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime
