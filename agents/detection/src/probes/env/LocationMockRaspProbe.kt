@@ -55,14 +55,33 @@ import com.detectorlab.core.ProbeSeverity
  *     on the last known fix returned true. The strongest possible
  *     signal — the Location API itself has flagged the fix as mock.
  *     This is the freeRASP T16 canonical signal. Same Settings.Secure
- *     sentinel as rank-39 S1 (production wrapper reads
- *     `Location.isFromMockProvider()`).
+ *     sentinel as rank-39 S1.
+ *
+ *     **Wrapper-layer dependency note**: the key
+ *     `location.is_from_mock_provider` is a WRAPPER-LEVEL synthetic
+ *     sentinel, NOT a real Android `Settings.Secure` constant. The
+ *     production wrapper handles the API-30+ deprecation
+ *     (`Location.isFromMockProvider()` → `Location.isMock()`) and
+ *     writes the result to this synthetic key. If the wrapper is
+ *     absent, the probe cannot fire this rule and falls through to
+ *     the `no_location_available` weak signal. Do NOT look up this
+ *     key in the Android source tree — you won't find it.
  *   • **`MOCK_LOCATION_APP` setting (1.0)**: a mock-location app
  *     has been explicitly designated as the default via Android's
  *     Developer Options. Set to a non-empty package name when active.
  *     Distinct from rank-39 S3 (which scans installed-package
  *     permissions): this is the user-action signal, not the
  *     potential-capability signal. NEW surface vs rank-39.
+ *
+ *     **FP class acknowledgment** (per the rank-51 honest-framing
+ *     pattern): a legitimate developer doing Pokemon Go testing,
+ *     geolocation app development, or location-mocking-tool QA will
+ *     fire this rule at 1.0. The dispositive 1.0 is correct per
+ *     team-lead's brief — production cloud-phone targets are NOT
+ *     developer environments. Consumer-side aggregator should
+ *     combine with rank-7 / rank-19 to discount on userdebug /
+ *     developer-options-enabled devices (see Consumer guidance
+ *     paragraph below).
  *   • **`ALLOW_MOCK_LOCATION` on legacy API (0.85)**: the deprecated
  *     `Settings.Secure.mock_location` flag is set to "1" AND the
  *     Android API level is < 23. Score gated on API < 23 because
@@ -77,7 +96,16 @@ import com.detectorlab.core.ProbeSeverity
  *   • **No-Location-available (0.5)**: no Location surface readable
  *     AND no mock signals observed. Weak signal — could be legitimate
  *     location-permission-denied OR a stub that returns null for
- *     all Location queries. Confidence degraded.
+ *     all Location queries. **Paired-score-and-confidence interaction
+ *     note**: when this rule fires, the probe emits BOTH a weak score
+ *     (0.5) AND degraded confidence (0.50). This is intentional
+ *     dual-encoding: the score signals "something looks off" while
+ *     the degraded confidence signals "but I couldn't fully observe
+ *     to be sure". The pattern label `no_location_available`
+ *     disambiguates the diagnostic — consumer-side aggregator
+ *     reading the pattern can distinguish this from a 0.5 score
+ *     produced by some hypothetical future rule firing at 0.5 with
+ *     normal confidence.
  *   • **Clean (0.0)**: Location observable AND none of the above
  *     fire.
  *
