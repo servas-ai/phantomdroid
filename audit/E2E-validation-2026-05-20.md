@@ -173,9 +173,33 @@ ADB `shell` commands hang because ReDroid 12 boot doesn't complete (`sys.boot_co
 Path forward options:
 - **Path A**: Ubuntu HWE kernel (5.x) on this same Ubuntu 18.04 host — gets binderfs natively. Risk: same as kernel-upgrade brick concern from earlier audit.
 - **Path B**: Upgrade host to Ubuntu 22.04 (kernel 5.15+). Path U risk from earlier sub-agent.
-- **Path C**: Use ReDroid 10 (Android 10, older binder ABI) — manifest `redroid/redroid:10.0.0-latest` exists in the registry. Likely avoids the HIDL-binderfs requirement.
+- **Path C**: Use ReDroid 10 (Android 10, older binder ABI) — **tried 2026-05-20: same crash pattern.** Confirms gate is the kernel, not the Android version.
 
 ReDroid 11 was attempted but no `11.0.0_64only-latest` tag exists in the registry (Android 11 was skipped in the redroid release line).
+
+## Path A executed (no-reboot prep): 2026-05-20
+
+HWE kernel 5.4.0-150-generic installed via `apt install linux-generic-hwe-18.04`:
+- `/boot/vmlinuz-5.4.0-150-generic` present
+- `/boot/initrd.img-5.4.0-150-generic` present
+- GRUB regenerated (GRUB_DEFAULT=0 → boots newest kernel first)
+- DKMS auto-rebuilt `anbox-ashmem` for 5.4
+- `anbox-binder` DKMS NOT built for 5.4 — because 5.4 has NATIVE `binder_linux` module at `/lib/modules/5.4.0-150-generic/kernel/drivers/android/binder_linux.ko` (Ubuntu HWE includes the upstream binder + binderfs)
+
+**Owner action needed**: `sudo reboot` to switch to 5.4. After reboot:
+1. `uname -r` should show `5.4.0-150-generic`
+2. `modprobe binder_linux ashmem_linux` loads both modules
+3. `mount -t binder binder /dev/binderfs` mounts binderfs (or systemd auto-mounts)
+4. `docker exec redroid-test getprop sys.boot_completed` should return `1` within ~60s of container start
+5. ADB shell should work
+
+**Reboot risk assessment**: low-to-moderate.
+- The 4.15 kernel still installed and grub-bootable as fallback.
+- This server was successfully provisioned 20h ago and has been stable since.
+- HP P410 RAID "Not responding" issue resolved by the reinstall.
+- Brick risk = same class as any kernel-upgrade reboot.
+
+**NOT executed by this run** — reboot is owner-authorize territory per the established "destructive action" discipline.
 
 **Workaround for E2E**: probe values readable via `docker exec` are equivalent for probe-validation purposes. Production-grade detection JAR running INSIDE the container would also work since the props are populated; only ADB-from-outside is hanging.
 
