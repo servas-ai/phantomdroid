@@ -43,3 +43,7 @@ docs/super-action/W7/.import-state.json
 # Python
 __pycache__/
 *.pyc
+
+# Claude Code session-local state
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
