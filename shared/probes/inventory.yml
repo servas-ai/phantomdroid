@@ -566,6 +566,14 @@ probes:
     description: "/data/adb/modules/ directory enumeration — Magisk-present tell (Power-13 Gap #8)"
     mitigation_layer: L4
 
+  - rank: 9.5
+    id: buildprop.fingerprint_cross_partition
+    category: buildprop
+    severity: critical
+    android_layer: native
+    description: "ro.build.fingerprint (system) vs ro.vendor.build.fingerprint (vendor) prefix-match — MagiskHidePropsConfig vendor-erasure tell (Power-13 Gap #9)"
+    mitigation_layer: L1
+
   - rank: 9.0
     id: runtime.frida_memory_maps
     category: runtime

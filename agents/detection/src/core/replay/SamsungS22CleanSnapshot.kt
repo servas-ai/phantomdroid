@@ -55,6 +55,15 @@ object SamsungS22CleanSnapshot {
             // `release-keys` (stock production keys, not test-keys).
             "ro.build.fingerprint" to
                 "samsung/r0qxxx/r0q:14/UP1A.231005.007/S901BXXSCAXEC:user/release-keys",
+            // Power-13 Gap #9 — factory-clean Samsung S22 vendor
+            // fingerprint shares the manufacturer/product/device
+            // prefix (`samsung/r0qxxx/r0q:14`). Build-id and
+            // version-incremental suffixes differ legitimately
+            // because Samsung publishes vendor and system OTAs
+            // independently. Rank-9.5 PATTERN_PARTITIONS_CONSISTENT
+            // at 0.0.
+            "ro.vendor.build.fingerprint" to
+                "samsung/r0qxxx/r0q:14/UP1A.231005.007/S901BVXXSCAXFA:user/release-keys",
             "ro.build.display.id" to "UP1A.231005.007.S901BXXSCAXEC",
             "ro.build.tags" to "release-keys",
             "ro.build.type" to "user",

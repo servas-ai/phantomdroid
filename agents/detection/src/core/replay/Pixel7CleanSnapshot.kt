@@ -45,6 +45,14 @@ object Pixel7CleanSnapshot {
             // for build TQ1A.230205.002 (Feb 2023 security patch).
             "ro.build.fingerprint" to
                 "google/panther/panther:13/TQ1A.230205.002/9471150:user/release-keys",
+            // Power-13 Gap #9 — factory-clean Pixel 7 vendor
+            // fingerprint matches system on the first 3 segments
+            // (`google/panther/panther:13`). Vendor partition
+            // typically lags system by a quarterly OTA cycle, so
+            // the build-id suffix differs (legitimate). Rank-9.5
+            // PATTERN_PARTITIONS_CONSISTENT fires at 0.0.
+            "ro.vendor.build.fingerprint" to
+                "google/panther/panther:13/TQ1A.230205.002.A4/9531234:user/release-keys",
             "ro.build.display.id" to "TQ1A.230205.002",
             "ro.build.tags" to "release-keys",
             "ro.build.type" to "user",

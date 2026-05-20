@@ -63,6 +63,22 @@ object RedroidSpoofedSnapshot {
             "ro.build.fingerprint" to
                 "google/panther/panther:12/SP1A.210812.016.C2/9471150:user/release-keys",
 
+            // Power-13 Gap #9 — vendor partition fingerprint MUST
+            // ALSO be spoofed to match the system-partition prefix
+            // (`google/panther/panther:12/...`) or the rank-9.5
+            // FingerprintCrossPartitionProbe fires
+            // PATTERN_DIVERGENT_FINGERPRINTS at 1.0 (MHPC's
+            // canonical vendor-erasure tell). A complete spoof
+            // stack runs `resetprop -n ro.vendor.build.fingerprint`
+            // alongside the system-fingerprint resetprop in the
+            // boot service.d/00-spoof.sh script. The vendor build-
+            // id suffix is allowed to differ from system (real
+            // OEMs update partitions independently); only the
+            // first 3 dotted segments (manufacturer/product/device)
+            // must match — that's the OEM-pipeline-shared portion.
+            "ro.vendor.build.fingerprint" to
+                "google/panther/panther:12/SP1A.210812.016.C2/9471150:user/release-keys",
+
             // Mask rank-1 secondary (buildprop.fingerprint also reads
             // display.id substring): was
             //   "redroid_x86_64_only-userdebug 12 SP1A.210812.016.C2 eng.frank... test-keys"

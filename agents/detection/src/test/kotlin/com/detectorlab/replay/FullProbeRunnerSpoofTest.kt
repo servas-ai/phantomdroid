@@ -36,6 +36,7 @@ import com.detectorlab.probes.app.IgFamilyDeviceIdHeaderProbe
 import com.detectorlab.probes.app.TikTokArgusSigningProbe
 import com.detectorlab.probes.buildprop.BoardHardwareProbe
 import com.detectorlab.probes.buildprop.BuildFingerprintProbe
+import com.detectorlab.probes.buildprop.FingerprintCrossPartitionProbe
 import com.detectorlab.probes.buildprop.ModelBrandManufacturerProbe
 import com.detectorlab.probes.buildprop.TagsAndTypeProbe
 import com.detectorlab.probes.emulator.CpuAbiProbe
@@ -132,9 +133,10 @@ class FullProbeRunnerSpoofTest {
         // app (2)
         IgFamilyDeviceIdHeaderProbe(),
         TikTokArgusSigningProbe(),
-        // buildprop (4)
+        // buildprop (5) — Power-13 Gap #9 added FingerprintCrossPartitionProbe
         BoardHardwareProbe(),
         BuildFingerprintProbe(),
+        FingerprintCrossPartitionProbe(),
         ModelBrandManufacturerProbe(),
         TagsAndTypeProbe(),
         // emulator (5) — Power-13 Gap #4 added ThirdPartyEmulatorArtifactsProbe
@@ -238,10 +240,10 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                80, probes.size,
-                "expected the full 80-probe inventory (73 base + Power-13 Gaps " +
-                    "#4 + #3 + #10 + #12 + #1 + #2 + #8); if the inventory " +
-                    "changed, update the allProbes() registry above",
+                81, probes.size,
+                "expected the full 81-probe inventory (73 base + Power-13 Gaps " +
+                    "#4 + #3 + #10 + #12 + #1 + #2 + #8 + #9); if the " +
+                    "inventory changed, update the allProbes() registry above",
             )
             val runner = ProbeRunner(
                 probes = probes,

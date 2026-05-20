@@ -33,6 +33,20 @@ object RedroidV12Snapshot {
             "ro.build.fingerprint" to
                 "redroid/redroid_x86_64_only/redroid_x86_64_only:12/SP1A.210812.016.C2/" +
                 "eng.frank.20240527.145941:userdebug/test-keys",
+            // Power-13 Gap #9 — internally-consistent vendor
+            // fingerprint. Un-spoofed ReDroid container has
+            // matching system + vendor fingerprints (both
+            // `redroid/...`) because the container is built as
+            // a single Docker image. Rank-9.5 fires
+            // PATTERN_PARTITIONS_CONSISTENT at 0.0 (consistent —
+            // both partitions agree). The probe is testing for
+            // SPOOFED DIVERGENCE, not internally-consistent
+            // emulators; un-spoofed Redroid is NOT a positive
+            // for this probe (other ranks catch the
+            // `redroid/...` identifier directly).
+            "ro.vendor.build.fingerprint" to
+                "redroid/redroid_x86_64_only/redroid_x86_64_only:12/SP1A.210812.016.C2/" +
+                "eng.frank.20240527.145941:userdebug/test-keys",
             "ro.build.display.id" to
                 "redroid_x86_64_only-userdebug 12 SP1A.210812.016.C2 " +
                 "eng.frank.20240527.145941 test-keys",
