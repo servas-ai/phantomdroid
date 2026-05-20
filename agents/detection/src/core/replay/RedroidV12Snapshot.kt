@@ -71,7 +71,15 @@ object RedroidV12Snapshot {
             "ro.boot.vbmeta.device_state" to "",
             "ro.boot.verifiedbootstate" to "",
             "ro.boot.flash.locked" to "",
-            "ro.secure" to "1",
+            // Power-13 fixture upgrade — un-spoofed ReDroid containers ship
+            // with the AOSP-default debuggable bootimage signature: BOTH
+            // `ro.debuggable=1` AND `ro.secure=0`. The May-2026 docker-exec
+            // capture recorded `ro.secure=1` which is the post-Magisk-PIF
+            // state and not the fully-dirty pre-spoof state. Reset to the
+            // canonical dirty pair so the rank-7 RootBeer dangerous-props
+            // rule (Power-13 Gap #5) exercises BOTH axes on the standard
+            // RedroidV12 fixture instead of just the debuggable axis.
+            "ro.secure" to "0", // VIOLATION — production must be 1
             "ro.debuggable" to "1", // VIOLATION — production must be 0
 
             // rank 14 selinux
@@ -218,8 +226,32 @@ object RedroidV12Snapshot {
             // Future re-captures SHOULD populate this entry verbatim from
             // the live container for full-fidelity replay parity.
         ),
-        // No Android settings or telephony state in this capture — empty maps
-        // give the conservative "key not in map → null" answer.
+        // Power-13 fixture upgrade — un-spoofed ReDroid containers running
+        // the AOSP emulator carrier metadata ship the canonical synthetic
+        // emulator identity. The original 2026-05-20 docker-exec capture
+        // did not enumerate TelephonyManager because system_server was not
+        // booted on kernel 4.15 (binderfs gap), so the original snapshot
+        // declared `telephony = emptyMap()` by default. The values added
+        // here are the AOSP-emulator defaults verbatim — same constants
+        // referenced by strazzere/anti-emulator + EmulatorDetector, NOT
+        // a fabricated lab approximation. Closes the Power-13 Gap #6
+        // coverage where PATTERN_EMULATOR_PHONE_NUMBER and
+        // PATTERN_EMULATOR_IMSI branches fire only on synthetic test ctx.
+        telephony = mapOf(
+            // AOSP emulator carrier name — RootBeer / strazzere flag
+            // operatorName == "Android" as dispositive emulator marker.
+            "OPERATOR_NAME" to "Android",
+            // AOSP emulator MCC=310 (T-Mobile US) + MNC=260.
+            "MCC_MNC" to "310260",
+            // First entry of the 16-entry AOSP emulator phone-number
+            // block (15555215554..15555215584). Power-13 Gap #6 rule
+            // PATTERN_EMULATOR_PHONE_NUMBER fires on any block member.
+            "LINE1_NUMBER" to "15555215554",
+            // AOSP canonical IMSI — T-Mobile MCC/MNC + 10-zero
+            // synthetic subscriber suffix. Power-13 Gap #6 rule
+            // PATTERN_EMULATOR_IMSI fires on this exact literal.
+            "SUBSCRIBER_ID" to "310260000000000",
+        ),
         installedPackages = setOf(
             // ReDroid 12 minimal package set — only AOSP system packages
             // are pre-installed; nothing from the rank-10 marker list
