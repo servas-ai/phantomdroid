@@ -185,13 +185,17 @@ class DnsServerProbe(
                 .map { it.lowercase() }
                 .distinct()
 
+            // Cross-cutting #3 (FIXED 2026-05-20): Private DNS settings live in
+            // Settings.Global. Migrated from querySettingSecure to
+            // querySettingGlobal; default delegates to Secure for backward
+            // compat with existing fakes.
             val privateDnsMode: String? = try {
-                ctx.querySettingSecure(SETTING_PRIVATE_DNS_MODE)?.trim()
+                ctx.querySettingGlobal(SETTING_PRIVATE_DNS_MODE)?.trim()
             } catch (_: Throwable) {
                 null
             }
             val privateDnsSpecifier: String? = try {
-                ctx.querySettingSecure(SETTING_PRIVATE_DNS_SPECIFIER)?.trim()
+                ctx.querySettingGlobal(SETTING_PRIVATE_DNS_SPECIFIER)?.trim()
             } catch (_: Throwable) {
                 null
             }

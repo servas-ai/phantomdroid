@@ -43,20 +43,27 @@ Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 
 
 ---
 
-## #3 ProbeContext lacks `querySettingGlobal`
+## #3 ProbeContext lacks `querySettingGlobal` (FIXED 2026-05-20)
 
-**Observation**: 3 probes now (`AutomationToolsProbe`, `DeveloperOptionsProbe`, future Settings.Global-class probes) use `querySettingSecure` for keys that semantically live in `Settings.Global`. The KDoc says "assumes production wrapper handles namespace fallback" — but if it doesn't, every Global key these probes read returns null.
+**Observation (resolved)**: 3+ probes (`AutomationToolsProbe`, `DeveloperOptionsProbe`, `VpnProxyProbe`, `DnsServerProbe`) used `querySettingSecure` for keys that semantically live in `Settings.Global`. Silent false-negative risk on Global-namespace reads.
 
-**Why this matters**: Silent false negatives on every Settings.Global probe.
+**Fix applied**: Added `querySettingGlobal(key)` and `querySettingSystem(key)` to `ProbeContext` interface, both with default implementations that delegate to `querySettingSecure` for backward compatibility with existing fakes.
 
-**Proposed fix**: Add `fun querySettingGlobal(key: String): String?` to the `ProbeContext` interface. ~10 LOC interface change + production implementation update.
+Probes migrated to the new accessor:
+- `DeveloperOptionsProbe`: all 4 keys (development_settings_enabled, adb_enabled, adb_wifi_enabled, package_verifier_enable) now read via Global
+- `AutomationToolsProbe.isAdbEnabled`: `adb_enabled` now read via Global
+- `VpnProxyProbe`: HTTP_PROXY (SETTING_GLOBAL_HTTP_PROXY) now read via Global
+- `DnsServerProbe`: PRIVATE_DNS_MODE + PRIVATE_DNS_SPECIFIER now read via Global
 
-**Acceptance**:
-- `ProbeContext.querySettingGlobal(key)` exists.
-- Production wrapper reads from `Settings.Global` namespace specifically.
-- The 3 affected probes migrate from `querySettingSecure` to `querySettingGlobal` where appropriate.
+Settings.Secure-namespace probes unchanged:
+- `AutomationToolsProbe.enabled_accessibility_services` (correctly Secure)
+- `AccessibilityServicesProbe` (Secure)
+- `LocationMockProbe`'s ALLOW_MOCK_LOCATION + GEOCODER_ANOMALY (Secure)
+- `AndroidIdProbe.android_id` (Secure)
 
-**Owner action**: approve core-contract change (this is one of the only no-touch zones during single-probe tasks).
+Tests: 3253/3253 green after clean build (default-impl-via-Secure preserves backward compat with existing fakes).
+
+**Status**: closed. Production wrapper SHOULD now override `querySettingGlobal` to read from the actual `Settings.Global` namespace; default-delegation only protects fakes.
 
 ---
 

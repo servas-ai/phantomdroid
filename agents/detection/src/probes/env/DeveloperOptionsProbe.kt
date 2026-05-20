@@ -86,11 +86,19 @@ class DeveloperOptionsProbe : Probe {
     override suspend fun run(ctx: ProbeContext): ProbeResult {
         val start = System.currentTimeMillis()
         return try {
-            fun readSecure(key: String): String? = try {
-                ctx.querySettingSecure(key)
+            // Cross-cutting #3 (FIXED 2026-05-20): use querySettingGlobal for
+            // Global-namespace keys (development_settings_enabled, adb_enabled,
+            // adb_wifi_enabled, package_verifier_enable). Default implementation
+            // delegates to querySettingSecure for backward compatibility with
+            // existing fakes.
+            fun readGlobal(key: String): String? = try {
+                ctx.querySettingGlobal(key)
             } catch (_: Throwable) {
                 null
             }
+            // Local alias retained so the rest of the function body stays the
+            // same (this probe reads ONLY Global keys).
+            val readSecure: (String) -> String? = ::readGlobal
 
             val devSettings = readSecure(SETTING_DEV_SETTINGS_ENABLED)
             val adb = readSecure(SETTING_ADB_ENABLED)

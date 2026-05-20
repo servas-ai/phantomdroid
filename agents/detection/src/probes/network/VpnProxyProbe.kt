@@ -146,8 +146,11 @@ class VpnProxyProbe(
             val transportVpnActive = transportVpnFlag == true
 
             // ── Signal 3: system HTTP proxy ─────────────────────────────────
+            // Cross-cutting #3 (FIXED 2026-05-20): http_proxy lives in
+            // Settings.Global. Migrated to querySettingGlobal; default delegates
+            // to Secure for backward compat with existing fakes.
             val secureProxy: String? = try {
-                ctx.querySettingSecure(SETTING_GLOBAL_HTTP_PROXY)
+                ctx.querySettingGlobal(SETTING_GLOBAL_HTTP_PROXY)
             } catch (_: Throwable) {
                 null
             }

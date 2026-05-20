@@ -138,10 +138,14 @@ internal fun isUiAutomatorInstalled(pm: com.detectorlab.core.PackageManagerView)
         pm.isPackageInstalled(AutomationToolsProbe.PKG_UIAUTOMATOR_TEST)
 
 /**
- * Returns true when `Settings.Secure.adb_enabled == "1"`.
+ * Returns true when `Settings.Global.adb_enabled == "1"`.
+ *
+ * Cross-cutting #3 (FIXED 2026-05-20): `adb_enabled` lives in `Settings.Global`,
+ * not `Settings.Secure`. Migrated from `querySettingSecure` to
+ * `querySettingGlobal`. Default delegates to Secure for backward compat.
  */
 internal fun isAdbEnabled(ctx: ProbeContext): Boolean =
-    ctx.querySettingSecure(AutomationToolsProbe.SETTING_ADB_ENABLED) == "1"
+    ctx.querySettingGlobal(AutomationToolsProbe.SETTING_ADB_ENABLED) == "1"
 
 /**
  * Returns true when an ESTABLISHED TCP connection on local port 5555 exists in

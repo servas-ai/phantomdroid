@@ -17,6 +17,26 @@ interface ProbeContext {
     fun querySensorManager(): SensorManagerView
 
     /**
+     * Read a `Settings.Global` key. Default delegates to `querySettingSecure`
+     * for backward compatibility with fakes that predate the split. Production
+     * implementations MUST override to read the actual `Settings.Global`
+     * namespace.
+     *
+     * Closes cross-cutting #3: `AutomationToolsProbe`, `DeveloperOptionsProbe`,
+     * and future Settings.Global-class probes can now query the correct
+     * namespace explicitly without assuming the production wrapper bridges
+     * Secure↔Global.
+     */
+    fun querySettingGlobal(key: String): String? = querySettingSecure(key)
+
+    /**
+     * Read a `Settings.System` key. Default delegates to `querySettingSecure`
+     * for the same backward-compatibility reason as `querySettingGlobal`.
+     * Production wrappers override to read `Settings.System`.
+     */
+    fun querySettingSystem(key: String): String? = querySettingSecure(key)
+
+    /**
      * Default returns the "unknown" view so existing fakes that predate this
      * method continue to compile. Production impls override with a wrapper
      * around `android.app.KeyguardManager`.
