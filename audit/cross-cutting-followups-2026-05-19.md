@@ -110,11 +110,11 @@
 | 5 | Pixel 8 Pro density | yes (telemetry budget) | yes (lab approximation flagged) | low |
 | 6 | SensorSample axis-count invariant | yes (KDoc change) | yes (try/catch fallback) | low |
 | 7 | Probe.rank Int vs inventory Double mismatch | yes (core-contract change) | yes (collisions handled ad-hoc) | medium |
-| 8 | TikTokArgusSigningProbe broken on Android 10+ | yes (path rewrite) | NO (probe scores 0.10 on all A10+ devices) | high |
+| 8 | TikTokArgusSigningProbe broken on Android 10+ | RESOLVED 2026-05-20 at `cbb40d8` | YES (`a10_plus_accessor_gap` pattern + degraded 0.5 confidence on A10+) | (closed) |
 
 All items are **tracked, not blocking** the current Power-1 acceptance criteria.
 
-Next session can pick any of these up; **#8 (TikTokArgus A10+ broken) has the highest urgency** because the probe is silently broken on all real-world Android 10+ devices (scores 0.10 always). #3 (querySettingGlobal) has the highest correctness-ROI for the broader probe family.
+Next session can pick any of these up. **#8 (TikTokArgus A10+ broken) is FIXED as of 2026-05-20 at commit `cbb40d8`** — the probe now degrades honestly to `a10_plus_accessor_gap` pattern (score 0.0, confidence 0.5) on API 29+ instead of silently scoring 0.10. Full A10+ path enumeration still requires the `listDirectory` accessor from #3. **#3 (querySettingGlobal / listDirectory) now has the highest correctness-ROI** for the broader probe family.
 
 ---
 
@@ -132,11 +132,27 @@ Next session can pick any of these up; **#8 (TikTokArgus A10+ broken) has the hi
 
 ---
 
-## #8 TikTokArgusSigningProbe broken on Android 10+ (HIGH urgency)
+## #8 TikTokArgusSigningProbe broken on Android 10+ (FIXED 2026-05-20 at `cbb40d8`)
 
-**Observation**: `agents/detection/src/probes/app/TikTokArgusSigningProbe.kt` builds lib paths as `/data/app/<pkg>-1/lib/<arch>/` and `/data/app/<pkg>-2/lib/<arch>/`. This layout was retired in Android 10 (API 29). Since A10, the path is `/data/app/~~<random-base64>/com.package.name-<N>/lib/<arch>/`.
+**Fix**: A10+ devices (SDK >= 29) now route to a new `a10_plus_accessor_gap` pattern at score 0.0 + confidence 0.5 instead of the misleading 0.10 weak-signal score. The probe reads `ro.build.version.sdk` via `getSystemProperty`, parses with a defensive `parseSdkInt` helper (rank-82 LocationMockRaspProbe pattern reuse), and branches the cascade:
 
-**Why this matters**: On all Android 10+ devices (essentially all real-world TikTok users), the probe finds neither `.so`, falls through to score `0.10` ("path mismatch / permission"), and emits a misleading evidence entry. The probe is **silently broken** since Android 10.
+- SDK >= 29 AND pre-A10 libs absent → `a10_plus_accessor_gap` (0.0 score, 0.5 confidence — honest degradation)
+- SDK >= 29 AND pre-A10 libs present (rare custom-ROM backport) → libs-found cascade wins (0.85 / 0.55 per existing rules)
+- SDK < 29 OR SDK unknown/malformed → conservative pre-A10 fallback (existing 0.85 / 0.55 / 0.10 / 0.40 behavior preserved for legacy emulators on cloud-phone infra)
+
+Five new evidence keys make the gap visible to consumer-side analysis: `tiktok.android_sdk`, `tiktok.path_scan_strategy`, `tiktok.a10_plus_accessor_gap`, `tiktok.pattern`, plus the existing libsscronet/libmetasec evidence.
+
+**Remaining work**: Full A10+ path enumeration (scanning `/data/app/~~<base64>==/<pkg>-<token>/lib/<arch>/`) still requires a `listDirectory` accessor on ProbeContext. KDoc anchors the dependency on #3. When that accessor lands, the A10+ branch becomes the place where `~~<base64>` enumeration is implemented. Until then, the current fix replaces silent-broken behavior with explicit-degraded behavior — a strict improvement.
+
+**Coverage**: 36 unit tests (was 18; +18 for the A10+ branch), full `:detection:test` BUILD SUCCESSFUL across all 62 test classes, zero regressions.
+
+---
+
+**Original observation (preserved for archive)**:
+
+`agents/detection/src/probes/app/TikTokArgusSigningProbe.kt` builds lib paths as `/data/app/<pkg>-1/lib/<arch>/` and `/data/app/<pkg>-2/lib/<arch>/`. This layout was retired in Android 10 (API 29). Since A10, the path is `/data/app/~~<random-base64>/com.package.name-<N>/lib/<arch>/`.
+
+**Why this mattered**: On all Android 10+ devices (essentially all real-world TikTok users), the probe found neither `.so`, fell through to score `0.10` ("path mismatch / permission"), and emitted a misleading evidence entry. The probe was **silently broken** since Android 10.
 
 **Proposed fix**: rewrite path-construction:
 ```kotlin
