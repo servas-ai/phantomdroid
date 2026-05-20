@@ -163,8 +163,8 @@ class InstalledAppsProbeTest {
     }
 
     @Test
-    fun `frida client visible only — score is 0_85`() = runBlocking {
-        val result = probe.run(fakeCtx(baselinePackages + "com.frida.frida"))
+    fun `aRDP visible only — score is 0_85`() = runBlocking {
+        val result = probe.run(fakeCtx(baselinePackages + "com.iiordanov.aRDP"))
         assertEquals(0.85, result.score)
     }
 
@@ -231,7 +231,7 @@ class InstalledAppsProbeTest {
 
     @Test
     fun `TouchTask visible only — score is 0_70`() = runBlocking {
-        val result = probe.run(fakeCtx(baselinePackages + "com.touchtask"))
+        val result = probe.run(fakeCtx(baselinePackages + "com.balda.touchtask"))
         assertEquals(0.70, result.score)
     }
 

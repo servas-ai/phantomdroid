@@ -120,7 +120,7 @@ class AccessibilityServicesProbe : Probe {
          *
          * Mix of canonical-package and generic-token markers:
          *   - Canonical packages: `com.android.uiautomator`,
-         *     `mods.autoui`, `org.autojs.autojs`, `com.touchtask`,
+         *     `org.autojs.autojs`, `com.balda.touchtask`,
          *     `com.airwatch`, `com.zdmotion` — overlap with rank-10
          *     where both surfaces fire
          *   - Generic tokens: `automation`, `screen.recorder`,
@@ -128,16 +128,20 @@ class AccessibilityServicesProbe : Probe {
          *
          * Cross-rank invariant test pins the substring overlap with
          * rank-10's automation list.
+         *
+         * Ground-truth pass (2026-05-20, cross-cutting #2 closure):
+         *   - Removed `mods.autoui` (fabricated ID, Play 404).
+         *   - Corrected `com.touchtask` → `com.balda.touchtask`
+         *     (verified canonical TouchTask namespace).
          */
         val SUSPICIOUS_ACCESSIBILITY_SUBSTRINGS: List<String> = listOf(
             "com.android.uiautomator",
-            "mods.autoui",
             // `org.autojs.` covers both `org.autojs.autojs` and
             // `org.autojs.autoxjs.v6` (sibling automation products from
             // the same author) — broader than rank-10's two enumerated
             // packages by design.
             "org.autojs.",
-            "com.touchtask",
+            "com.balda.touchtask",
             "com.airwatch",
             "com.zdmotion",
             "automation",

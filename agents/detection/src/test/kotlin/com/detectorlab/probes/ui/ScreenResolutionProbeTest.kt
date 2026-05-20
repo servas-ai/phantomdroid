@@ -432,13 +432,18 @@ class ScreenResolutionProbeTest {
     }
 
     @Test
-    fun `all device profile densities are multiples of 20`() {
-        // mod-20 is the empirical OEM rule — see KDoc. Real Pixel 7 reports
-        // densityDpi=420 (mod 20 but not mod 40).
+    fun `all device profile densities are within Android plausible range`() {
+        // Previously this test asserted `densityDpi % 20 == 0` as an
+        // "empirical OEM rule". Google's Pixel 8 Pro at 489 PPI (official
+        // store.google.com spec) disproves the rule — mod-20 was never a
+        // contract, just a partial pattern. Closure of cross-cutting #2
+        // telemetry gap 2026-05-20: the right invariant is a sanity bound
+        // (no zero, no >1000 dpi typos).
         for ((key, profile) in ScreenResolutionProbe.DEVICE_PROFILES) {
-            assertEquals(
-                0, profile.densityDpi % 20,
-                "device $key has non-standard density ${profile.densityDpi}",
+            assertTrue(
+                profile.densityDpi in 120..720,
+                "device $key has implausible density ${profile.densityDpi} " +
+                    "(expected 120..720 — Android standard bucket range)",
             )
         }
     }

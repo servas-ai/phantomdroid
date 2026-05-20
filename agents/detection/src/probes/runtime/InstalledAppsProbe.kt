@@ -73,17 +73,38 @@ class InstalledAppsProbe : Probe {
         )
 
         // Group B — dynamic-analysis / debugging tools (0.85)
+        //
+        // Ground-truth pass (2026-05-20, cross-cutting #2 closure):
+        //   - `re.frida.server` retained: Frida's official reverse-domain
+        //     namespace (`frida.re`). No canonical Play APK (Frida ships
+        //     as a native daemon binary), but kept as a defensive
+        //     sentinel for sideloaded reproductions.
+        //   - `com.iiordanov.bVNC` / `com.iiordanov.aRDP` verified on
+        //     Google Play (developer: Iordan Iordanov / Undatech).
+        //   - `com.cy8018.spynote` retained: SpyNote RAT is repackaged
+        //     per-sample so no single canonical ID exists; this matches
+        //     one documented sample namespace.
+        //   - Removed `com.frida.frida` / `com.adb.kit` /
+        //     `org.proxyman.NSPlist` — fabricated IDs that returned 404
+        //     on Play Store and have no published F-Droid / GitHub
+        //     equivalent. Proxyman has no Android app (only macOS host;
+        //     Atlantis library runs in-app under arbitrary parent IDs).
         val GROUP_B_DYNAMIC_ANALYSIS: List<String> = listOf(
             "re.frida.server",
-            "com.frida.frida",
             "com.iiordanov.bVNC",
             "com.iiordanov.aRDP",
             "com.cy8018.spynote",
-            "com.adb.kit",
-            "org.proxyman.NSPlist",
         )
 
         // Group C — clone / dual-instance / virtualization (0.70)
+        //
+        // Ground-truth pass (2026-05-20, cross-cutting #2 closure):
+        //   - Removed `com.android.virtualspace` — AOSP-reserved
+        //     `com.android.*` namespace, not a published clone app.
+        //   - Added Play Store-verified clone apps:
+        //       `com.clone.android.dual.space` (Virtual Master),
+        //       `com.pengyou.cloneapp`         (Clone App – Dual App),
+        //       `com.waxmoon.ma.gp`            (Multi App: Dual Space).
         val GROUP_C_CLONE_VIRTUALIZATION: List<String> = listOf(
             "com.lbe.parallel",
             "com.lbe.parallel.intl",
@@ -93,16 +114,24 @@ class InstalledAppsProbe : Probe {
             "com.excelliance.multiaccount",
             "com.bishrn.android.parallel",
             "io.va.exposed",
-            "com.android.virtualspace",
+            "com.clone.android.dual.space",
+            "com.pengyou.cloneapp",
+            "com.waxmoon.ma.gp",
         )
 
         // Group D — automation frameworks (0.70)
+        //
+        // Ground-truth pass (2026-05-20, cross-cutting #2 closure):
+        //   - Removed `mods.autoui` — fabricated ID (Play 404, no
+        //     F-Droid / canonical-GitHub equivalent).
+        //   - Corrected `com.touchtask` → `com.balda.touchtask`
+        //     (verified canonical TouchTask developer namespace, per
+        //     AppBrain; ~250 k installs).
         val GROUP_D_AUTOMATION: List<String> = listOf(
             "com.android.uiautomator",
-            "mods.autoui",
             "org.autojs.autojs",
             "org.autojs.autoxjs.v6",
-            "com.touchtask",
+            "com.balda.touchtask",
         )
 
         const val SCORE_GROUP_A = 1.0

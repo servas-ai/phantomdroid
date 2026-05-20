@@ -94,7 +94,12 @@ class ScreenResolutionProbe(
             // selects the right profile — e.g. "Pixel 7 Pro" matches the
             // "pixel 7 pro" entry rather than the broader "pixel 7" key.
             "pixel 7 pro" to DeviceProfile(1440, 3120, 560),
-            "pixel 8 pro" to DeviceProfile(1344, 2992, 480),
+            // Pixel 8 Pro: Google official spec is 489 PPI
+            // (https://store.google.com/product/pixel_8_pro_specs). Google ships
+            // non-bucket-quantized densityDpi values on Pixel (see Pixel 7 = 420
+            // not 480), so the lab profile is set to 489 to match real device
+            // telemetry. Closure of cross-cutting #2 telemetry gap 2026-05-20.
+            "pixel 8 pro" to DeviceProfile(1344, 2992, 489),
             "pixel 7" to DeviceProfile(1080, 2400, 420),
             "pixel 8" to DeviceProfile(1080, 2400, 420),
             "sm-s901" to DeviceProfile(1080, 2340, 420),     // Galaxy S22

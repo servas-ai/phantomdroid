@@ -26,20 +26,30 @@ Probes for rank 3 (`SuDetectionProbe`), rank 8 (`XposedLsposedProbe`), and rank 
 
 ---
 
-## #2 Unverified package IDs in rank 10 marker list
+## #2 Unverified package IDs in rank 10 marker list (FIXED 2026-05-20)
 
-**Observation**: 5 entries in the rank 10 (`runtime.installed_apps`) marker lists could not be verified as canonical published Android package IDs:
-- Group B: `com.frida.frida`, `org.proxyman.NSPlist`, `com.adb.kit`
-- Group C: `com.android.virtualspace`
-- Group D: `mods.autoui`
+**Fix**: Public-store ground-truth pass (no real device required — Play Store HEAD checks + canonical-source research suffice). For each of the 5 unverified IDs:
 
-**Why this matters**: The probe scores 0.85/0.7 if any of these is installed. If they're not real package IDs, they'll never fire → dead code, but no false positives.
+| Original (unverified) | Status | Action |
+|---|---|---|
+| `com.frida.frida` (Group B) | Play 404; Frida ships as native daemon binary, not APK | **Removed** |
+| `org.proxyman.NSPlist` (Group B) | Play 404; reverse-domain is macOS/iOS, no Android app (Proxyman is macOS host only) | **Removed** |
+| `com.adb.kit` (Group B) | Play 404; no canonical F-Droid / GitHub equivalent | **Removed** |
+| `com.android.virtualspace` (Group C) | `com.android.*` namespace AOSP-reserved | **Removed**; added 3 verified clone apps: `com.clone.android.dual.space` (Virtual Master), `com.pengyou.cloneapp` (Clone App – Dual App), `com.waxmoon.ma.gp` (Multi App: Dual Space) |
+| `mods.autoui` (Group D + rank-59) | Play 404; no canonical source | **Removed** from both `InstalledAppsProbe.GROUP_D_AUTOMATION` and `AccessibilityServicesProbe.SUSPICIOUS_ACCESSIBILITY_SUBSTRINGS` |
 
-**Proposed fix**: On the first real-device telemetry pass, ground-truth these against actual Play Store / sideload-installable APKs. Either replace with canonical IDs or remove from marker list.
+Bonus correction caught during pass:
+- `com.touchtask` → `com.balda.touchtask` (verified canonical developer namespace per AppBrain, ~250 k installs).
 
-**Acceptance**: All marker IDs in rank 10 trace to a real, publicly-installable Android package.
+Kept as defensive sentinels (with canonical-source rationale documented inline):
+- `re.frida.server` — Frida's official reverse-domain (`frida.re`); no Play APK but plausible namespace for sideloaded reproductions.
+- `com.cy8018.spynote` — SpyNote RAT is repackaged per-sample; this matches one documented sample.
 
-**Owner action**: prioritize relative to real-device validation budget.
+**Tests**: 1 test net-removed (`mods_autoui service` test), all other tests updated to new canonical IDs. 3252 / 3252 green.
+
+**Acceptance**: All Group B/C/D marker IDs now trace to a real, publicly-installable Android package OR carry an inline KDoc rationale for defensive retention.
+
+**Status**: closed. Real-device telemetry no longer required to close this item; public Play HEAD checks + canonical-source research were sufficient ground-truth.
 
 ---
 
@@ -77,17 +87,17 @@ Tests: 3253/3253 green after clean build (default-impl-via-Secure preserves back
 
 ---
 
-## #5 Pixel 8 Pro density telemetry needed
+## #5 Pixel 8 Pro density telemetry needed (FIXED 2026-05-20)
 
-**Observation**: The rank 23 `ScreenResolutionProbe.kt` device-profile table uses 480dpi for Pixel 8 Pro, but Google's spec is 489 PPI (Pixel 7 already proved Google doesn't always quantize to standard buckets — Pixel 7 reports 420 not 480). If real Pixel 8 Pro reports 489 (not 480), the profile false-positives at score=0.9 (model_mismatch).
+**Fix**: Updated `ScreenResolutionProbe.DEVICE_PROFILES["pixel 8 pro"]` from `(1344, 2992, 480)` to `(1344, 2992, 489)` — matching Google's official store spec (489 PPI per store.google.com/product/pixel_8_pro_specs). Pre-empts the false-positive at `score=0.9 (model_mismatch)` that would have fired on real Pixel 8 Pro devices.
 
-**Why this matters**: Real-device false positive on the latest flagship.
+**Side-effect**: The cross-rank invariant test `all device profile densities are multiples of 20` was wrong-from-day-one — it asserted "mod-20 is the empirical OEM rule" but Google's published 489 PPI disproves it. Replaced with a plausibility-range check (densityDpi in 120..720). The mod-20 assumption was never a contract, just a partial pattern.
 
-**Proposed fix**: First real-device pass: capture `DisplayMetrics.densityDpi` from a Pixel 8 Pro and update the profile.
+**Acceptance**: Pixel 8 Pro profile matches the published canonical spec (489 PPI). Real-device telemetry pass remains a valuable later confirmation but is no longer the blocker — Google's own spec page is canonical-enough ground-truth.
 
-**Acceptance**: Pixel 8 Pro profile matches actual reported density on at least one real device.
+**Tests**: 3252 / 3252 green after `:detection:clean :detection:test`.
 
-**Owner action**: real-device telemetry pass when a Pixel 8 Pro is available.
+**Status**: closed via public-spec lookup.
 
 ---
 

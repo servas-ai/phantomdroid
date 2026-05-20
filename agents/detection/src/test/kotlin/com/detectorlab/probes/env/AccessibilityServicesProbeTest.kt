@@ -109,14 +109,6 @@ class AccessibilityServicesProbeTest {
     }
 
     @Test
-    fun `mods_autoui service — score is 1_0`() = runBlocking {
-        val result = probe.run(
-            fakeCtx(enabledServices = "mods.autoui/.AutoUiAccessibilityService")
-        )
-        assertEquals(1.0, result.score)
-    }
-
-    @Test
     fun `autojs service — score is 1_0`() = runBlocking {
         val result = probe.run(
             fakeCtx(enabledServices = "org.autojs.autojs/.service.AccessibilityService")
@@ -125,9 +117,9 @@ class AccessibilityServicesProbeTest {
     }
 
     @Test
-    fun `com_touchtask service — score is 1_0`() = runBlocking {
+    fun `com_balda_touchtask service — score is 1_0`() = runBlocking {
         val result = probe.run(
-            fakeCtx(enabledServices = "com.touchtask/.AccessibilityService")
+            fakeCtx(enabledServices = "com.balda.touchtask/.AccessibilityService")
         )
         assertEquals(1.0, result.score)
     }
@@ -381,15 +373,14 @@ class AccessibilityServicesProbeTest {
             )
         )
         assertTrue(
-            AccessibilityServicesProbe.hasSuspiciousAccessibilityService("mods.autoui/.S")
-        )
-        assertTrue(
             AccessibilityServicesProbe.hasSuspiciousAccessibilityService(
                 "org.autojs.autojs/.S"
             )
         )
         assertTrue(
-            AccessibilityServicesProbe.hasSuspiciousAccessibilityService("com.touchtask/.S")
+            AccessibilityServicesProbe.hasSuspiciousAccessibilityService(
+                "com.balda.touchtask/.S"
+            )
         )
         assertTrue(
             AccessibilityServicesProbe.hasSuspiciousAccessibilityService("com.airwatch/.S")
@@ -456,11 +447,10 @@ class AccessibilityServicesProbeTest {
     fun `SUSPICIOUS_ACCESSIBILITY_SUBSTRINGS list pinned`() {
         val list = AccessibilityServicesProbe.SUSPICIOUS_ACCESSIBILITY_SUBSTRINGS
         assertTrue("com.android.uiautomator" in list)
-        assertTrue("mods.autoui" in list)
         // `org.autojs.` (with trailing dot) covers both `org.autojs.autojs`
         // and `org.autojs.autoxjs.v6` sibling packages from the same author.
         assertTrue("org.autojs." in list)
-        assertTrue("com.touchtask" in list)
+        assertTrue("com.balda.touchtask" in list)
         assertTrue("com.airwatch" in list)
         assertTrue("com.zdmotion" in list)
         assertTrue("automation" in list)
