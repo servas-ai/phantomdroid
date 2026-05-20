@@ -148,6 +148,13 @@ class ModelBrandManufacturerProbe : Probe {
             "genymobile",                  // Genymotion brand-in-model leak
             "goldfish",                    // shared with rank-28/42 — defensible
             "ranchu",                      // shared with rank-28/42 — defensible
+            // ReDroid's canonical model string is `redroid12_x86_64_only` (also
+            // observed: `redroid11_*`, `redroid10_*`) — closes the multi-surface
+            // gap caught by the 2026-05-20 PAR822349 E2E validation run, where
+            // rank-28 fired on ro.hardware=redroid but rank-9 fell through
+            // even though `redroid` was present in ro.product.model. Same
+            // shared-with-rank-28 defensibility as `goldfish`/`ranchu`.
+            "redroid",
         )
 
         /**
