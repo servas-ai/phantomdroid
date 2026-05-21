@@ -1,7 +1,7 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt
 //
 // FULL-PANEL spoof-effectiveness gate — instantiates every probe in the
-// production inventory (all 82) and runs them against RedroidSpoofedSnapshot
+// production inventory (all 84) and runs them against RedroidSpoofedSnapshot
 // through the real ProbeRunner. Two assertions:
 //
 //   (1) report.aggregate.category == ReportCategory.CLEAN
@@ -85,6 +85,8 @@ import com.detectorlab.probes.network.HttpProxyProbe
 import com.detectorlab.probes.network.NetworkIpAsnProbe
 import com.detectorlab.probes.network.NetworkTypeProbe
 import com.detectorlab.probes.network.VpnProxyProbe
+import com.detectorlab.probes.root.APatchRootProbe
+import com.detectorlab.probes.root.KernelSURootProbe
 import com.detectorlab.probes.root.MagiskModuleDirProbe
 import com.detectorlab.probes.root.MagiskUdsProbe
 import com.detectorlab.probes.root.MountNsMismatchProbe
@@ -195,7 +197,9 @@ class FullProbeRunnerSpoofTest {
         NetworkIpAsnProbe(),
         NetworkTypeProbe(),
         VpnProxyProbe(),
-        // root (7) — Power-13 Gap #1 + #3 + #8 + #10 + #12
+        // root (9) — Power-13 Gap #1 + #3 + #8 + #10 + #12, Power-19 E2 + KSU + APatch
+        APatchRootProbe(),
+        KernelSURootProbe(),
         MagiskModuleDirProbe(),
         MagiskUdsProbe(),
         MountNsMismatchProbe(),
@@ -242,11 +246,12 @@ class FullProbeRunnerSpoofTest {
             // added and this list isn't updated the test should fail loudly
             // here, not silently drop coverage.
             assertEquals(
-                82, probes.size,
-                "expected the full 82-probe inventory (73 base + Power-13 Gaps " +
+                84, probes.size,
+                "expected the full 84-probe inventory (73 base + Power-13 Gaps " +
                     "#4 + #3 + #10 + #12 + #1 + #2 + #8 + #9 + Power-16 B3 " +
-                    "IntegrityInstallSourceProbe / freeRASP T5); if the " +
-                    "inventory changed, update the allProbes() registry above",
+                    "IntegrityInstallSourceProbe / freeRASP T5 + Power-19 E2 " +
+                    "KernelSURootProbe (rank 3.6) + APatchRootProbe (rank 3.85)); " +
+                    "if the inventory changed, update the allProbes() registry above",
             )
             val runner = ProbeRunner(
                 probes = probes,

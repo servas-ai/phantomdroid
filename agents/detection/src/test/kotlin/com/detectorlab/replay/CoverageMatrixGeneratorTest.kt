@@ -1,15 +1,15 @@
 // agents/detection/src/test/kotlin/com/detectorlab/replay/CoverageMatrixGeneratorTest.kt
 //
-// Power-15 A4 — 656-cell coverage matrix auto-generator (Power-16 B3: 81 → 82).
+// Power-15 A4 — 672-cell coverage matrix auto-generator (Power-19 E2: 82 → 84).
 //
-// Iterates the full 82-probe production inventory across 8 snapshot fixtures
+// Iterates the full 84-probe production inventory across 8 snapshot fixtures
 // (Pixel7Clean, SamsungS22Clean, RedroidV12, RedroidSpoofed,
 // FridaInjectedRedroid, Nox, BlueStacks, Genymotion) and emits a deterministic
 // Markdown matrix to `audit/spoof-stack/full-coverage-matrix.md`.
 //
 // This is NOT a verdict-correctness gate. The asserted contract is narrow:
 //
-//   (1) the matrix has exactly 82 × 8 = 656 cells, and
+//   (1) the matrix has exactly 84 × 8 = 672 cells, and
 //   (2) the output file is written deterministically (same input → same bytes).
 //
 // Verdict-correctness lives in the per-snapshot replay tests
@@ -97,6 +97,8 @@ import com.detectorlab.probes.network.HttpProxyProbe
 import com.detectorlab.probes.network.NetworkIpAsnProbe
 import com.detectorlab.probes.network.NetworkTypeProbe
 import com.detectorlab.probes.network.VpnProxyProbe
+import com.detectorlab.probes.root.APatchRootProbe
+import com.detectorlab.probes.root.KernelSURootProbe
 import com.detectorlab.probes.root.MagiskModuleDirProbe
 import com.detectorlab.probes.root.MagiskUdsProbe
 import com.detectorlab.probes.root.MountNsMismatchProbe
@@ -154,14 +156,14 @@ class CoverageMatrixGeneratorTest {
     )
 
     /**
-     * The complete 82-probe production inventory, instantiated per-snapshot
+     * The complete 84-probe production inventory, instantiated per-snapshot
      * (because BluetoothMacProbe's `bluetoothAdapterMacSupplier` closes over
      * the per-snapshot `SnapshotReplayContext`). Other probes are constructed
      * via their default constructors, mirroring `FullProbeRunnerSpoofTest`'s
      * `allProbes()` registry verbatim.
      *
      * Keeping this list in sync with `FullProbeRunnerSpoofTest.allProbes()` is
-     * an invariant enforced by `runMatrix` — both lists MUST yield 82 probes
+     * an invariant enforced by `runMatrix` — both lists MUST yield 84 probes
      * with identical `(id, rank)` pairs. The list ordering here is "by code
      * filename" within each category to keep the matrix row order predictable
      * (matrix rows are then sorted by `inventoryRank` for the §2 output).
@@ -230,7 +232,9 @@ class CoverageMatrixGeneratorTest {
         NetworkIpAsnProbe(),
         NetworkTypeProbe(),
         VpnProxyProbe(),
-        // root (7)
+        // root (9) — Power-19 E2 added KernelSURootProbe + APatchRootProbe
+        APatchRootProbe(),
+        KernelSURootProbe(),
         MagiskModuleDirProbe(),
         MagiskUdsProbe(),
         MountNsMismatchProbe(),
@@ -370,7 +374,7 @@ class CoverageMatrixGeneratorTest {
     }
 
     @Test
-    fun `generates 656-cell full-coverage matrix as audit document`() = runBlocking {
+    fun `generates 672-cell full-coverage matrix as audit document`() = runBlocking {
         val snapshots = allSnapshots()
         assertEquals(8, snapshots.size, "Expected exactly 8 snapshot fixtures")
 
@@ -390,8 +394,8 @@ class CoverageMatrixGeneratorTest {
             val ctx = SnapshotReplayContext(snapshot)
             val probes = allProbes(ctx)
             assertEquals(
-                82, probes.size,
-                "Expected the full 82-probe production inventory; got ${probes.size} for " +
+                84, probes.size,
+                "Expected the full 84-probe production inventory; got ${probes.size} for " +
                     "snapshot $snapshotName. If the inventory changed, sync this list with " +
                     "FullProbeRunnerSpoofTest.allProbes().",
             )
@@ -410,8 +414,8 @@ class CoverageMatrixGeneratorTest {
             )
             val report = runner.runAll()
             assertEquals(
-                82, report.probes.size,
-                "ProbeRunner returned ${report.probes.size} records for $snapshotName; expected 82",
+                84, report.probes.size,
+                "ProbeRunner returned ${report.probes.size} records for $snapshotName; expected 84",
             )
 
             for (record in report.probes) {
@@ -420,13 +424,13 @@ class CoverageMatrixGeneratorTest {
             }
         }
 
-        // Sanity: 82 unique probe ids × 8 snapshots = 656 cells.
+        // Sanity: 84 unique probe ids × 8 snapshots = 672 cells.
         val totalCells = matrix.values.sumOf { it.size }
         assertEquals(
-            656, totalCells,
-            "Expected exactly 82 × 8 = 656 cells; got $totalCells. Matrix integrity violated.",
+            672, totalCells,
+            "Expected exactly 84 × 8 = 672 cells; got $totalCells. Matrix integrity violated.",
         )
-        assertEquals(82, matrix.size, "Expected 82 unique probe ids in matrix")
+        assertEquals(84, matrix.size, "Expected 84 unique probe ids in matrix")
 
         // Order rows by inventoryRank ascending (matches the inventory.yml
         // canonical ordering). Order columns by the `snapshots` list above.
@@ -527,9 +531,9 @@ class CoverageMatrixGeneratorTest {
 
         // ── Render markdown ────────────────────────────────────────────────
         val sb = StringBuilder()
-        sb.append("# Power-15 A4 — 656-Cell Full-Coverage Matrix\n\n")
+        sb.append("# Power-15 A4 — 672-Cell Full-Coverage Matrix\n\n")
         sb.append("**Generated**: auto-generated by `CoverageMatrixGeneratorTest`\n")
-        sb.append("**Source-of-truth**: 82 probes (`shared/probes/inventory.yml`) × 8 snapshots = 656 cells\n")
+        sb.append("**Source-of-truth**: 84 probes (`shared/probes/inventory.yml`) × 8 snapshots = 672 cells\n")
         sb.append("**Snapshots**: ")
         sb.append(snapshotNames.joinToString(", "))
         sb.append("\n\n")
@@ -552,7 +556,7 @@ class CoverageMatrixGeneratorTest {
         sb.append("\n")
 
         // §2 per-probe verdict matrix
-        sb.append("## §2 — Per-Probe Verdict Matrix (82 rows × 8 cols)\n\n")
+        sb.append("## §2 — Per-Probe Verdict Matrix (84 rows × 8 cols)\n\n")
         sb.append("| Rank | Probe ID")
         for (snapName in snapshotNames) {
             sb.append(" | $snapName")
@@ -592,7 +596,7 @@ class CoverageMatrixGeneratorTest {
 
         // §4 anti-verarschen audit
         sb.append("## §4 — Anti-Verarschen Audit\n\n")
-        sb.append("- Total cells: 656 (82 probes × 8 snapshots)\n")
+        sb.append("- Total cells: 672 (84 probes × 8 snapshots)\n")
         sb.append("- `error` cells (probe crashed): **$totalErrorCells**\n")
         sb.append("- `absent` cells (probe deliberately abstained): **$totalAbsentCells**\n")
         sb.append("- False-positives on Clean snapshots (`raw` on Pixel7Clean / SamsungS22Clean): **$fpOnClean**\n")
@@ -614,18 +618,18 @@ class CoverageMatrixGeneratorTest {
         // Verify the file was written and contains the expected structural anchors.
         assertTrue(output.exists(), "matrix file ${output.absolutePath} was not created")
         val written = output.readText()
-        assertTrue(written.contains("# Power-15 A4 — 656-Cell Full-Coverage Matrix"),
+        assertTrue(written.contains("# Power-15 A4 — 672-Cell Full-Coverage Matrix"),
             "matrix file missing §-header")
         assertTrue(written.contains("## §1 — Verdict Distribution Summary"),
             "matrix file missing §1")
-        assertTrue(written.contains("## §2 — Per-Probe Verdict Matrix (82 rows × 8 cols)"),
+        assertTrue(written.contains("## §2 — Per-Probe Verdict Matrix (84 rows × 8 cols)"),
             "matrix file missing §2")
         assertTrue(written.contains("## §3 — Anomalies"),
             "matrix file missing §3")
         assertTrue(written.contains("## §4 — Anti-Verarschen Audit"),
             "matrix file missing §4")
 
-        // The §2 table must contain exactly 82 data rows. Quick structural
+        // The §2 table must contain exactly 84 data rows. Quick structural
         // check: count lines starting with "| " that include a backticked
         // probe id (each probe id appears in the row prefix).
         val matrixRowLines = written.lines().count { line ->
@@ -634,8 +638,8 @@ class CoverageMatrixGeneratorTest {
         }
         // Each anomaly row also matches that pattern; account for them.
         assertTrue(
-            matrixRowLines >= 82 + anomalies.size,
-            "expected ≥ ${82 + anomalies.size} backticked rows in matrix (82 probe rows + " +
+            matrixRowLines >= 84 + anomalies.size,
+            "expected ≥ ${84 + anomalies.size} backticked rows in matrix (84 probe rows + " +
                 "${anomalies.size} anomaly rows); counted $matrixRowLines",
         )
     }
