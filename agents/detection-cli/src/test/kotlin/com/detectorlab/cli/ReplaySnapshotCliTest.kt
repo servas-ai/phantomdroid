@@ -233,83 +233,70 @@ class ReplaySnapshotCliTest {
         assertEquals(1, outcome.exitCode, "FridaInjectedRedroid must exit 1 (detected)")
     }
 
-    // ── Vendor-emulator fixtures: SUSPICIOUS band, NOT DETECTED ─────────────
+    // ── Vendor-emulator fixtures: composite OR-union FIRES, exit 1 ──────────
     //
-    // HONEST FINDING (Power-18 D1 anti-verarschen amendment): vendor-emulator
-    // snapshots (Nox/BlueStacks/Genymotion) yield 18-19 raw probes out of 82
-    // total → weightedScore in [0.14, 0.18] which lands in the SUSPICIOUS
-    // band (≥0.20 SUSPICIOUS, ≥0.40 DETECTED), NOT in DETECTED.
+    // Power-18 D1 follow-up (Team-Lead push-back): the previous iteration of
+    // this file asserted "weightedScore in SUSPICIOUS band → exit 0" for
+    // Nox/BlueStacks/Genymotion. That was SEMANTICALLY WRONG —
+    // MasterCompositeDetectorReplayTest (c202ee8) is the source-of-truth for
+    // "does ANY shipping detector family fire?", and on these 3 fixtures the
+    // EmulatorDetector composite-rule fires unambiguously (ro.product.name,
+    // model literal, manufacturer respectively). Spoof-stack-corpus-index §1
+    // pins this expectation: emulator fixtures MUST fire emulator-rule.
     //
-    // This is a real spoofstack characteristic: the cumulative weighted score
-    // doesn't cross the production DETECTED threshold for these fixtures, even
-    // though MasterCompositeDetectorReplayTest (c202ee8) proves the per-family
-    // detector-rules (RootBeer/Momo/Frida/Play-Integrity/EmulatorDetector/
-    // freeRASP) DO fire at the per-rule level.
+    // The CLI's exit-code contract is therefore re-anchored on the composite
+    // OR-union (Option A from the Team-Lead message), NOT on the 65-probe
+    // weightedScore aggregate. The aggregate weightedScore still appears in
+    // the JSON output for diagnostic value but is no longer the gate.
     //
-    // Semantic divergence: aggregate-weighted-category (this CLI test) is a
-    // DIFFERENT detection contract than per-family-rule-fires (MasterComposite
-    // test). Real anti-fraud detectors typically OR-union per-family rules
-    // (matching MasterComposite), so they WOULD flag these emulator fixtures.
-    // The CLI's aggregate threshold is a more conservative production-stack
-    // semantic.
-    //
-    // Test expectations therefore assert: weightedScore in SUSPICIOUS band +
-    // raw-probe count ≥10 (proves per-probe detection IS firing) + anyDetected
-    // = false (aggregate stays sub-DETECTED). Detector-family-rules-fire
-    // contract is verified separately in MasterCompositeDetectorReplayTest.
+    // Per-snapshot tests assert: composite fires (anyDetected=true) AND
+    // exit code = 1. Each test also notes the family the source-of-truth
+    // expects to fire so a future regression points at the specific surface.
 
     @Test
-    fun `replay-snapshot Nox lands in SUSPICIOUS band (raw probes fire, aggregate sub-DETECTED)`() {
+    fun `replay-snapshot Nox fires composite (EmulatorDetector ro_product_name=vbox86p) and exits 1`() {
         val outcome = runReplaySnapshot(TestSnapshotRegistry, "Nox")
         assertJsonShape(outcome.json)
         assertEquals("Nox", outcome.snapshotName)
-        val score = outcome.report.aggregate.weightedScore
         assertTrue(
-            score in 0.10..0.25,
-            "Nox (vbox86) weightedScore must land in SUSPICIOUS band [0.10, 0.25]; got $score",
+            outcome.anyDetected,
+            "Nox (vbox86) must fire the composite via EmulatorDetector (product=vbox86p / " +
+                "init.nox.rc / etc). Per MasterCompositeDetectorReplayTest: " +
+                "'NoxSnapshot — composite FIRED'. Got anyDetected=false; " +
+                "weightedScore=${outcome.report.aggregate.weightedScore}.",
         )
-        val rawProbes = outcome.report.probes.count { it.score >= 0.30 }
-        assertTrue(
-            rawProbes >= 10,
-            "Nox must have ≥10 probes scoring `raw` (per-probe emulator detection); got $rawProbes",
-        )
-        assertEquals(0, outcome.exitCode, "Nox must exit 0 (aggregate SUSPICIOUS, sub-DETECTED)")
+        assertEquals(1, outcome.exitCode, "Nox must exit 1 (composite fired)")
     }
 
     @Test
-    fun `replay-snapshot BlueStacks lands in SUSPICIOUS band (raw probes fire, aggregate sub-DETECTED)`() {
+    fun `replay-snapshot BlueStacks fires composite (EmulatorDetector model literal) and exits 1`() {
         val outcome = runReplaySnapshot(TestSnapshotRegistry, "BlueStacks")
         assertJsonShape(outcome.json)
         assertEquals("BlueStacks", outcome.snapshotName)
-        val score = outcome.report.aggregate.weightedScore
         assertTrue(
-            score in 0.10..0.25,
-            "BlueStacks weightedScore must land in SUSPICIOUS band [0.10, 0.25]; got $score",
+            outcome.anyDetected,
+            "BlueStacks must fire the composite via EmulatorDetector " +
+                "(init.bluestacks.rc / etc). Per MasterCompositeDetectorReplayTest: " +
+                "'BlueStacksSnapshot — composite FIRED'. Got anyDetected=false; " +
+                "weightedScore=${outcome.report.aggregate.weightedScore}.",
         )
-        val rawProbes = outcome.report.probes.count { it.score >= 0.30 }
-        assertTrue(
-            rawProbes >= 10,
-            "BlueStacks must have ≥10 probes scoring `raw` (per-probe emulator detection); got $rawProbes",
-        )
-        assertEquals(0, outcome.exitCode, "BlueStacks must exit 0 (aggregate SUSPICIOUS, sub-DETECTED)")
+        assertEquals(1, outcome.exitCode, "BlueStacks must exit 1 (composite fired)")
     }
 
     @Test
-    fun `replay-snapshot Genymotion lands in SUSPICIOUS band (raw probes fire, aggregate sub-DETECTED)`() {
+    fun `replay-snapshot Genymotion fires composite (EmulatorDetector manufacturer=genymotion) and exits 1`() {
         val outcome = runReplaySnapshot(TestSnapshotRegistry, "Genymotion")
         assertJsonShape(outcome.json)
         assertEquals("Genymotion", outcome.snapshotName)
-        val score = outcome.report.aggregate.weightedScore
         assertTrue(
-            score in 0.10..0.25,
-            "Genymotion weightedScore must land in SUSPICIOUS band [0.10, 0.25]; got $score",
+            outcome.anyDetected,
+            "Genymotion must fire the composite via EmulatorDetector " +
+                "(manufacturer=genymotion / baseband_genyd / etc). Per " +
+                "MasterCompositeDetectorReplayTest: 'GenymotionSnapshot — composite " +
+                "FIRED'. Got anyDetected=false; weightedScore=" +
+                "${outcome.report.aggregate.weightedScore}.",
         )
-        val rawProbes = outcome.report.probes.count { it.score >= 0.30 }
-        assertTrue(
-            rawProbes >= 10,
-            "Genymotion must have ≥10 probes scoring `raw` (per-probe emulator detection); got $rawProbes",
-        )
-        assertEquals(0, outcome.exitCode, "Genymotion must exit 0 (aggregate SUSPICIOUS, sub-DETECTED)")
+        assertEquals(1, outcome.exitCode, "Genymotion must exit 1 (composite fired)")
     }
 
     // ── JSON determinism shape ──────────────────────────────────────────────
