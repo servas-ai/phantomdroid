@@ -1,0 +1,2 @@
+    versionCode=31 minSdk=31 targetSdk=31
+    versionName=12
