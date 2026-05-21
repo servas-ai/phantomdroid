@@ -53,6 +53,22 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Power-18 D1 — test-only access to :detection's TEST sourceSet outputs.
+    // The 4 third-party-emulator snapshot fixtures (FridaInjectedRedroidSnapshot,
+    // NoxSnapshot, BlueStacksSnapshot, GenymotionSnapshot) live in :detection's
+    // test sourceSet (positive-path detection fixtures, not production code).
+    // The :detection-cli replay-snapshot subcommand's TEST sourceSet needs
+    // access to all 8 snapshots; the production CLI binary's MAIN sourceSet
+    // does NOT (TEST-FIXTURE LEAK GUARD — see SnapshotRegistry.kt).
+    //
+    // :detection exposes its compiled test classes through a custom
+    // `testArtifacts` consumable configuration (added in :detection's
+    // build.gradle.kts as part of this same Power-18 D1 change). We resolve
+    // it here only on the `testImplementation` (and `testRuntimeOnly`) edges,
+    // never on `implementation` — ensuring production classpath isolation.
+    testImplementation(project(path = ":detection", configuration = "testArtifacts"))
+    testRuntimeOnly(project(path = ":detection", configuration = "testArtifacts"))
 }
 
 application {

@@ -129,7 +129,12 @@ class VersionCommand : CliktCommand(
 fun main(args: Array<String>) {
     try {
         DetectionCli()
-            .subcommands(RunCommand(), ValidateCommand(), VersionCommand())
+            .subcommands(
+                RunCommand(),
+                ValidateCommand(),
+                VersionCommand(),
+                ReplaySnapshotCommand(),
+            )
             .main(args)
     } catch (e: IllegalArgumentException) {
         // Snapshot-loader or registry-instantiation errors. Clikt-internal

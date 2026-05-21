@@ -56,6 +56,58 @@ tasks.test {
     }
 }
 
+// Power-18 D1 — consumable configuration exposing :detection's compiled test
+// classes to OTHER modules' TEST classpaths only (never main classpaths).
+// :detection-cli consumes this in its TEST sourceSet so the replay-snapshot
+// E2E test can drive the 4 test-set snapshots (FridaInjectedRedroidSnapshot,
+// NoxSnapshot, BlueStacksSnapshot, GenymotionSnapshot) without leaking them
+// into the production CLI binary.
+//
+// This is a deliberately narrow surface: the configuration only carries the
+// compiled `build/classes/kotlin/test` directory + the test resources dir,
+// plus the test sourceSet's runtime classpath (so transitive testFixtures
+// like JUnit aren't pulled into consumers).
+configurations {
+    create("testArtifacts") {
+        isCanBeConsumed = true
+        isCanBeResolved = false
+        description = "Power-18 D1 — :detection's compiled test classes, exposed to other modules' test classpaths only."
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class.java, Category.LIBRARY))
+        }
+        // Extend from testRuntimeClasspath so test-only runtime libs (junit etc)
+        // are propagated; but artifacts are restricted to the test classes
+        // directories below via the explicit `outgoing.artifact(...)` calls.
+        extendsFrom(configurations["testRuntimeClasspath"])
+    }
+}
+
+// Add each compiled-test-classes directory as an explicit artifact on the
+// `testArtifacts` configuration. The Kotlin compile task produces a
+// single classes-output directory by default but Gradle wraps it as a
+// FileCollection (.outputs.files) which may carry >1 entry once snapshot
+// caching is active — iterate explicitly so we don't trip the
+// `singleFile` invariant. `builtBy` ensures consumers trigger the compile.
+afterEvaluate {
+    val compileTestKotlin = tasks.named("compileTestKotlin")
+    val testClassesDir = sourceSets.named("test").get().output.classesDirs
+    val testResourcesDir = layout.projectDirectory.dir("src/test/resources")
+
+    artifacts {
+        testClassesDir.forEach { dir ->
+            add("testArtifacts", dir) {
+                builtBy(compileTestKotlin)
+            }
+        }
+        if (testResourcesDir.asFile.exists()) {
+            add("testArtifacts", testResourcesDir.asFile) {
+                builtBy(tasks.named("processTestResources"))
+            }
+        }
+    }
+}
+
 // Sanity check that runs as part of `check`: assert the legacy namespace
 // prefix has not crept back into the source tree. CLO-115 acceptance
 // criterion (c). The forbidden literal is split here so this build file
