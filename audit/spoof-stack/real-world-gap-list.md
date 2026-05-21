@@ -96,3 +96,22 @@ For each new probe:
 Commit format: `feat(detection): Power-13 — close real-world gap X (rank N.M)`
 
 DO NOT push.
+
+---
+
+## P21 — Skip-Manual Apps (apps requiring manual install)
+
+These apps could not be auto-sourced via F-Droid / GitHub releases / Aurora-open during P21-A1 inventory work. Owner must side-load manually (build from source, sideload a personally-verified APK, or substitute). Each entry records the reason honestly so quality-gate can flag missing coverage.
+
+| # | Package | Name | Reason | Substitute |
+|---|---|---|---|---|
+| 1 | com.kozhevin.rootchecks | Native Root Checker (meat-grinder) | github.com/DimaKoz/meat-grinder has no releases; only mirrors exist (untrusted) | Build from source |
+| 2 | com.riyad.rootemuvirtualcheck | RootEmuVirtualCheck | Upstream is a Kotlin library, not an app | Build sample from source |
+| 3 | com.framgia.example.emulatordetector | Android Emulator Detector (framgia) | Upstream is a Maven library; PKG-UNCERTAIN | Build :samples:assembleDebug |
+| 4 | io.github.vvb2060.ndk.xposeddetector | Xposed Detector | vvb2060 ships AAR library; Jabb0 PoC has no releases | Ruru already covers Xposed/LSPosed |
+| 5 | io.androPass.bypass | AndRoPass | Bypass tool, not detector; misclassified in owner inventory | n/a |
+| 6 | com.MeowDump.Integrity-Box | Integrity-Box | Magisk module (.zip), not APK | n/a — module, runs on rooted device |
+| 7 | com.wered.sensorsmultitool | Sensors Multitool | Unpublished from Play 2024-10-03 | Sensors Sandbox (F-Droid: com.mustafaali.sensorssandbox) |
+| 8 | diff.strazzere.anti | Anti-Emulator (Strazzere) | github.com/strazzere/anti-emulator has no releases | Build from source via Android Studio |
+
+These 8 entries are recorded as SKIP-MANUAL in `scripts/p21/app-inventory.json`. The Phase-C harness MUST treat SKIP-MANUAL apps as not-tested (NOT assumed-PASS) — every SKIP entry must be reflected in the Phase-D verdict-matrix as missing-coverage.
