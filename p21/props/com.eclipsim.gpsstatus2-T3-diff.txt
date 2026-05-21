@@ -1,0 +1,16 @@
+--- com.eclipsim.gpsstatus2-T3-pre
++++ com.eclipsim.gpsstatus2-T3-post
+@@ -12,10 +12,10 @@
+ [cache_key.get_packages_for_uid]: [-4560944137486819675]
+ [cache_key.has_system_feature]: [-4560944137486821005]
+-[cache_key.is_compat_change_enabled]: [-4560944137486819034]
++[cache_key.is_compat_change_enabled]: [-4560944137486819028]
+ [cache_key.is_interactive]: [-4560944137486821020]
+-[cache_key.is_power_save_mode]: [-4560944137486819035]
++[cache_key.is_power_save_mode]: [-4560944137486819029]
+ [cache_key.is_user_unlocked]: [-4560944137486820537]
+ [cache_key.location_enabled]: [-4560944137486820994]
+-[cache_key.package_info]: [2]
++[cache_key.package_info]: [-4560944137486819027]
+ [cache_key.system_server.accounts_data]: [-4560944137486819964]
+ [cache_key.telephony.get_active_data_sub_id]: [-7535539532604060027]

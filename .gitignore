@@ -21,6 +21,7 @@ experiments/artifacts/*.png
 build/
 dist/
 *.apk
+*.xapk
 *.aab
 
 # Gradle (CLO-115)

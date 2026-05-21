@@ -29,14 +29,15 @@ P21_DIR = REPO_ROOT / "p21"
 SCREENSHOTS_DIR = P21_DIR / "screenshots"
 UIA_DIR = P21_DIR / "uia"
 PROPS_DIR = P21_DIR / "props"
-REPORT_PATH = P21_DIR / "report.json"
-INSTALL_REPORT_PATH = P21_DIR / "install-report.json"
+REPORT_PATH = Path(os.environ.get("REPORT_PATH", str(P21_DIR / "report.json")))
+INSTALL_REPORT_PATH = Path(os.environ.get("INSTALL_REPORT_PATH", str(P21_DIR / "install-report.json")))
 
 ADB_SERIAL = os.environ.get("ADB_SERIAL", "172.17.0.2:5555")
 HARNESS_VERSION = "p21-c-1.0"
 
 # Per-probe expected verdict assignment (per task #66 description).
 EXPECTED_VERDICT = {
+    # P21-C original installed set (7 apps)
     "rikka.safetynetchecker":              "FAIL-L0-HARDCEILING",   # SafetyNet API deprecated 2024-01
     "com.henrikherzig.playintegritychecker":"FAIL-L0-HARDCEILING",  # PlayIntegrity needs TEE+PlayServices
     "com.byxiaorun.detector":              "FAIL-L0-x86",           # Ruru emu-detect on x86
@@ -44,6 +45,23 @@ EXPECTED_VERDICT = {
     "io.github.vvb2060.keyattestation":    "FAIL-L0-HARDCEILING",   # no TEE on Redroid
     "tk.hack5.treblecheck":                "PASS",                  # benign device-info
     "com.mantle.verify":                   "PASS",                  # benign device-info
+
+    # P21-EXT additional installed set (16 apps) — owner waived strict-source filter
+    "krypton.tbsafetychecker":             "FAIL-L0-HARDCEILING",   # PlayIntegrity-class verifier
+    "com.joeykrim.rootcheck":              "FAIL-L0-x86",           # root+emulator detector
+    "com.scottyab.rootbeer.sample":        "FAIL-L0-x86",           # root detector (test-keys+x86)
+    "com.scottyab.safetynet.sample":       "FAIL-L0-HARDCEILING",   # SafetyNet API deprecated 2024-01
+    "ru.andr7e.deviceinfohw":              "PASS",                  # benign device-info
+    "imoblife.androidsensorbox":           "PASS",                  # benign sensor info
+    "com.androidfung.drminfo":             "PASS",                  # benign DRM-info
+    "flar2.devcheck":                      "PASS",                  # benign device-info
+    "com.evozi.deviceid":                  "PASS",                  # benign identity-display
+    "com.akademiteknoloji.androidallid":   "PASS",                  # benign identity-display
+    "tw.reh.deviceid":                     "PASS",                  # benign identity-display
+    "com.ubnt.usurvey":                    "PASS",                  # benign WiFi tool
+    "ua.com.streamsoft.pingtools":         "PASS",                  # benign network tool
+    "net.techet.netanalyzerlite.an":       "PASS",                  # benign network tool
+    "com.eclipsim.gpsstatus2":             "PASS",                  # benign GPS info (no mock)
 }
 
 # Default expected verdict for not-tested apps (best-guess by source/notes).
