@@ -1,0 +1,89 @@
+ADB state for 172.17.0.2:5555: device
+Processing 33 inventory entries...
+---
+[rikka.safetynetchecker] tier=GITHUB
+[rikka.safetynetchecker] downloading: https://github.com/RikkaW/YASNAC/releases/download/v1.1.5/yasnac-v1.1.5.r65.15110ef310-release.apk
+[rikka.safetynetchecker] installing via adb...
+---
+[com.henrikherzig.playintegritychecker] tier=GITHUB
+[com.henrikherzig.playintegritychecker] downloading: https://github.com/herzhenr/spic-android/releases/download/v1.4.0/spic-v1.4.0.apk
+[com.henrikherzig.playintegritychecker] installing via adb...
+---
+[krypton.tbsafetychecker] tier=AURORA-OPEN
+---
+[com.joeykrim.rootcheck] tier=AURORA-OPEN
+---
+[com.scottyab.rootbeer.sample] tier=AURORA-OPEN
+---
+[com.byxiaorun.detector] tier=GITHUB
+[com.byxiaorun.detector] downloading: https://github.com/byxiaorun/Ruru/releases/download/v1.1.1/Ruru.1.1.1.15.apk
+[com.byxiaorun.detector] installing via adb...
+---
+[icu.nullptr.applistdetector] tier=GITHUB
+[icu.nullptr.applistdetector] downloading: https://github.com/Dr-TSNG/ApplistDetector/releases/download/V2.4/ApplistDetector.V2.4.apk
+[icu.nullptr.applistdetector] installing via adb...
+---
+[com.kozhevin.rootchecks] tier=SKIP-MANUAL
+---
+[com.riyad.rootemuvirtualcheck] tier=SKIP-MANUAL
+---
+[com.framgia.example.emulatordetector] tier=SKIP-MANUAL
+---
+[io.github.vvb2060.ndk.xposeddetector] tier=SKIP-MANUAL
+---
+[io.androPass.bypass] tier=SKIP-MANUAL
+---
+[com.MeowDump.Integrity-Box] tier=SKIP-MANUAL
+---
+[com.scottyab.safetynet.sample] tier=AURORA-OPEN
+---
+[io.github.vvb2060.keyattestation] tier=GITHUB
+[io.github.vvb2060.keyattestation] downloading: https://github.com/vvb2060/KeyAttestation/releases/download/v1.8.4/KeyAttestation-v1.8.4.apk
+[io.github.vvb2060.keyattestation] installing via adb...
+---
+[diff.strazzere.anti] tier=SKIP-MANUAL
+---
+[ru.andr7e.deviceinfohw] tier=AURORA-OPEN
+---
+[com.cpuid.cpu_z] tier=AURORA-OPEN
+[com.cpuid.cpu_z] downloading: https://www.cpuid.com/downloads/cpu-z/android/cpu-z_1.07.apk
+[com.cpuid.cpu_z] installing via adb...
+---
+[com.finalwire.aida64] tier=AURORA-OPEN
+[com.finalwire.aida64] downloading: https://www.aida64.com/downloads/latesta64droid
+[com.finalwire.aida64] installing via adb...
+---
+[com.wered.sensorsmultitool] tier=SKIP-MANUAL
+---
+[imoblife.androidsensorbox] tier=AURORA-OPEN
+---
+[com.androidfung.drminfo] tier=AURORA-OPEN
+---
+[tk.hack5.treblecheck] tier=F-DROID
+[tk.hack5.treblecheck] downloading: https://f-droid.org/repo/tk.hack5.treblecheck_5001001.apk
+[tk.hack5.treblecheck] installing via adb...
+---
+[flar2.devcheck] tier=AURORA-OPEN
+---
+[com.evozi.deviceid] tier=AURORA-OPEN
+---
+[com.akademiteknoloji.androidallid] tier=AURORA-OPEN
+---
+[tw.reh.deviceid] tier=AURORA-OPEN
+---
+[com.ubnt.usurvey] tier=AURORA-OPEN
+---
+[ua.com.streamsoft.pingtools] tier=AURORA-OPEN
+---
+[net.techet.netanalyzerlite.an] tier=AURORA-OPEN
+---
+[com.eclipsim.gpsstatus2] tier=AURORA-OPEN
+---
+[com.ytheekshana.deviceinfo] tier=AURORA-OPEN
+---
+[com.mantle.verify] tier=GITHUB
+[com.mantle.verify] downloading: https://github.com/get-mantle/Mantle-Verify/releases/download/v2.3-28.02.26/Mantle.Verify.v2.3-28.02.26.apk
+[com.mantle.verify] installing via adb...
+===
+install-apps summary: installed=7 skip=8 aurora-required=16 failed=2
+report: p21/install-report.json
