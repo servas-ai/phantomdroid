@@ -1,0 +1,9 @@
+--- com.mantle.verify-T3-pre
++++ com.mantle.verify-T3-post
+@@ -14,5 +14,5 @@
+ [cache_key.is_compat_change_enabled]: [-4560944137486820076]
+ [cache_key.is_interactive]: [-4560944137486821020]
+-[cache_key.is_power_save_mode]: [-4560944137486820071]
++[cache_key.is_power_save_mode]: [-4560944137486820069]
+ [cache_key.is_user_unlocked]: [-4560944137486820537]
+ [cache_key.location_enabled]: [-4560944137486820994]

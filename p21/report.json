@@ -1,0 +1,1603 @@
+{
+  "generated_at": "2026-05-21T14:04:46Z",
+  "redroid_target": "172.17.0.2:5555",
+  "harness_version": "p21-c-1.0",
+  "summary": {
+    "total_cells": 99,
+    "testable_cells": 21,
+    "not_tested_cells": 78,
+    "verdict_counts": {
+      "FAIL": 12,
+      "UNKNOWN": 9,
+      "NOT-TESTED": 78
+    },
+    "matches_expected_count": 12,
+    "matches_expected_pct": 57.1
+  },
+  "notes": [
+    "SafetyNet API (used by YASNAC) was deprecated by Google 2024-01; 'service unavailable' is API-EOL noise, not a clean emulator-detected verdict.",
+    "Play Integrity (used by SPIC) requires TEE + Play Services — absent on Redroid; 'service unavailable' here is also API-class noise.",
+    "CRASH verdict means focus was launcher (not target app) after launch — separate from FAIL.",
+    "UNKNOWN verdict means neither PASS nor FAIL keywords matched while focus was on the target."
+  ],
+  "cells": [
+    {
+      "app": "YASNAC - SafetyNet Checker",
+      "pkg": "rikka.safetynetchecker",
+      "t": 1,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "rikka.safetynetchecker",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.redroid",
+          "value": "redroid12_x86_64_only (redroid_x86_64_only)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/rikka.safetynetchecker-1.png",
+      "uia": "p21/uia/rikka.safetynetchecker-1.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "rikka.safetynetchecker/rikka.safetynetchecker.main.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "YASNAC - SafetyNet Checker",
+      "pkg": "rikka.safetynetchecker",
+      "t": 2,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "rikka.safetynetchecker",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.redroid",
+          "value": "redroid12_x86_64_only (redroid_x86_64_only)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/rikka.safetynetchecker-2.png",
+      "uia": "p21/uia/rikka.safetynetchecker-2.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "rikka.safetynetchecker/rikka.safetynetchecker.main.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "YASNAC - SafetyNet Checker",
+      "pkg": "rikka.safetynetchecker",
+      "t": 3,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "rikka.safetynetchecker",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.redroid",
+          "value": "redroid12_x86_64_only (redroid_x86_64_only)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/rikka.safetynetchecker-3.png",
+      "uia": "p21/uia/rikka.safetynetchecker-3.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "rikka.safetynetchecker/rikka.safetynetchecker.main.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "SPIC - Simple Play Integrity Checker",
+      "pkg": "com.henrikherzig.playintegritychecker",
+      "t": 1,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.henrikherzig.playintegritychecker",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.henrikherzig.playintegritychecker-1.png",
+      "uia": "p21/uia/com.henrikherzig.playintegritychecker-1.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": false,
+      "focused_activity": "com.henrikherzig.playintegritychecker/com.henrikherzig.playintegritychecker.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "SPIC - Simple Play Integrity Checker",
+      "pkg": "com.henrikherzig.playintegritychecker",
+      "t": 2,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.henrikherzig.playintegritychecker",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.henrikherzig.playintegritychecker-2.png",
+      "uia": "p21/uia/com.henrikherzig.playintegritychecker-2.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": false,
+      "focused_activity": "com.henrikherzig.playintegritychecker/com.henrikherzig.playintegritychecker.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "SPIC - Simple Play Integrity Checker",
+      "pkg": "com.henrikherzig.playintegritychecker",
+      "t": 3,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.henrikherzig.playintegritychecker",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.henrikherzig.playintegritychecker-3.png",
+      "uia": "p21/uia/com.henrikherzig.playintegritychecker-3.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": false,
+      "focused_activity": "com.henrikherzig.playintegritychecker/com.henrikherzig.playintegritychecker.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Ruru",
+      "pkg": "com.byxiaorun.detector",
+      "t": 1,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.byxiaorun.detector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.byxiaorun.detector-1.png",
+      "uia": "p21/uia/com.byxiaorun.detector-1.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "com.byxiaorun.detector/com.byxiaorun.detector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Ruru",
+      "pkg": "com.byxiaorun.detector",
+      "t": 2,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.byxiaorun.detector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.byxiaorun.detector-2.png",
+      "uia": "p21/uia/com.byxiaorun.detector-2.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "com.byxiaorun.detector/com.byxiaorun.detector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Ruru",
+      "pkg": "com.byxiaorun.detector",
+      "t": 3,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "com.byxiaorun.detector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.byxiaorun.detector-3.png",
+      "uia": "p21/uia/com.byxiaorun.detector-3.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "com.byxiaorun.detector/com.byxiaorun.detector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "ApplistDetector",
+      "pkg": "icu.nullptr.applistdetector",
+      "t": 1,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "icu.nullptr.applistdetector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/icu.nullptr.applistdetector-1.png",
+      "uia": "p21/uia/icu.nullptr.applistdetector-1.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "icu.nullptr.applistdetector/icu.nullptr.applistdetector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "ApplistDetector",
+      "pkg": "icu.nullptr.applistdetector",
+      "t": 2,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "icu.nullptr.applistdetector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/icu.nullptr.applistdetector-2.png",
+      "uia": "p21/uia/icu.nullptr.applistdetector-2.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "icu.nullptr.applistdetector/icu.nullptr.applistdetector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "ApplistDetector",
+      "pkg": "icu.nullptr.applistdetector",
+      "t": 3,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "icu.nullptr.applistdetector",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.suspicious",
+          "value": "Suspicious",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.abnormal environment",
+          "value": "Abnormal Environment",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/icu.nullptr.applistdetector-3.png",
+      "uia": "p21/uia/icu.nullptr.applistdetector-3.xml",
+      "expected": "FAIL-L0-x86",
+      "matches_expected": true,
+      "focused_activity": "icu.nullptr.applistdetector/icu.nullptr.applistdetector.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Key Attestation Demo",
+      "pkg": "io.github.vvb2060.keyattestation",
+      "t": 1,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "io.github.vvb2060.keyattestation",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "AOSP software attestation root certificate",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.tampered with",
+          "value": "Private key of attestation key is well-known, the certificate chain can be tampered with.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.bootloader is unlocked",
+          "value": "Bootloader is unlocked",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.does not support hardware-level",
+          "value": "This device does not support hardware-level key attestation.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Root, OU=Android, O=\"Google, Inc.\", L=Mountain View, ST=California, C=US\nnot before:Jan 11, 2016 12:43:50 AM\nnot after:Jan 6, 2036 12:43:50 AM",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Intermediate, OU=Android, O=\"Google, Inc.\", ST=California, C=US\nnot before:Jan 11, 2016 12:46:09 AM\nnot after:Jan 8, 2026 12:46:09 AM\nexpired:Certificate expired at Thu Jan 08 00:46:09 GMT 2026 (compared to Thu May 21 14:01:28 GMT 2026)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/io.github.vvb2060.keyattestation-1.png",
+      "uia": "p21/uia/io.github.vvb2060.keyattestation-1.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "io.github.vvb2060.keyattestation/io.github.vvb2060.keyattestation.home.HomeActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Key Attestation Demo",
+      "pkg": "io.github.vvb2060.keyattestation",
+      "t": 2,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "io.github.vvb2060.keyattestation",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "AOSP software attestation root certificate",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.tampered with",
+          "value": "Private key of attestation key is well-known, the certificate chain can be tampered with.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.bootloader is unlocked",
+          "value": "Bootloader is unlocked",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.does not support hardware-level",
+          "value": "This device does not support hardware-level key attestation.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Root, OU=Android, O=\"Google, Inc.\", L=Mountain View, ST=California, C=US\nnot before:Jan 11, 2016 12:43:50 AM\nnot after:Jan 6, 2036 12:43:50 AM",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Intermediate, OU=Android, O=\"Google, Inc.\", ST=California, C=US\nnot before:Jan 11, 2016 12:46:09 AM\nnot after:Jan 8, 2026 12:46:09 AM\nexpired:Certificate expired at Thu Jan 08 00:46:09 GMT 2026 (compared to Thu May 21 14:02:13 GMT 2026)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/io.github.vvb2060.keyattestation-2.png",
+      "uia": "p21/uia/io.github.vvb2060.keyattestation-2.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "io.github.vvb2060.keyattestation/io.github.vvb2060.keyattestation.home.HomeActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Key Attestation Demo",
+      "pkg": "io.github.vvb2060.keyattestation",
+      "t": 3,
+      "verdict": "FAIL",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "io.github.vvb2060.keyattestation",
+          "source": "dumpsys.window"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "AOSP software attestation root certificate",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.tampered with",
+          "value": "Private key of attestation key is well-known, the certificate chain can be tampered with.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.bootloader is unlocked",
+          "value": "Bootloader is unlocked",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.does not support hardware-level",
+          "value": "This device does not support hardware-level key attestation.",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Root, OU=Android, O=\"Google, Inc.\", L=Mountain View, ST=California, C=US\nnot before:Jan 11, 2016 12:43:50 AM\nnot after:Jan 6, 2036 12:43:50 AM",
+          "source": "uia"
+        },
+        {
+          "key": "xml.contains.software attestation",
+          "value": "subject:CN=Android Keystore Software Attestation Intermediate, OU=Android, O=\"Google, Inc.\", ST=California, C=US\nnot before:Jan 11, 2016 12:46:09 AM\nnot after:Jan 8, 2026 12:46:09 AM\nexpired:Certificate expired at Thu Jan 08 00:46:09 GMT 2026 (compared to Thu May 21 14:02:23 GMT 2026)",
+          "source": "uia"
+        }
+      ],
+      "screenshot": "p21/screenshots/io.github.vvb2060.keyattestation-3.png",
+      "uia": "p21/uia/io.github.vvb2060.keyattestation-3.xml",
+      "expected": "FAIL-L0-HARDCEILING",
+      "matches_expected": true,
+      "focused_activity": "io.github.vvb2060.keyattestation/io.github.vvb2060.keyattestation.home.HomeActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Treble Info",
+      "pkg": "tk.hack5.treblecheck",
+      "t": 1,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "tk.hack5.treblecheck",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/tk.hack5.treblecheck-1.png",
+      "uia": "p21/uia/tk.hack5.treblecheck-1.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "tk.hack5.treblecheck/tk.hack5.treblecheck.ui.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Treble Info",
+      "pkg": "tk.hack5.treblecheck",
+      "t": 2,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "tk.hack5.treblecheck",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/tk.hack5.treblecheck-2.png",
+      "uia": "p21/uia/tk.hack5.treblecheck-2.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "tk.hack5.treblecheck/tk.hack5.treblecheck.ui.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Treble Info",
+      "pkg": "tk.hack5.treblecheck",
+      "t": 3,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.on_target",
+          "value": "tk.hack5.treblecheck",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/tk.hack5.treblecheck-3.png",
+      "uia": "p21/uia/tk.hack5.treblecheck-3.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "tk.hack5.treblecheck/tk.hack5.treblecheck.ui.MainActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Mantle Verify",
+      "pkg": "com.mantle.verify",
+      "t": 1,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.system_overlay",
+          "value": "com.android.permissioncontroller",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.mantle.verify-1.png",
+      "uia": "p21/uia/com.mantle.verify-1.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "com.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Mantle Verify",
+      "pkg": "com.mantle.verify",
+      "t": 2,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.system_overlay",
+          "value": "com.android.permissioncontroller",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.mantle.verify-2.png",
+      "uia": "p21/uia/com.mantle.verify-2.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "com.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "Mantle Verify",
+      "pkg": "com.mantle.verify",
+      "t": 3,
+      "verdict": "UNKNOWN",
+      "evidence": [
+        {
+          "key": "focus.system_overlay",
+          "value": "com.android.permissioncontroller",
+          "source": "dumpsys.window"
+        }
+      ],
+      "screenshot": "p21/screenshots/com.mantle.verify-3.png",
+      "uia": "p21/uia/com.mantle.verify-3.xml",
+      "expected": "PASS",
+      "matches_expected": false,
+      "focused_activity": "com.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity",
+      "not_tested_reason": null
+    },
+    {
+      "app": "TB Checker - Play Integrity",
+      "pkg": "krypton.tbsafetychecker",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "TB Checker - Play Integrity",
+      "pkg": "krypton.tbsafetychecker",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "TB Checker - Play Integrity",
+      "pkg": "krypton.tbsafetychecker",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Root Checker (joeykrim)",
+      "pkg": "com.joeykrim.rootcheck",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Root Checker (joeykrim)",
+      "pkg": "com.joeykrim.rootcheck",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Root Checker (joeykrim)",
+      "pkg": "com.joeykrim.rootcheck",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "RootBeer Sample",
+      "pkg": "com.scottyab.rootbeer.sample",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "RootBeer Sample",
+      "pkg": "com.scottyab.rootbeer.sample",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "RootBeer Sample",
+      "pkg": "com.scottyab.rootbeer.sample",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Native Root Checker (meat-grinder)",
+      "pkg": "com.kozhevin.rootchecks",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Native Root Checker (meat-grinder)",
+      "pkg": "com.kozhevin.rootchecks",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Native Root Checker (meat-grinder)",
+      "pkg": "com.kozhevin.rootchecks",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "RootEmuVirtualCheck",
+      "pkg": "com.riyad.rootemuvirtualcheck",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "RootEmuVirtualCheck",
+      "pkg": "com.riyad.rootemuvirtualcheck",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "RootEmuVirtualCheck",
+      "pkg": "com.riyad.rootemuvirtualcheck",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Android Emulator Detector (framgia)",
+      "pkg": "com.framgia.example.emulatordetector",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Android Emulator Detector (framgia)",
+      "pkg": "com.framgia.example.emulatordetector",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Android Emulator Detector (framgia)",
+      "pkg": "com.framgia.example.emulatordetector",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Xposed Detector",
+      "pkg": "io.github.vvb2060.ndk.xposeddetector",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Xposed Detector",
+      "pkg": "io.github.vvb2060.ndk.xposeddetector",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Xposed Detector",
+      "pkg": "io.github.vvb2060.ndk.xposeddetector",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "AndRoPass",
+      "pkg": "io.androPass.bypass",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "AndRoPass",
+      "pkg": "io.androPass.bypass",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "AndRoPass",
+      "pkg": "io.androPass.bypass",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Integrity-Box",
+      "pkg": "com.MeowDump.Integrity-Box",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Integrity-Box",
+      "pkg": "com.MeowDump.Integrity-Box",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Integrity-Box",
+      "pkg": "com.MeowDump.Integrity-Box",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "SafetyNet Helper Sample",
+      "pkg": "com.scottyab.safetynet.sample",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "SafetyNet Helper Sample",
+      "pkg": "com.scottyab.safetynet.sample",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "SafetyNet Helper Sample",
+      "pkg": "com.scottyab.safetynet.sample",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Anti-Emulator (Strazzere)",
+      "pkg": "diff.strazzere.anti",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Anti-Emulator (Strazzere)",
+      "pkg": "diff.strazzere.anti",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Anti-Emulator (Strazzere)",
+      "pkg": "diff.strazzere.anti",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Device Info HW",
+      "pkg": "ru.andr7e.deviceinfohw",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Info HW",
+      "pkg": "ru.andr7e.deviceinfohw",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Info HW",
+      "pkg": "ru.andr7e.deviceinfohw",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "CPU-Z",
+      "pkg": "com.cpuid.cpu_z",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "CPU-Z",
+      "pkg": "com.cpuid.cpu_z",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "CPU-Z",
+      "pkg": "com.cpuid.cpu_z",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "AIDA64",
+      "pkg": "com.finalwire.aida64",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "AIDA64",
+      "pkg": "com.finalwire.aida64",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "AIDA64",
+      "pkg": "com.finalwire.aida64",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "install-failed-url-html-not-apk"
+    },
+    {
+      "app": "Sensors Multitool",
+      "pkg": "com.wered.sensorsmultitool",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Sensors Multitool",
+      "pkg": "com.wered.sensorsmultitool",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Sensors Multitool",
+      "pkg": "com.wered.sensorsmultitool",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "skip-manual"
+    },
+    {
+      "app": "Sensor Box",
+      "pkg": "imoblife.androidsensorbox",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Sensor Box",
+      "pkg": "imoblife.androidsensorbox",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Sensor Box",
+      "pkg": "imoblife.androidsensorbox",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DRM Info",
+      "pkg": "com.androidfung.drminfo",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DRM Info",
+      "pkg": "com.androidfung.drminfo",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DRM Info",
+      "pkg": "com.androidfung.drminfo",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DevCheck",
+      "pkg": "flar2.devcheck",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DevCheck",
+      "pkg": "flar2.devcheck",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "DevCheck",
+      "pkg": "flar2.devcheck",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Evozi)",
+      "pkg": "com.evozi.deviceid",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Evozi)",
+      "pkg": "com.evozi.deviceid",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Evozi)",
+      "pkg": "com.evozi.deviceid",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Id: Phone Info & Tests",
+      "pkg": "com.akademiteknoloji.androidallid",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Id: Phone Info & Tests",
+      "pkg": "com.akademiteknoloji.androidallid",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Id: Phone Info & Tests",
+      "pkg": "com.akademiteknoloji.androidallid",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Wenxiang Zhang)",
+      "pkg": "tw.reh.deviceid",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Wenxiang Zhang)",
+      "pkg": "tw.reh.deviceid",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device ID (Wenxiang Zhang)",
+      "pkg": "tw.reh.deviceid",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "WiFiman",
+      "pkg": "com.ubnt.usurvey",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "WiFiman",
+      "pkg": "com.ubnt.usurvey",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "WiFiman",
+      "pkg": "com.ubnt.usurvey",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "PingTools Network Utilities",
+      "pkg": "ua.com.streamsoft.pingtools",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "PingTools Network Utilities",
+      "pkg": "ua.com.streamsoft.pingtools",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "PingTools Network Utilities",
+      "pkg": "ua.com.streamsoft.pingtools",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Network Analyzer (Jiri Techet)",
+      "pkg": "net.techet.netanalyzerlite.an",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Network Analyzer (Jiri Techet)",
+      "pkg": "net.techet.netanalyzerlite.an",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Network Analyzer (Jiri Techet)",
+      "pkg": "net.techet.netanalyzerlite.an",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "GPS Status & Toolbox",
+      "pkg": "com.eclipsim.gpsstatus2",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "GPS Status & Toolbox",
+      "pkg": "com.eclipsim.gpsstatus2",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "GPS Status & Toolbox",
+      "pkg": "com.eclipsim.gpsstatus2",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Info: System & CPU Info",
+      "pkg": "com.ytheekshana.deviceinfo",
+      "t": 1,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Info: System & CPU Info",
+      "pkg": "com.ytheekshana.deviceinfo",
+      "t": 2,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    },
+    {
+      "app": "Device Info: System & CPU Info",
+      "pkg": "com.ytheekshana.deviceinfo",
+      "t": 3,
+      "verdict": "NOT-TESTED",
+      "evidence": [],
+      "screenshot": null,
+      "uia": null,
+      "expected": "FAIL-L0-x86",
+      "matches_expected": null,
+      "focused_activity": null,
+      "not_tested_reason": "aurora-required-no-play-login"
+    }
+  ]
+}
