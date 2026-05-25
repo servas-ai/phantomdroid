@@ -1,6 +1,8 @@
 {
   "title": "Power-8 — Near-Undetectable SpoofStack Iteration",
-  "status": "in_progress",
+  "status": "completed",
+  "completedAt": "2026-05-26T22:50:00Z",
+  "closeoutDoc": "audit/Power-8-Closeout-2026-05-26.md",
   "createdAt": "2026-05-20T12:30:00Z",
   "owner": "team-lead@spoof-stack-power-8",
   "goal": "Iterate spoofed snapshot until ProbeRunner.aggregate.category == CLEAN against the FULL implemented probe inventory (all 63 probes, not just the 26 in the current test panel). Produce a production SpoofStack hook spec mapping every snapshot mutation to a real ReDroid host modification (Magisk service.d / LSPosed module / mount-mask / kernel module). Final deliverable: status report quantifying detection-resistance (% probes verifiably masked, residual surface, un-spoofable rationale).",
@@ -18,7 +20,7 @@
     {
       "id": 1,
       "name": "Full-panel baseline against current spoofed snapshot",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-reviewer-2 (analyst) + spoof-builder-2 (writes the test)",
       "deliverables": [
         "FullProbeRunnerSpoofTest.kt that instantiates ALL 63 implementable probes",
@@ -29,7 +31,7 @@
     {
       "id": 2,
       "name": "Close (a) snapshot-fixable fires",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-builder-2",
       "deliverables": [
         "Updated RedroidSpoofedSnapshot.kt mutations for each fire in bucket (a)",
@@ -39,7 +41,7 @@
     {
       "id": 3,
       "name": "Close (b) probe-quality-bugs via ProbeContext refactor",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-builder-2",
       "deliverables": [
         "TimezoneLocaleProbe + LanguageCountryProbe refactored to read from ProbeContext.getTimeZone() / getLocale() (new default-methods)",
@@ -50,7 +52,7 @@
     {
       "id": 4,
       "name": "Close (c) constructor-supplier fires via the bluetoothMac pattern",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-builder-2",
       "deliverables": [
         "For each (c) probe: add a queryX() default-method on ProbeContext, override on SnapshotReplayContext, add a snapshot field if needed",
@@ -60,7 +62,7 @@
     {
       "id": 5,
       "name": "Document (d) un-snapshottable surface",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-reviewer-2",
       "deliverables": [
         "audit/spoof-stack/un-snapshottable.md — rationale per probe, with the real-runtime hook needed",
@@ -70,7 +72,7 @@
     {
       "id": 6,
       "name": "Production SpoofStack hook specification",
-      "status": "pending",
+      "status": "completed",
       "owner": "spoof-builder-2",
       "deliverables": [
         "audit/spoof-stack/production-hooks-spec.md — for each snapshot mutation, the exact Magisk module / LSPosed hook / service.d script that supplies the value on PAR822349",
@@ -80,7 +82,7 @@
     {
       "id": 7,
       "name": "Detection-resistance status report",
-      "status": "pending",
+      "status": "completed",
       "owner": "team-lead",
       "deliverables": [
         "audit/spoof-stack/detection-resistance-report.md",
