@@ -1,0 +1,175 @@
+# Paperclip routine — par822349-health-poll
+#
+# P23.4 of the Power-23 automation inventory. Fires every 30 minutes,
+# performs a read-only reachability probe against the PAR822349 live
+# ReDroid host (195.154.209.133), and appends a one-line audit row to
+# audit/PAR822349-health-<ISO-week>.md. If the host is unreachable for
+# 3 consecutive polls, a one-line incident entry is written to
+# audit/PAR822349-health-INCIDENTS.md.
+#
+# Path on install: .paperclip/routines/par822349-health-poll.yml
+# Wired from:      paperclip-config.v2026.5.json (add to the `routines` array)
+#                  agent.orchestrator.v2026.5.yaml (add to spec.routines)
+#
+# Hard Rule #4 — defensive measurement only:
+#   * READ-ONLY HTTP GET to root; no POST/PUT/DELETE
+#   * No credentials (no -u, no Authorization header)
+#   * 10-second timeout to bound runtime
+#   * Output is local log only; no remote notifications
+#
+# Replaces the one-off audit/server-reinstall-status-2026-05-17.md pattern
+# with a cron-driven, week-rotating health log.
+
+apiVersion: paperclip/v2026.5
+kind: Routine
+metadata:
+  id: par822349-health-poll
+  name: PAR822349 Health Poll
+  description: |
+    Polls the PAR822349 live ReDroid host (195.154.209.133:80) every
+    30 minutes via read-only HTTP GET, captures the response code or
+    "unreachable", and appends a one-line row to a week-rotating audit
+    log at audit/PAR822349-health-<ISO-week>.md. After 3 consecutive
+    unreachable polls, writes a one-line incident entry to
+    audit/PAR822349-health-INCIDENTS.md. No credentials, no writes
+    to the remote host.
+
+spec:
+  agent: orchestrator
+  enabled: true
+
+  schedule:
+    cron: "*/30 * * * *"
+    timezone: UTC
+
+  concurrency_policy: skip
+  max_runtime_seconds: 60
+  catch_up_policy: skip_missed
+
+  inputs:
+    target_host: "195.154.209.133"
+    target_port: "80"
+    target_url: "http://195.154.209.133:80/"
+    probe_timeout_seconds: "10"
+    audit_log_template: "audit/PAR822349-health-{iso_week}.md"
+    incident_log: "audit/PAR822349-health-INCIDENTS.md"
+    state_file: ".paperclip/state/par822349-health.context"
+    unreachable_threshold: "3"
+
+  budget:
+    monthly_usd_cap_share_from_orchestrator: 0
+    warn_at_pct: [80, 90]
+
+  steps:
+    - id: 01-probe
+      kind: bash
+      script: |
+        set -euo pipefail
+        umask 077
+
+        mkdir -p .paperclip/state audit
+
+        # Read-only GET, no credentials, bounded timeout.
+        HTTP_CODE="$(
+          curl --max-time "${INPUTS_PROBE_TIMEOUT_SECONDS}" \
+               --silent \
+               --output /dev/null \
+               --write-out '%{http_code}' \
+               "${INPUTS_TARGET_URL}" \
+            || echo 'unreachable'
+        )"
+
+        # curl writes "000" on connection failure when the substitution above
+        # short-circuits; normalize that to the explicit "unreachable" label.
+        if [ "${HTTP_CODE}" = "000" ]; then
+          HTTP_CODE="unreachable"
+        fi
+
+        if [ "${HTTP_CODE}" = "unreachable" ]; then
+          STATUS="unreachable"
+        else
+          STATUS="reachable"
+        fi
+
+        NOW_UTC="$(date -u +%FT%TZ)"
+        ISO_WEEK="$(date -u +%G-W%V)"
+
+        {
+          echo "fired_at=${NOW_UTC}"
+          echo "iso_week=${ISO_WEEK}"
+          echo "status=${STATUS}"
+          echo "http_code=${HTTP_CODE}"
+          echo "target_host=${INPUTS_TARGET_HOST}"
+          echo "target_port=${INPUTS_TARGET_PORT}"
+        } > "${INPUTS_STATE_FILE}"
+
+    - id: 02-log
+      kind: bash
+      script: |
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        source "${INPUTS_STATE_FILE}"
+
+        AUDIT_LOG="audit/PAR822349-health-${iso_week}.md"
+
+        if [ ! -f "${AUDIT_LOG}" ]; then
+          {
+            echo "# PAR822349 — health-poll log (${iso_week})"
+            echo ""
+            echo "Appended by paperclip routine \`par822349-health-poll\` (every 30 min, UTC)."
+            echo "Probe: read-only \`curl --max-time 10 GET ${target_host}:${target_port}/\`."
+            echo ""
+            echo "| Fired at (UTC) | Status | HTTP code |"
+            echo "|---|---|---|"
+          } > "${AUDIT_LOG}"
+        fi
+
+        echo "| ${fired_at} | ${status} | ${http_code} |" >> "${AUDIT_LOG}"
+
+    - id: 03-alert
+      kind: bash
+      script: |
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        source "${INPUTS_STATE_FILE}"
+
+        STREAK_FILE=".paperclip/state/par822349-health.unreachable-streak"
+        THRESHOLD="${INPUTS_UNREACHABLE_THRESHOLD}"
+
+        if [ "${status}" = "unreachable" ]; then
+          STREAK=0
+          if [ -f "${STREAK_FILE}" ]; then
+            STREAK="$(cat "${STREAK_FILE}" 2>/dev/null || echo 0)"
+          fi
+          STREAK=$((STREAK + 1))
+          echo "${STREAK}" > "${STREAK_FILE}"
+
+          if [ "${STREAK}" -ge "${THRESHOLD}" ]; then
+            INCIDENT_LOG="${INPUTS_INCIDENT_LOG}"
+            if [ ! -f "${INCIDENT_LOG}" ]; then
+              {
+                echo "# PAR822349 — health-poll incident log"
+                echo ""
+                echo "One-line entries appended when \`par822349-health-poll\` observes \`unreachable\` for ${THRESHOLD}+ consecutive polls."
+                echo ""
+                echo "| Detected at (UTC) | Consecutive unreachable polls | Target |"
+                echo "|---|---|---|"
+              } > "${INCIDENT_LOG}"
+            fi
+            echo "| ${fired_at} | ${STREAK} | ${target_host}:${target_port} |" >> "${INCIDENT_LOG}"
+          fi
+        else
+          # Reachable — reset the streak.
+          rm -f "${STREAK_FILE}"
+        fi
+
+  on_failure:
+    - kind: notify_slack
+      template: "par822349-health-poll routine FAILED at {ts}: {error}"
+      mention: "@board"
+
+  outputs:
+    - name: weekly_audit_log
+      path: "audit/PAR822349-health-*.md"
+    - name: incident_log
+      path: "audit/PAR822349-health-INCIDENTS.md"
