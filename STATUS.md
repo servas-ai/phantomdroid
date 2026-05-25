@@ -49,7 +49,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 |---|---|---|
 | **Full Orchestrator matrix run** (8 configs × N=60 = 480 cycles) | Single source of truth for "how detectable is each SpoofStack config?" — SPEC complete, code missing | impl-pending (11 PD) |
 | **SpoofStack L1–L6 layer execution** | Compose files written, never booted as a stack; module TODOs for identity-spoof, TrickyStore, Shamiko, VirtualSensor, host-NAT | impl-pending (modules) |
-| **Probe → Spoof-snapshot → Re-probe loop** (Power-8 plan, phase 1) | `RedroidSpoofedSnapshot.kt` exists; `FullProbeRunnerSpoofTest.kt` (all 63 probes) not yet written | impl-pending (test panel) |
+| **Probe → Spoof-snapshot → Re-probe loop** (Power-8 plan, phase 1) | `RedroidSpoofedSnapshot.kt` + `FullProbeRunnerSpoofTest.kt` (84-probe full panel) BOTH present; opt-in via `./gradlew :detection:test -PrunSpoofPanel=true` → PASSED (CLEAN, 0 criticalFailures) | ✅ closed (Power-19 E2 + Phase 5.4 gate) |
 | **APK-inside-container probe delivery** | All probes run via JUnit on host JVM, not as installed app on ReDroid → "true real" attestation signal not yet captured | wiring-missing (gradle Android module + adb install) |
 | **Real-device baseline (Pixel 7/8)** | Without it, "< 0.05 = good" remains an aspirational anchor; rank 10 marker telemetry + Pixel 8 density (cross-cutting #2, #5) stay open | device-blocked (hardware) |
 | **P21 on cleanly re-provisioned ReDroid** | Verdict matrix could drift on a fresh container; no zero-state validation run recorded | low-effort, run-pending |
@@ -65,13 +65,13 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | Python orchestrator pytest | 🟡 MANUAL-TRIGGER | `tests/test_orchestrator_journal.py` (no CI hook) |
 | P21 harness self-test | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
 | Quality-gate ratchet contract test | 🟡 MANUAL-TRIGGER | `scripts/test-quality-gate-ratchet.sh` |
-| Matrix sweep (9 cells) | 🟡 MANUAL-TRIGGER | `apps/detector-lab/scripts/matrix-sweep.sh` |
+| Matrix sweep | ✅ AUTOMATED-CI | `.github/workflows/matrix-smoke-nightly.yml` (nightly 03:00 UTC, smoke grade `--matrix smoke --n 1`); full 9-cell sweep remains `apps/detector-lab/scripts/matrix-sweep.sh` (manual) |
 | Heatmap render | ✅ AUTOMATED (cron-scheduled) | `scripts/render-heatmap.py` via `docs/super-action/clawpatch/paperclip-routine-weekly-heatmap.yml` (Mon 07:00 UTC) |
 | Stability boot/teardown | 🟡 MANUAL-TRIGGER | `agents/stability/agent.yaml` |
 | ReDroid recapture | 🟡 MANUAL-TRIGGER | `scripts/redroid-recapture.sh` |
 | P21 T1/T2/T3 (cold-boot/warm-reboot/prop-diff) | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
 | Single-probe run → report → score | ❌ MISSING | needs orchestrator probe-runner |
-| Spoof-iteration loop (Power-8) | ❌ MISSING | needs `FullProbeRunnerSpoofTest.kt` |
+| Spoof-iteration loop (Power-8) | ✅ AUTOMATED (opt-in) | `agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt` — 84-probe full panel, gated via `-PrunSpoofPanel=true` (default skipped, opt-in PASSED 2026-05-25 with CLEAN + 0 critical failures) |
 | Branch triage / auto-merge / dependabot | ❌ MISSING | not implemented |
 | Container redeployment loop | ❌ MISSING | not implemented |
 | Weekly status closeout (Power-N pattern) | 🟠 BROKEN-MANUAL | hand-crafted `audit/Power-N-Status-*.md` |
@@ -101,15 +101,15 @@ Optional, lower-priority:
 
 | Metric | Value | Target | Status |
 |---|---:|---:|---|
-| Probes implemented | 86 | 72 (inventory) | ✅ +19% over inventory |
+| Probes implemented | <!--AUTO:probe_count-->86<!--/AUTO--> | 72 (inventory) | ✅ +19% over inventory |
 | Detection unit tests green | 4,241 / 4,241 | ≥ 3,000 (CI floor) | ✅ +41% over CI floor |
-| SpoofStack layers with compose file | 9 (L0a, L0b, L1×2, L2, L3, L4, L5, L6) | 8 (L0a/b split + L1–L6) | ✅ complete |
-| SpoofStack layers with RUNBOOK | 6 + 1 (L3-DEFAULT.md) | 7 | 🟡 6 of 7 named `*-RUNBOOK.md`; L0a still missing one |
+| SpoofStack layers with compose file | <!--AUTO:compose_count-->9<!--/AUTO--> (L0a, L0b, L1×2, L2, L3, L4, L5, L6) | 8 (L0a/b split + L1–L6) | ✅ complete |
+| SpoofStack layers with RUNBOOK | <!--AUTO:runbook_count-->6<!--/AUTO--> + 1 (L3-DEFAULT.md) | 7 | 🟡 6 of 7 named `*-RUNBOOK.md`; L0a still missing one |
 | SpoofStack modules implemented | 2 (cpuinfo-overlay, hide-frida-maps) | 7+ (one per layer) | 🟡 29% |
-| P21 cells dispositioned | 99 (21 testable + 78 not-tested) | 99 | ✅ complete |
-| P21 verdict match-expected | 57.1% | ≥ 80% (post-spoof) | 🟡 baseline |
-| Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | 6 / 8 | 8 (2 device-blocked) | ✅ all closable closed |
-| E2E loops automated (CI or cron) | 2 (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron) | 6 (target: +heatmap routine, +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
+| P21 cells dispositioned | <!--AUTO:p21_cells_total-->99<!--/AUTO--> (21 testable + 78 not-tested) | 99 | ✅ complete |
+| P21 verdict match-expected | <!--AUTO:p21_verdict_pct-->57.1%<!--/AUTO--> | ≥ 80% (post-spoof) | 🟡 baseline |
+| Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | <!--AUTO:cross_cutting_closed-->6<!--/AUTO--> / 8 | 8 (2 device-blocked) | ✅ all closable closed |
+| E2E loops automated (CI or cron) | <!--AUTO:e2e_loops_automated-->4<!--/AUTO--> (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron, +`paperclip-routine-weekly-heatmap.yml` Mon 07:00 UTC after 5.1) | 6 (target: +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
 
 ---
 
