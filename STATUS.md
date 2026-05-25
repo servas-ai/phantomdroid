@@ -64,7 +64,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | Quality-gate sticky-lock routine (Paperclip) | ✅ AUTOMATED-OK | `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` |
 | Python orchestrator pytest | ✅ AUTOMATED-CI | `.github/workflows/orchestrator-test.yml` (PR gate + push to main) — runs `tests/test_orchestrator_*.py` |
 | P21 harness self-test | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
-| Quality-gate ratchet contract test | 🟡 MANUAL-TRIGGER | `scripts/test-quality-gate-ratchet.sh` |
+| Quality-gate ratchet contract test | ✅ AUTOMATED-CI | `.github/workflows/detection-test.yml` (step: Quality-gate ratchet contract test) — invokes `scripts/test-quality-gate-ratchet.sh` |
 | Matrix sweep | ✅ AUTOMATED-CI | `.github/workflows/matrix-smoke-nightly.yml` (nightly 03:00 UTC, smoke grade `--matrix smoke --n 1`); full 9-cell sweep remains `apps/detector-lab/scripts/matrix-sweep.sh` (manual) |
 | Heatmap render | ✅ AUTOMATED (cron-scheduled) | `scripts/render-heatmap.py` via `docs/super-action/clawpatch/paperclip-routine-weekly-heatmap.yml` (Mon 07:00 UTC) |
 | Stability boot/teardown | 🟡 MANUAL-TRIGGER | `agents/stability/agent.yaml` |

@@ -34,6 +34,11 @@ jobs:
       - name: Run detection tests
         run: ./gradlew :detection:test --no-daemon --info
 
+      - name: Quality-gate ratchet contract test
+        run: |
+          set -euo pipefail
+          bash scripts/test-quality-gate-ratchet.sh
+
       - name: Regression guard — assert test count >= 3000
         if: always()
         run: |
