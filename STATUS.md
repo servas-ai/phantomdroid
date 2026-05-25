@@ -72,7 +72,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | P21 T1/T2/T3 (cold-boot/warm-reboot/prop-diff) | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
 | Single-probe run → report → score | ❌ MISSING | needs orchestrator probe-runner |
 | Spoof-iteration loop (Power-8) | ✅ AUTOMATED (opt-in) | `agents/detection/src/test/kotlin/com/detectorlab/replay/FullProbeRunnerSpoofTest.kt` — 84-probe full panel, gated via `-PrunSpoofPanel=true` (default skipped, opt-in PASSED 2026-05-25 with CLEAN + 0 critical failures) |
-| Branch triage / auto-merge / dependabot | ❌ MISSING | not implemented |
+| Branch triage / auto-merge / dependabot | ✅ DECLARED | `.github/dependabot.yml` — weekly Mon 08:00 UTC for github-actions/pip/gradle |
 | Container redeployment loop | ❌ MISSING | not implemented |
 | Weekly status closeout (Power-N pattern) | 🟠 BROKEN-MANUAL | hand-crafted `audit/Power-N-Status-*.md` |
 | PAR822349 reinstall poll | 🟠 BROKEN-MANUAL | one-off `audit/server-reinstall-status-*.md` |
@@ -102,7 +102,7 @@ Optional, lower-priority:
 | Metric | Value | Target | Status |
 |---|---:|---:|---|
 | Probes implemented | <!--AUTO:probe_count-->86<!--/AUTO--> | 72 (inventory) | ✅ +19% over inventory |
-| Detection unit tests green | 4,241 / 4,241 | ≥ 3,000 (CI floor) | ✅ +41% over CI floor |
+| Detection unit tests green | <!--AUTO:test_count-->4,241<!--/AUTO--> / 4,241 | ≥ 3,000 (CI floor) | ✅ +41% over CI floor |
 | SpoofStack layers with compose file | <!--AUTO:compose_count-->9<!--/AUTO--> (L0a, L0b, L1×2, L2, L3, L4, L5, L6) | 8 (L0a/b split + L1–L6) | ✅ complete |
 | SpoofStack layers with RUNBOOK | <!--AUTO:runbook_count-->6<!--/AUTO--> + 1 (L3-DEFAULT.md) | 7 | 🟡 6 of 7 named `*-RUNBOOK.md`; L0a still missing one |
 | SpoofStack modules implemented | 2 (cpuinfo-overlay, hide-frida-maps) | 7+ (one per layer) | 🟡 29% |
