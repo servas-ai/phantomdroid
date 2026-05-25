@@ -109,7 +109,7 @@ Optional, lower-priority:
 | P21 cells dispositioned | <!--AUTO:p21_cells_total-->99<!--/AUTO--> (21 testable + 78 not-tested) | 99 | ✅ complete |
 | P21 verdict match-expected | <!--AUTO:p21_verdict_pct-->57.1%<!--/AUTO--> | ≥ 80% (post-spoof) | 🟡 baseline |
 | Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | <!--AUTO:cross_cutting_closed-->6<!--/AUTO--> / 8 | 8 (2 device-blocked) | ✅ all closable closed |
-| E2E loops automated (CI or cron) | <!--AUTO:e2e_loops_automated-->4<!--/AUTO--> (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron, +`paperclip-routine-weekly-heatmap.yml` Mon 07:00 UTC after 5.1) | 6 (target: +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
+| E2E loops automated (CI or cron) | <!--AUTO:e2e_loops_automated-->5<!--/AUTO--> (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron, +`paperclip-routine-weekly-heatmap.yml` Mon 07:00 UTC after 5.1) | 6 (target: +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
 
 ---
 

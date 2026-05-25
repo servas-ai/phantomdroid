@@ -145,13 +145,14 @@ METRICS = {
     "e2e_loops_automated": metric_e2e_loops_automated,
 }
 
-# Metrics intentionally NOT marker-bound in STATUS.md:
-# - test_count: gradle test-results dir is overwritten by partial-suite runs
-#   (e.g., running a single test class wipes the prior 4,241 XMLs and leaves
-#   only the new one). Until a stable build/test-summary.json is wired,
-#   marker-binding test_count would surface drift that's a build-artifact
-#   freshness signal, not a real regression. Function kept for one-off use
-#   after a full `./gradlew :detection:test` run.
+# test_count caveat (P22.1, 2026-05-26): the gradle test-results dir is
+# overwritten by partial-suite runs (e.g., `--tests SomeClass` wipes the
+# prior XMLs and leaves only the new one). Marker re-enabled after full
+# `./gradlew :detection:clean :detection:test` produced 98 XMLs / 4,241
+# tests. Treat any subsequent test_count drift as either (a) a real
+# regression or (b) a stale partial-run artifact — diagnose by counting
+# XML files: `find agents/detection/build/test-results -name 'TEST-*.xml' | wc -l`
+# should be ≥98 for a full run.
 
 
 def substitute_markers(text: str) -> tuple[str, list[str]]:
