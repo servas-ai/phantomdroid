@@ -1,12 +1,15 @@
-# Cloud Phone Research Planner
+# PhantomDroid
 
-> Two-agent system for measuring Android container (ReDroid 12) detection-resistance against app-side fingerprinting probes.
+> Detection-resistance lab for Android cloud-phone containers (ReDroid 12). Three agents — Detection, Stability, Orchestrator — measure how visible an emulated phone is to app-side fingerprinting probes, and harden the SpoofStack against them.
 
 <p align="center">
   <a href="LICENSE"><img alt="License Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="#"><img alt="Stack" src="https://img.shields.io/badge/runtime-Paperclip-9333ea"></a>
-  <a href="#"><img alt="Status" src="https://img.shields.io/badge/status-scaffold-orange"></a>
+  <a href="#"><img alt="Status" src="https://img.shields.io/badge/status-active-22c55e"></a>
+  <a href="STATUS.md"><img alt="E2E" src="https://img.shields.io/badge/E2E-snapshot-3b82f6"></a>
 </p>
+
+> **Status snapshot:** [`STATUS.md`](STATUS.md) — pillar coverage, what's E2E today, what's missing, what's next.
 
 ---
 
@@ -105,8 +108,8 @@ flowchart LR
 ### Setup
 
 ```bash
-git clone https://github.com/servas-ai/cloud-phone-research-planner.git
-cd cloud-phone-research-planner
+git clone git@github.com:servas-ai/phantomdroid.git
+cd phantomdroid
 
 # Inspect the workspace
 cat .paperclip/config.json
