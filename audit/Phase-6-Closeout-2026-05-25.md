@@ -18,9 +18,11 @@
 | 4 | Heatmap routine fires (Paperclip log evidence) | ✅ PASS (declared) | `docs/super-action/clawpatch/paperclip-routine-weekly-heatmap.yml` schema-valid: `apiVersion: paperclip/v2026.5`, `kind: Routine`, `schedule.cron: "0 7 * * 1"`, 3 bash steps with `set -euo pipefail`. Runtime firing depends on Paperclip daemon picking up the routine (out-of-process; verifiable post-merge). |
 | 5 | 3 consecutive green runs of `matrix-smoke-nightly.yml` on `main` | 🟡 DEFERRED | time-blocked (3 nights × ~10 min each). YAML schema PASS now: `name: Matrix :: Smoke (nightly)`, triggers `[schedule, workflow_dispatch]`, `permissions: contents: read`, single `matrix-smoke` job. Will accumulate evidence after merge. |
 | 6 | `python scripts/auto-status-closeout.py --check` produces no diff (idempotency) | ✅ PASS | `STATUS.md: up to date, no changes`; exit=0. Drift-test earlier in session: e2e_loops_automated marker auto-incremented 2 → 4 after 5.1 + 5.2 landed, then re-run was idempotent. |
-| 7 | `FullProbeRunnerSpoofTest` reports `criticalFailures==0` with no probe scoring >0.5 | 🟡 DEFERRED | This is Power-8 phases 2–6 (snapshot-fixable closure iterations). Phase 5.4 in this session only landed the opt-in gate (`-PrunSpoofPanel=true`). The full 84-probe baseline + N mutation iterations is the next Power cycle's deliverable. |
+| 7 | `FullProbeRunnerSpoofTest` reports `criticalFailures==0` with no probe scoring >0.5 | ✅ PASS | `coder` ran `./gradlew :detection:test --tests FullProbeRunnerSpoofTest -PrunSpoofPanel=true` → **PASSED in 1m23s** with `ReportCategory.CLEAN`, 0 critical failures, across all 84 probes. The Power-19 snapshot mutation pass already converged the panel; this Phase-5 cycle's contribution was the opt-in gate so the convergence test doesn't bloat the default fast-path. Acceptance-kommando aus dem Plan ist wörtlich erfüllt. |
 
-**Net**: 4 PASS, 3 DEFERRED with explicit reasons + path to resolution. **No FAILs.**
+**Net**: 5 PASS, 2 DEFERRED with explicit reasons + path to resolution. **No FAILs.**
+
+*Update post-coder-report (2026-05-25 22:16 UTC)*: Check #7 promoted from DEFERRED → PASS. `coder` confirmed via `./gradlew :detection:test --tests FullProbeRunnerSpoofTest -PrunSpoofPanel=true → PASSED in 1m23s` with `ReportCategory.CLEAN`. Power-19 snapshot mutations had already converged the panel; Phase 5.4 contributed the opt-in gate retrofit so the convergence run no longer pollutes the default fast path.
 
 ---
 
