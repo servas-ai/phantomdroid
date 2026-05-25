@@ -88,7 +88,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | 1 | **Weekly heatmap render routine** | LOW (~½ day) | `docs/super-action/clawpatch/paperclip-routine-weekly-heatmap.yml` (NEW) | New SVG in `Wn+1/heatmap/<iso-week>/` after one cron tick |
 | 2 | **Matrix-smoke nightly CI** | MED (~2 days) | `.github/workflows/matrix-smoke-nightly.yml` (NEW) + `runner.py --matrix smoke --n 1` flag | 3 consecutive green nights; journal SQLite row written |
 | 3 | **Auto-status-closeout generator** | MED (~2 days) | `scripts/auto-status-closeout.sh` (NEW) — parses artifacts → regenerates `STATUS.md` + appends `audit/Power-N-Status-<date>.md` | Re-running script after probe-run delta produces non-empty diff |
-| 4 | **Probe → Spoof-snapshot → Re-probe loop** | MED (~2 days) | `agents/detection/src/test/kotlin/.../FullProbeRunnerSpoofTest.kt` (NEW, all 63 probes) + `RedroidSpoofedSnapshot.kt` mutation pass | `./gradlew :detection:test --tests "*FullProbeRunnerSpoofTest" -PrunSpoofPanel=true` → `ReportCategory.CLEAN` |
+| 4 | **Probe → Spoof-snapshot → Re-probe loop** | ✅ CLOSED (Phase 5.4, 2026-05-26) | `agents/detection/src/test/kotlin/.../FullProbeRunnerSpoofTest.kt` (84-probe full panel, opt-in via `-PrunSpoofPanel=true`) + `RedroidSpoofedSnapshot.kt` (Power-19 E2) | `./gradlew :detection:test --tests "*FullProbeRunnerSpoofTest" -PrunSpoofPanel=true` → `ReportCategory.CLEAN` ✅ PASSED 2026-05-26 |
 | 5 | **Fresh-provision smoke** | LOW (~½ day, run-blocked on ReDroid uptime) | re-run P21 harness on cleanly-redeployed ReDroid via `scripts/redroid-recapture.sh` | `p21/report.json` summary unchanged within ±1 cell |
 
 Optional, lower-priority:
