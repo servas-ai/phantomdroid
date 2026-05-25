@@ -10,7 +10,7 @@
 
 ## TL;DR
 
-PhantomDroid is past scaffold. Detection is **production-grade** (4,241 unit tests, 86 probes, CI-gated). Live ReDroid 12 is **deployed and probe-validated** on PAR822349 (9 probes fire with score 0.85–1.0 against the real container). P21 real-world harness has produced a **99-cell verdict matrix** with 57% match-expected. Orchestrator is **runnable but no full-matrix execution exists yet**. SpoofStack layers L0a–L6 are **scaffolded (9 compose files + 7 RUNBOOKs) but never executed as a stack**. Of the 8 candidate automation loops, **1 is fully wired** (Paperclip quality-gate, 15-min cron), **8 are manual-trigger scripts**, **4 are missing**, **2 are broken/manual one-offs**.
+PhantomDroid is past scaffold. Detection is **CI-gated and probe-validated** (4,241 unit tests, 86 probes). Live ReDroid 12 is **deployed and partially probe-validated** on PAR822349 (9 of 86 probes verified to fire with score 0.85–1.0 against the real container; remainder pending APK-inside-container delivery). P21 real-world harness has produced a **99-cell verdict matrix** with 57% match-expected. Orchestrator is **runnable but no full-matrix execution exists yet**. SpoofStack layers L0a–L6 are **scaffolded (9 compose files + 6 -RUNBOOK.md files + L3-DEFAULT.md as the L3 runbook) but never executed as a stack**. Of the 16-loop automation inventory, **2 are wired** (`detection-test.yml` CI gate + Paperclip `quality-gate` 15-min cron, declared and scheduled — runtime firing not yet attested in this evidence trail), **8 are manual-trigger scripts**, **4 are missing**, **2 are broken/manual one-offs**.
 
 The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routine → matrix-smoke nightly CI → auto-status-closeout generator → spoof-iteration full-panel test.
 
@@ -23,8 +23,8 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | **Detection (Kotlin probes + unit tests)** | **95%** | 2026-05-21 | `agents/detection/build/test-results/` — 4,241 tests green; 86 probes implemented (target was 40); CI gate at ≥3000 in `.github/workflows/detection-test.yml`. Remaining 5%: 9 probes vs 95-target inventory still to draft. |
 | **Live ReDroid 12 container** | **70%** | 2026-05-20 | `audit/E2E-validation-2026-05-20.md` — Ubuntu 18.04, DKMS binder+ashmem, ReDroid 12 amd64 by pinned SHA, 9 probes fire correctly (ranks 1/3/4/7/9/13/27/28/30, scores 0.85–1.0). Remaining 30%: APK-inside-container delivery (probes run via JUnit, not via app), full 86-probe sweep on live container. |
 | **Orchestrator (Python runner + journal)** | **35%** | 2026-05-21 | `agents/orchestrator/SPEC.md` (1,150 LOC design), `agents/orchestrator/src/runner.py` — `--help` exits 0, module imports clean. Missing 65%: full matrix execution, container_lifecycle wiring, report aggregation, heatmap pipeline. Estimate 11 person-days in SPEC §15. |
-| **Stability / SpoofStack (Docker compose layers)** | **40%** | 2026-05-21 | 9 compose files (`agents/stability/stack/compose/L0a..L6.yml`) + 7 RUNBOOKs scaffolded; image-pins set; cpuinfo-overlay + hide-frida-maps modules functional; L0a proven via PAR822349 boot. Missing 60%: L1–L6 module implementations (identity-spoof, TrickyStore, Shamiko, VirtualSensor, host-NAT), end-to-end layer stack execution. |
-| **P21 real-world harness** | **75%** | 2026-05-21 | `scripts/p21/run-all-checks.py`, `p21/report.json` — 99 cells (23 apps × 3 tests + 30 dispositioned cells), verdict counts 12 FAIL / 9 UNKNOWN / 78 NOT-TESTED, 57.1% match expected. Reviewer signoff `audit/spoof-stack/power-21-reviewer-signoff.md` (9/9 PASS). Missing 25%: re-run on freshly-provisioned ReDroid, P21 extension to ≥30 apps. |
+| **Stability / SpoofStack (Docker compose layers)** | **40%** | 2026-05-21 | 9 compose files (`agents/stability/stack/compose/L0a..L6.yml`) + 6 `*-RUNBOOK.md` files (L0b, L1-MAGISK, L2, L4, L5, L6) + `L3-DEFAULT.md` serving as L3 runbook; image-pins set; cpuinfo-overlay + hide-frida-maps modules functional; L0a proven via PAR822349 boot. Missing 60%: L1–L6 module implementations (identity-spoof, TrickyStore, Shamiko, VirtualSensor, host-NAT), L0a-dedicated RUNBOOK, end-to-end layer stack execution. |
+| **P21 real-world harness** | **75%** | 2026-05-21 | `scripts/p21/run-all-checks.py`, `p21/report.json` — 99 cells total = 21 testable + 78 not-tested; verdict counts 12 FAIL / 9 UNKNOWN / 78 NOT-TESTED; 57.1% match expected. Reviewer signoff `audit/spoof-stack/power-21-reviewer-signoff.md` (9/9 PASS). Missing 25%: re-run on freshly-provisioned ReDroid, P21 extension to ≥30 apps. |
 | **CI / automation** | **15%** | 2026-05-25 | Only `.github/workflows/detection-test.yml` lives in CI (regression gate for Kotlin tests). 1 wired Paperclip routine (quality-gate, 15-min cron). 8 manual-trigger loops, 4 missing, 2 broken. See "Automation loop inventory" below. |
 
 **Aggregate E2E**: ~55% — strongest in Detection + Live ReDroid + P21; weakest in CI automation + full-stack Orchestrator runs.
@@ -38,7 +38,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | 1 | **Kotlin detection unit-test gate** | PR / push to `main` | `.github/workflows/detection-test.yml` runs `./gradlew :detection:test`, fails if test count drops below 3,000 | ✅ AUTOMATED-OK |
 | 2 | **Live-container probe verification on PAR822349** | manual `docker exec` | 9 probes (rank 1/3/4/7/9/13/27/28/30) fire with score 0.85–1.0 against ReDroid 12; full evidence in `audit/E2E-validation-2026-05-20.md` | ✅ MANUAL-VERIFIED |
 | 3 | **P21 real-world verdict harness** | manual `python scripts/p21/run-all-checks.py` | `p21/report.json` — 21 testable cells produced; 21 screenshots + 21 UIAs + 7 prop-diffs archived; 100% C-harness sub-checks PASS | ✅ MANUAL-RUNNABLE |
-| 4 | **Paperclip quality-gate sticky-lock routine** | Paperclip cron `*/15 * * * *` + `issue_completed` event | `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` — 5-layer routine (precheck → map → review → accumulate → enforce) | ✅ FULLY WIRED |
+| 4 | **Paperclip quality-gate sticky-lock routine** | Paperclip cron `*/15 * * * *` + `issue_completed` event | `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` — 5-layer routine (precheck → map → review → accumulate → enforce) | ✅ DECLARED + cron-scheduled (runtime firing not yet attested in STATUS evidence trail) |
 | 5 | **Orchestrator smoke import + journal seed/claim test** | manual `pytest tests/test_orchestrator_journal.py` | `tests/test_orchestrator_journal.py` covers journal mutations | ✅ TESTED, NOT IN CI |
 
 ---
@@ -104,12 +104,12 @@ Optional, lower-priority:
 | Probes implemented | 86 | 72 (inventory) | ✅ +19% over inventory |
 | Detection unit tests green | 4,241 / 4,241 | ≥ 3,000 (CI floor) | ✅ +41% over CI floor |
 | SpoofStack layers with compose file | 9 (L0a, L0b, L1×2, L2, L3, L4, L5, L6) | 8 (L0a/b split + L1–L6) | ✅ complete |
-| SpoofStack layers with RUNBOOK | 7 | 7 | ✅ complete |
+| SpoofStack layers with RUNBOOK | 6 + 1 (L3-DEFAULT.md) | 7 | 🟡 6 of 7 named `*-RUNBOOK.md`; L0a still missing one |
 | SpoofStack modules implemented | 2 (cpuinfo-overlay, hide-frida-maps) | 7+ (one per layer) | 🟡 29% |
 | P21 cells dispositioned | 99 (21 testable + 78 not-tested) | 99 | ✅ complete |
 | P21 verdict match-expected | 57.1% | ≥ 80% (post-spoof) | 🟡 baseline |
-| Cross-cutting follow-ups closed | 6 / 8 | 8 (2 device-blocked) | ✅ all closable closed |
-| E2E loops wired in CI | 2 (detection-test + quality-gate) | 6 (target: +heatmap, +matrix-smoke, +status-closeout, +spoof-iteration) | 🟠 33% |
+| Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | 6 / 8 | 8 (2 device-blocked) | ✅ all closable closed |
+| E2E loops automated (CI or cron) | 2 (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron) | 6 (target: +heatmap routine, +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
 
 ---
 
