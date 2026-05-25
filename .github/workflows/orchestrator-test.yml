@@ -1,0 +1,51 @@
+name: "Orchestrator :: pytest (PR gate)"
+
+on:
+  pull_request:
+    paths:
+      - 'agents/orchestrator/**'
+      - 'tests/test_orchestrator_*.py'
+      - '.github/workflows/orchestrator-test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'agents/orchestrator/**'
+      - 'tests/test_orchestrator_*.py'
+      - '.github/workflows/orchestrator-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: Run orchestrator pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Run orchestrator pytest suite
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          python -m pytest tests/test_orchestrator_*.py -v --junitxml=pytest-orchestrator.xml
+
+      - name: Upload pytest JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-pytest-results
+          path: pytest-orchestrator.xml
+          retention-days: 14
+          if-no-files-found: warn
