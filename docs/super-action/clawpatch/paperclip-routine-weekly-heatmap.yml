@@ -1,0 +1,161 @@
+# Paperclip routine — weekly-heatmap-render
+#
+# Phase 5.1 of the Power-N automation inventory. Fires every Monday at
+# 07:00 UTC, invokes scripts/render-heatmap.py to roll the previous week's
+# cells.json forward into Wn+1/heatmap/<iso-week>/{heatmap.svg, heatmap.json},
+# then appends a one-line audit row to audit/Wn-heatmap-renders.md.
+#
+# Path on install: .paperclip/routines/weekly-heatmap-render.yml
+# Wired from:      paperclip-config.v2026.5.json (add to the `routines` array)
+#                  agent.orchestrator.v2026.5.yaml (add to spec.routines)
+#
+# The renderer auto-discovers the highest Wn directory under
+# docs/super-action/ and writes into W(n+1)/heatmap/<iso-week>/. Wn is
+# exported as INPUT_WEEK_DIR_CURRENT and W(n+1) as INPUT_WEEK_DIR_NEXT for
+# downstream logging; the render itself uses the script's built-in
+# auto-detection so we don't fight the existing CLI contract.
+
+apiVersion: paperclip/v2026.5
+kind: Routine
+metadata:
+  id: weekly-heatmap-render
+  name: Weekly Heatmap Render
+  description: |
+    Renders the weekly baseline-matrix heatmap (3 devices × 3 OS versions)
+    from the previous week's cells.json. Writes SVG + JSON artifacts into
+    docs/super-action/W(n+1)/heatmap/<iso-week>/ and appends a one-line
+    audit row to audit/Wn-heatmap-renders.md. Wn = newest existing W
+    directory at routine fire time.
+
+spec:
+  agent: orchestrator
+  enabled: true
+
+  schedule:
+    cron: "0 7 * * 1"
+    timezone: UTC
+
+  concurrency_policy: skip
+  max_runtime_seconds: 300
+  catch_up_policy: run_once_if_missed
+
+  inputs:
+    super_action_dir: "docs/super-action"
+    render_script: "scripts/render-heatmap.py"
+    audit_log_template: "audit/{Wn}-heatmap-renders.md"
+
+  budget:
+    monthly_usd_cap_share_from_orchestrator: 1
+    warn_at_pct: [80, 90]
+
+  steps:
+    - id: 01-precheck
+      kind: bash
+      script: |
+        set -euo pipefail
+        umask 077
+
+        if [ ! -f "${INPUTS_RENDER_SCRIPT}" ]; then
+          echo "weekly-heatmap-render: render script not found at ${INPUTS_RENDER_SCRIPT}" >&2
+          exit 1
+        fi
+        if [ ! -d "${INPUTS_SUPER_ACTION_DIR}" ]; then
+          echo "weekly-heatmap-render: super-action dir not found at ${INPUTS_SUPER_ACTION_DIR}" >&2
+          exit 1
+        fi
+
+        # Resolve current Wn (highest W-numbered dir) and derive W(n+1).
+        WN_NUM="$(
+          find "${INPUTS_SUPER_ACTION_DIR}" -maxdepth 1 -type d -name 'W[0-9]*' \
+            | sed -E 's|.*/W([0-9]+)$|\1|' \
+            | sort -n \
+            | tail -1
+        )"
+        if [ -z "${WN_NUM}" ]; then
+          echo "weekly-heatmap-render: no W-numbered directories under ${INPUTS_SUPER_ACTION_DIR}" >&2
+          exit 1
+        fi
+        WN_PLUS_1_NUM="$((WN_NUM + 1))"
+
+        mkdir -p .paperclip/state
+        {
+          echo "Wn=W${WN_NUM}"
+          echo "Wn_plus_1=W${WN_PLUS_1_NUM}"
+          echo "iso_week=$(date -u +%-V)"
+          echo "fired_at=$(date -u +%FT%TZ)"
+        } > .paperclip/state/weekly-heatmap-render.context
+
+        mkdir -p audit
+
+    - id: 02-render
+      kind: bash
+      script: |
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        source .paperclip/state/weekly-heatmap-render.context
+
+        export Wn="${Wn}"
+        export Wn_plus_1="${Wn_plus_1}"
+        export OUTPUT_DIR="${INPUTS_SUPER_ACTION_DIR}/${Wn_plus_1}/heatmap/${iso_week}"
+
+        python3 "${INPUTS_RENDER_SCRIPT}" \
+          --week-dir "${Wn_plus_1}" \
+          --iso-week "${iso_week}" \
+          | tee .paperclip/state/weekly-heatmap-render.last-stdout
+
+        # Record exit/output artefacts for the audit step.
+        {
+          echo "svg_path=${OUTPUT_DIR}/heatmap.svg"
+          echo "json_path=${OUTPUT_DIR}/heatmap.json"
+        } >> .paperclip/state/weekly-heatmap-render.context
+
+    - id: 03-audit
+      kind: bash
+      script: |
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        source .paperclip/state/weekly-heatmap-render.context
+
+        AUDIT_LOG="audit/${Wn}-heatmap-renders.md"
+
+        if [ ! -f "${AUDIT_LOG}" ]; then
+          {
+            echo "# ${Wn} — Weekly heatmap render log"
+            echo ""
+            echo "Appended by paperclip routine \`weekly-heatmap-render\` (Mon 07:00 UTC)."
+            echo ""
+            echo "| Fired at (UTC) | ISO week | Output dir | SVG bytes | JSON bytes | Notes |"
+            echo "|---|---|---|---|---|---|"
+          } > "${AUDIT_LOG}"
+        fi
+
+        SVG_BYTES="-"
+        JSON_BYTES="-"
+        NOTES="ok"
+        if [ -f "${svg_path}" ]; then
+          SVG_BYTES="$(wc -c < "${svg_path}" | tr -d ' ')"
+        else
+          NOTES="svg-missing"
+        fi
+        if [ -f "${json_path}" ]; then
+          JSON_BYTES="$(wc -c < "${json_path}" | tr -d ' ')"
+        else
+          NOTES="${NOTES};json-missing"
+        fi
+
+        OUT_DIR_REL="${INPUTS_SUPER_ACTION_DIR}/${Wn_plus_1}/heatmap/${iso_week}"
+        echo "| ${fired_at} | W${iso_week} | \`${OUT_DIR_REL}\` | ${SVG_BYTES} | ${JSON_BYTES} | ${NOTES} |" \
+          >> "${AUDIT_LOG}"
+
+  on_failure:
+    - kind: notify_slack
+      template: "weekly-heatmap-render routine FAILED at {ts}: {error}"
+      mention: "@board"
+
+  outputs:
+    - name: heatmap_svg
+      path: "docs/super-action/W*/heatmap/*/heatmap.svg"
+    - name: heatmap_json
+      path: "docs/super-action/W*/heatmap/*/heatmap.json"
+    - name: audit_log
+      path: "audit/W*-heatmap-renders.md"

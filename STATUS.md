@@ -66,7 +66,7 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | P21 harness self-test | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
 | Quality-gate ratchet contract test | 🟡 MANUAL-TRIGGER | `scripts/test-quality-gate-ratchet.sh` |
 | Matrix sweep (9 cells) | 🟡 MANUAL-TRIGGER | `apps/detector-lab/scripts/matrix-sweep.sh` |
-| Heatmap render | 🟡 MANUAL-TRIGGER | `scripts/render-heatmap.py` |
+| Heatmap render | ✅ AUTOMATED (cron-scheduled) | `scripts/render-heatmap.py` via `docs/super-action/clawpatch/paperclip-routine-weekly-heatmap.yml` (Mon 07:00 UTC) |
 | Stability boot/teardown | 🟡 MANUAL-TRIGGER | `agents/stability/agent.yaml` |
 | ReDroid recapture | 🟡 MANUAL-TRIGGER | `scripts/redroid-recapture.sh` |
 | P21 T1/T2/T3 (cold-boot/warm-reboot/prop-diff) | 🟡 MANUAL-TRIGGER | `scripts/p21/run-all-checks.py` |
