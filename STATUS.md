@@ -109,6 +109,7 @@ Optional, lower-priority:
 | P21 cells dispositioned | <!--AUTO:p21_cells_total-->99<!--/AUTO--> (21 testable + 78 not-tested) | 99 | ✅ complete |
 | P21 verdict match-expected | <!--AUTO:p21_verdict_pct-->57.1%<!--/AUTO--> | ≥ 80% (post-spoof) | 🟡 baseline |
 | Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | <!--AUTO:cross_cutting_closed-->6<!--/AUTO--> / 8 | 8 (2 device-blocked) | ✅ all closable closed |
+| GH Actions SHA-pinned (CWE-829 mitigation) | 3 / 3 workflows | 3 (all in `.github/workflows/`) | ✅ SHA-pinned 2026-05-26 (P23.3) — actions/checkout, actions/setup-java, actions/setup-python, actions/upload-artifact pinned to 40-char SHAs with trailing version tags; CWE-829 fully mitigated |
 | E2E loops automated (CI or cron) | <!--AUTO:e2e_loops_automated-->6<!--/AUTO--> (`detection-test.yml` GH Action + `paperclip-routine-quality-gate.yml` 15-min cron, +`paperclip-routine-weekly-heatmap.yml` Mon 07:00 UTC after 5.1) | 6 (target: +matrix-smoke nightly CI, +status-closeout, +spoof-iteration) | 🟠 33% |
 
 ---
