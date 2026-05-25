@@ -117,9 +117,16 @@ import com.detectorlab.probes.ui.ScreenResolutionProbe
 import com.detectorlab.probes.ui.SystemFontsProbe
 import com.detectorlab.probes.ui.TouchPressureProbe
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+// Opt-in: full-panel spoof convergence gate. Off by default (every default
+// `./gradlew :detection:test` invocation skips this test) so the existing
+// 4,240-test fast path stays fast; on for explicit Power-8 convergence runs
+// via `./gradlew :detection:test -PrunSpoofPanel=true`. The gradle test task
+// propagates `-PrunSpoofPanel=true` to the JVM as `-DrunSpoofPanel=true`.
+@EnabledIfSystemProperty(named = "runSpoofPanel", matches = "true")
 class FullProbeRunnerSpoofTest {
 
     private val ctx = SnapshotReplayContext(RedroidSpoofedSnapshot.SNAPSHOT)

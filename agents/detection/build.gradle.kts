@@ -54,6 +54,12 @@ tasks.test {
         events("passed", "failed", "skipped")
         showStandardStreams = false
     }
+    // Power-8 opt-in gate for FullProbeRunnerSpoofTest (full 84-probe panel).
+    // Off by default → test class is skipped via @EnabledIfSystemProperty.
+    // Enable with `./gradlew :detection:test -PrunSpoofPanel=true`.
+    if (project.hasProperty("runSpoofPanel")) {
+        systemProperty("runSpoofPanel", project.property("runSpoofPanel").toString())
+    }
 }
 
 // Power-18 D1 — consumable configuration exposing :detection's compiled test
