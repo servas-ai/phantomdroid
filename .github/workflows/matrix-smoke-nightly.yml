@@ -1,0 +1,83 @@
+name: "Matrix :: Smoke (nightly)"
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix-smoke:
+    name: Run orchestrator --matrix smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Show runner --help
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          python -m agents.orchestrator.src.runner --help
+          python -m agents.orchestrator.src.runner --help | grep -q -- '--matrix smoke'
+
+      - name: Run --matrix smoke --n 1
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          mkdir -p results
+          python -m agents.orchestrator.src.runner \
+            --matrix smoke \
+            --n 1 \
+            --journal-path results/journal.sqlite
+
+      - name: Assert journal row written
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import sqlite3
+          import sys
+
+          conn = sqlite3.connect("results/journal.sqlite")
+          conn.row_factory = sqlite3.Row
+          rows = conn.execute(
+              "SELECT config_id, run_index, status FROM cells WHERE config_id = 'smoke'"
+          ).fetchall()
+          conn.close()
+
+          if not rows:
+              print("::error::No smoke journal row written", file=sys.stderr)
+              sys.exit(1)
+          for row in rows:
+              print(f"row: {dict(row)}")
+              if row["status"] != "COMPLETED":
+                  print(f"::error::Expected COMPLETED, got {row['status']}", file=sys.stderr)
+                  sys.exit(1)
+          PY
+
+      - name: Run smoke pytest
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          python -m pytest tests/test_orchestrator_smoke.py -v
+
+      - name: Upload journal SQLite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-smoke-journal
+          path: results/journal.sqlite
+          retention-days: 14
+          if-no-files-found: warn

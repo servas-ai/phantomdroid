@@ -125,6 +125,89 @@ def journal_main(argv: list[str]) -> int:
     return 0
 
 
+SMOKE_CONFIG_ID = "smoke"
+SMOKE_LAYER_SET = ["L0a"]
+SMOKE_FIXTURE = (
+    Path(__file__).resolve().parents[3]
+    / "apps"
+    / "detector-lab"
+    / "examples"
+    / "probe-result.fixture.json"
+)
+
+
+def build_matrix_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="runner --matrix")
+    parser.add_argument(
+        "--matrix",
+        required=True,
+        choices=["smoke"],
+        help="Matrix mode. 'smoke' runs 1 cell against a fixed mock fixture (no docker, no adb).",
+    )
+    parser.add_argument(
+        "--n",
+        type=int,
+        default=1,
+        help="Number of smoke cycles to run (default 1).",
+    )
+    parser.add_argument(
+        "--journal-path",
+        type=Path,
+        default=Path("results/journal.sqlite"),
+        help="Path to the SQLite journal.",
+    )
+    parser.add_argument(
+        "--fixture",
+        type=Path,
+        default=SMOKE_FIXTURE,
+        help="Mock probe-result fixture used for smoke mode.",
+    )
+    return parser
+
+
+def matrix_main(argv: list[str]) -> int:
+    parser = build_matrix_parser()
+    args = parser.parse_args(argv)
+    if args.n < 1:
+        print("--n must be >= 1", file=sys.stderr)
+        return 64
+    if not args.fixture.exists():
+        print(f"smoke fixture not found: {args.fixture}", file=sys.stderr)
+        return 65
+
+    store = JournalStore(args.journal_path)
+    try:
+        for run_index in range(args.n):
+            store.seed_cell(SMOKE_CONFIG_ID, run_index, SMOKE_LAYER_SET)
+            try:
+                store.claim_cell(SMOKE_CONFIG_ID, run_index)
+            except CellNotClaimable:
+                continue
+            with args.fixture.open(encoding="utf-8") as fh:
+                json.load(fh)
+            store.complete_cell(SMOKE_CONFIG_ID, run_index, "COMPLETED")
+    except JournalUnavailable as exc:
+        print(f"journal unavailable: {exc}", file=sys.stderr)
+        return EXIT_INTERNAL
+    except (CellNotFound, InvalidStatus, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
+
+    print(
+        json.dumps(
+            {
+                "matrix": "smoke",
+                "config_id": SMOKE_CONFIG_ID,
+                "cycles": args.n,
+                "result": "pass",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
 USAGE = (
     "usage: runner <command> [options]\n"
     "\n"
@@ -133,6 +216,10 @@ USAGE = (
     "  journal seed     --config ID --run-index N --layer-set SETS [--journal-path PATH]\n"
     "  journal claim    --config ID --run-index N [--parent-issue-id ID] [--build-issue-id ID] [--probe-issue-id ID]\n"
     "  journal complete --config ID --run-index N --status STATUS [--error MSG]\n"
+    "  --matrix smoke   --n N [--journal-path PATH] [--fixture PATH]\n"
+    "                   Smoke-grade health check: runs N cycles of 1 cell against\n"
+    "                   a fixed mock fixture (no docker, no adb). Writes a journal\n"
+    "                   row per cycle with config='smoke' and status='COMPLETED'.\n"
     "\n"
     "options:\n"
     "  -h, --help       Show this help and exit\n"
@@ -144,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     if not argv or argv[0] in {"-h", "--help", "help"}:
         print(USAGE)
         return 0
+    if argv[0] == "--matrix":
+        return matrix_main(argv)
     command = argv.pop(0)
     if command == "journal":
         return journal_main(argv)
