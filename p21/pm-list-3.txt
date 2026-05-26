@@ -1,7 +1,0 @@
-package:icu.nullptr.applistdetector
-package:com.henrikherzig.playintegritychecker
-package:com.mantle.verify
-package:rikka.safetynetchecker
-package:tk.hack5.treblecheck
-package:io.github.vvb2060.keyattestation
-package:com.byxiaorun.detector

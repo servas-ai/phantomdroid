@@ -17,9 +17,9 @@ This document contains the backlog tasks for the PhantomDroid development loop. 
 ### story-03: Stabilize Emulator (Stable Emulation)
 - **Description**: Develop and refine the emulator lifecycle and configurations so that the ReDroid container emulates a real device stably.
 - **Verification**: Run local container lifecycle smoke tests and verify successful, stable boot.
-- **passes**: false
+- **passes**: true
 
 ### story-04: Run Live E2E Server Testing
 - **Description**: Execute the E2E verification suite against the live server container.
 - **Verification**: Run orchestrated E2E test commands and check results.
-- **passes**: false
+- **passes**: true

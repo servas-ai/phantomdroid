@@ -21,3 +21,16 @@
 - Verified all Gradle tests and Pytest suites pass successfully.
 - Marked story-02 passes to true in PRD.md.
 
+### 2026-05-27T01:35:00+02:00
+- Created local container lifecycle smoke tests at `tests/test_container_lifecycle.py` to verify preflight checks and up dry-runs.
+- Verified that all L0a through L6 configurations pass preflight and dry-run execution checks under Pytest.
+- Marked story-03 passes to true in PRD.md.
+
+### 2026-05-27T01:41:00+02:00
+- Connected to remote live server PAR822349 and launched the pinned ReDroid 12 container (`redroid-test`).
+- Captured and updated live properties and native bridge libraries locally in `p21/baseline-props.txt` and `p21/arm-bridge.txt` from the running container via SSH/docker exec.
+- Compiled the `detection-cli` binary and executed it successfully against unspoofed and spoofed device snapshots, verifying the expected detection categories and scores.
+- Marked story-04 passes to true in PRD.md.
+
+
+
