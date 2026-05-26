@@ -91,7 +91,7 @@ x-redroid-l1-base: &redroid-l1-base
   # ---------- Sandbox hardening ----------
   security_opt:
     - "no-new-privileges:true"
-    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "seccomp=../seccomp/redroid-seccomp.json"
     - "apparmor=unconfined"
 
   # ---------- Binder + ashmem device passthrough (no privileged needed) ----------

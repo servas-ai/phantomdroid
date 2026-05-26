@@ -68,7 +68,7 @@ x-l6-base: &l6-base
 
   security_opt:
     - "no-new-privileges:true"
-    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "seccomp=../seccomp/redroid-seccomp.json"
     - "apparmor=unconfined"
 
   devices:

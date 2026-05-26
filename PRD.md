@@ -12,7 +12,7 @@ This document contains the backlog tasks for the PhantomDroid development loop. 
 ### story-02: Investigate & Resolve Multiple Subagent Startup Problem
 - **Description**: Analyze why multiple subagents start unexpectedly (or how they should be managed / bounded during parallel executions). Implement a mechanism to coordinate/limit subagent startup.
 - **Verification**: Run subagent startup checks and verify only expected subagents run.
-- **passes**: false
+- **passes**: true
 
 ### story-03: Stabilize Emulator (Stable Emulation)
 - **Description**: Develop and refine the emulator lifecycle and configurations so that the ReDroid container emulates a real device stably.

@@ -220,11 +220,6 @@ spec:
           CAT="$(jq -r --arg fid "${FID}" '.findings[] | select(.findingId == $fid) | .category' "${REPORT}")"
           TITLE="$(jq -r --arg fid "${FID}" '.findings[] | select(.findingId == $fid) | .title' "${REPORT}")"
           ASSIGNEE="ralph-coder"
-          case "${CAT}" in
-            security|data-loss) ASSIGNEE="ralph-security" ;;
-            test-gap)           ASSIGNEE="ralph-tester" ;;
-            docs-gap)           ASSIGNEE="ralph-reviewer" ;;
-          esac
 
           paperclipai issue create \
             --title "clawpatch-${SEV}: ${TITLE}" \

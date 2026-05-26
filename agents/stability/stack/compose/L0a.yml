@@ -69,7 +69,7 @@ x-l0a-hardening: &l0a-hardening
     # NOTE: docker security_opt is KEY=VALUE; the seccomp profile MUST use `=`
     # not `:`. The refuse-privileged-compose grep treats `seccomp:` as a
     # missing profile.
-    - "seccomp=./agents/stability/stack/seccomp/redroid-seccomp.json"
+    - "seccomp=../seccomp/redroid-seccomp.json"
     # AppArmor default-docker blocks bind-mounts inside the container even
     # when full caps are dropped; unconfined here is equivalent in scope to
     # the cap_drop=ALL container above (a strictly safer posture than the

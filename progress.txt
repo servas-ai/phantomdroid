@@ -12,3 +12,12 @@
 - Configured and registered the 15-minute cron job routine.
 - Staged and committed files with message format 'feat: -'.
 - Verified passes status updated to true in PRD.md.
+
+### 2026-05-27T01:34:00+02:00
+- Investigated multiple subagent startup problem and resolved parallel route/assignee conflicts.
+- Rerouted all policy categories in `.clawpatch/clawpatch.config.yml` to `ralph-coder` (preventing read-only subagents from failing on write tasks).
+- Simplified the assignee selection logic in `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` to always use `ralph-coder`.
+- Resolved Gradle implicit dependency warning in `:detection-cli:test` by mapping java test classes output to `compileTestJava` compiler task in `agents/detection/build.gradle.kts`.
+- Verified all Gradle tests and Pytest suites pass successfully.
+- Marked story-02 passes to true in PRD.md.
+

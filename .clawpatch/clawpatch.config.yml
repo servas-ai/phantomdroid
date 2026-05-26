@@ -67,16 +67,16 @@ clawpatch:
 # ---------------------------------------------------------------------------
 policy:
   categories:
-    security:        { block_at: high,     confidence_floor: medium, route_to: ralph-security }
-    data-loss:       { block_at: high,     confidence_floor: medium, route_to: ralph-security }
+    security:        { block_at: high,     confidence_floor: medium, route_to: ralph-coder }
+    data-loss:       { block_at: high,     confidence_floor: medium, route_to: ralph-coder }
     bug:             { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
     concurrency:     { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
-    api-contract:    { block_at: high,     confidence_floor: high,   route_to: ralph-reviewer }
+    api-contract:    { block_at: high,     confidence_floor: high,   route_to: ralph-coder }
     performance:     { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
-    test-gap:        { block_at: critical, confidence_floor: high,   route_to: ralph-tester }
-    docs-gap:        { block_at: critical, confidence_floor: high,   route_to: ralph-reviewer }
+    test-gap:        { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
+    docs-gap:        { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
     build-release:   { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
-    maintainability: { block_at: critical, confidence_floor: high,   route_to: ralph-reviewer }
+    maintainability: { block_at: critical, confidence_floor: high,   route_to: ralph-coder }
 
   auto_fix:
     enabled: false

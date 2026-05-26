@@ -102,8 +102,9 @@ afterEvaluate {
 
     artifacts {
         testClassesDir.forEach { dir ->
+            val compilerTask = if (dir.path.contains("kotlin")) compileTestKotlin else tasks.named("compileTestJava")
             add("testArtifacts", dir) {
-                builtBy(compileTestKotlin)
+                builtBy(compilerTask)
             }
         }
         if (testResourcesDir.asFile.exists()) {
