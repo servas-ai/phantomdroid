@@ -23,3 +23,8 @@ This document contains the backlog tasks for the PhantomDroid development loop. 
 - **Description**: Execute the E2E verification suite against the live server container.
 - **Verification**: Run orchestrated E2E test commands and check results.
 - **passes**: true
+
+### story-05: Coordinate-Based UI Interaction for SPIC
+- **Description**: Add coordinate-based tap interaction for `com.henrikherzig.playintegritychecker` in the P21 check harness to trigger the integrity request button before XML dump.
+- **Verification**: Verify that the tap is executed when the package name matches in `scripts/p21/run-all-checks.py`.
+- **passes**: true

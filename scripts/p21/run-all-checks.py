@@ -390,6 +390,12 @@ def run_test_for_app(app: dict, t: int, component: str,
 
     time.sleep(LAUNCH_SETTLE_SEC)
 
+    # Trigger Play Integrity request in SPIC app if targeted
+    if pkg == "com.henrikherzig.playintegritychecker":
+        print(f"[INTERACT] Tapping 'Make Play Integrity Request' button for {pkg}", file=sys.stderr)
+        adb_shell("input tap 360 634", timeout=10)
+        time.sleep(5)
+
     # Focus check
     focused_pkg = get_focused_pkg()
     focused_act = get_focused_activity()

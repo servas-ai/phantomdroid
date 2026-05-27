@@ -32,5 +32,8 @@
 - Compiled the `detection-cli` binary and executed it successfully against unspoofed and spoofed device snapshots, verifying the expected detection categories and scores.
 - Marked story-04 passes to true in PRD.md.
 
-
-
+### 2026-05-27T12:13:00+02:00
+- Implemented story-05: Added coordinate-based UI button tap interaction in the P21 check harness `scripts/p21/run-all-checks.py`.
+- Taps "Make Play Integrity Request" button for `com.henrikherzig.playintegritychecker` at coordinates `360 634` after app launch settles.
+- Updated `PRD.md` to reflect story-05 passes status as true.
+- Verified all pytest and Gradle test suites pass successfully.
