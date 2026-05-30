@@ -1,18 +1,22 @@
 # PhantomDroid — Status Snapshot
 
-**Date**: 2026-05-25
+**Date**: 2026-05-29
 **Branch**: `report/CLO-143-weekly-W20`
 **Predecessor closeouts**: Power-1 → Power-21 (see `audit/`)
-**Live target**: ReDroid 12 on `PAR822349` (Ubuntu 18.04, 195.154.209.133)
-**Source-of-truth artifacts**: `agents/detection/build/test-results/`, `audit/E2E-validation-2026-05-20.md`, `p21/report.json`, `audit/Power-3-FINAL-2026-05-20.md`
+**Live target**: ReDroid 12 on `PAR822349` (Ubuntu 18.04, 195.154.209.133) — **now FULLY BOOTING** (`sys.boot_completed=1`) on host kernel 5.4
+**Source-of-truth artifacts**: `agents/detection/build/test-results/`, `audit/live-booted-sweep-2026-05-29.md`, `audit/apk-in-container-2026-05-29.md`, `audit/orchestrator-matrix-2026-05-29.md`, `audit/spoof-stack/endgate-phase3-signoff-2026-05-29.md`, `audit/SESSION-E2E-2026-05-29.md`, `p21/report.json`
 
 ---
 
 ## TL;DR
 
-PhantomDroid is past scaffold. Detection is **CI-gated and probe-validated** (4,241 unit tests, 86 probes). Live ReDroid 12 is **deployed and partially probe-validated** on PAR822349 (9 of 86 probes verified to fire with score 0.85–1.0 against the real container; remainder pending APK-inside-container delivery). P21 real-world harness has produced a **99-cell verdict matrix** with 57% match-expected. Orchestrator is **runnable but no full-matrix execution exists yet**. SpoofStack layers L0a–L6 are **scaffolded (9 compose files + 6 -RUNBOOK.md files + L3-DEFAULT.md as the L3 runbook) but never executed as a stack**. Of the 16-loop automation inventory, **2 are wired** (`detection-test.yml` CI gate + Paperclip `quality-gate` 15-min cron, declared and scheduled — runtime firing not yet attested in this evidence trail), **8 are manual-trigger scripts**, **4 are missing**, **2 are broken/manual one-offs**.
+**BREAKTHROUGH (2026-05-29): the long-standing project blocker OB1 is CLOSED — ReDroid 12 now FULLY BOOTS live** on PAR822349 after the owner-authorized kernel-5.4 reboot. The container reports `sys.boot_completed=1` with zygote/netd/vold/surfaceflinger all `running`, `hwservicemanager.ready=true`, bootanim exited. The E2E loop (ground-truth capture → snapshot → probes → score) is now proven against a *real, fully-booted* device, not a hung-init one (`audit/live-booted-sweep-2026-05-29.md`).
 
-The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routine → matrix-smoke nightly CI → auto-status-closeout generator → spoof-iteration full-panel test.
+Detection is **CI-gated and probe-validated** (4,241 unit tests, 86 probes). The booted container still classifies as an **emulator (DETECTED, weightedScore=0.3462, 4 critical failures)** on the 65-probe CLI replay — identical to the pre-boot replay, since the load-bearing identity props are byte-identical across boot — and full boot ADDED a tell: `getenforce=Disabled` (impossible on a prod user build; shell-only, not yet consumed by the replay model). The 84-probe JVM spoof panel still passes **CLEAN, 0 critical failures**. A **TRUE in-container run** drove probe inputs live from *inside* the Android runtime via `adb shell` (not host `docker exec`) → **DETECTED, weightedScore=0.3371, 4 critical failures** (`audit/apk-in-container-2026-05-29.md`).
+
+New since the prior snapshot: a `:detector-app` Android module (`apps/detector-app`, `com.android.application`) now exists — a read-only in-process detector mirroring the CLI's 65-probe inventory + schema-1.0 report, **builds + 3/3 unit tests green**, endgate-APPROVED (`audit/spoof-stack/endgate-detector-app-2026-05-29.md`). The orchestrator gained a `report_validator.py` schema gate + `--matrix replay` mode that renders a **real 9-cell heatmap** (5 green + 4 amber, 0 grey) at `docs/super-action/W15/heatmap/22/`; orchestrator suite is now **41 tests** (was 18). P21 real-world harness remains a **99-cell verdict matrix** with 57% match-expected.
+
+Phase 4 (live spoof re-probe delta) is **EXECUTING / not done** — gated YELLOW on an L0b root stack (Magisk + ReZygisk + LSPosed) that the current plain ReDroid container lacks, plus owner sign-off on third-party supply-chain + the `--privileged`-vs-hardened posture decision (`audit/phase4-l0b-buildout-plan-2026-05-29.md`, `audit/phase4-root-method-2026-05-29.md`).
 
 ---
 
@@ -20,14 +24,15 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 
 | Pillar | E2E % | Last verified | Evidence |
 |---|---:|---|---|
-| **Detection (Kotlin probes + unit tests)** | **95%** | 2026-05-21 | `agents/detection/build/test-results/` — 4,241 tests green; 86 probes implemented (target was 40); CI gate at ≥3000 in `.github/workflows/detection-test.yml`. Remaining 5%: 9 probes vs 95-target inventory still to draft. |
-| **Live ReDroid 12 container** | **70%** | 2026-05-20 | `audit/E2E-validation-2026-05-20.md` — Ubuntu 18.04, DKMS binder+ashmem, ReDroid 12 amd64 by pinned SHA, 9 probes fire correctly (ranks 1/3/4/7/9/13/27/28/30, scores 0.85–1.0). Remaining 30%: APK-inside-container delivery (probes run via JUnit, not via app), full 86-probe sweep on live container. |
-| **Orchestrator (Python runner + journal)** | **35%** | 2026-05-21 | `agents/orchestrator/SPEC.md` (1,150 LOC design), `agents/orchestrator/src/runner.py` — `--help` exits 0, module imports clean. Missing 65%: full matrix execution, container_lifecycle wiring, report aggregation, heatmap pipeline. Estimate 11 person-days in SPEC §15. |
-| **Stability / SpoofStack (Docker compose layers)** | **40%** | 2026-05-26 | 9 compose files (`agents/stability/stack/compose/L0a..L6.yml`) + 7 `*-RUNBOOK.md` files (L0a, L0b, L1-MAGISK, L2, L4, L5, L6) + `L3-DEFAULT.md` serving as L3 runbook; image-pins set; cpuinfo-overlay + hide-frida-maps modules functional; L0a proven via PAR822349 boot. Missing 60%: L1–L6 module implementations (identity-spoof, TrickyStore, Shamiko, VirtualSensor, host-NAT), end-to-end layer stack execution. |
+| **Detection (Kotlin probes + unit tests)** | **95%** | 2026-05-29 | `agents/detection/build/test-results/` — 4,241 tests green; 86 probes implemented (target was 40); CI gate at ≥3000 in `.github/workflows/detection-test.yml`. Remaining 5%: 9 probes vs 95-target inventory still to draft. |
+| **Live ReDroid 12 container** | **85%** | 2026-05-29 | **OB1 CLOSED — container FULLY BOOTS** (`sys.boot_completed=1`, zygote/netd/vold/surfaceflinger `running`, `hwservicemanager.ready=true`) on host kernel 5.4.0-150. Read-only sweep: 65-probe CLI replay = **DETECTED, 0.3462, 4 critical** (`audit/live-booted-sweep-2026-05-29.md`); TRUE in-container run via `adb shell` inside Android = **DETECTED, 0.3371, 4 critical** (`audit/apk-in-container-2026-05-29.md`); 84-probe JVM spoof panel = CLEAN, 0 critical. New `getenforce=Disabled` tell observed. Remaining 15%: full installed-`:detector-app` APK attestation run (build done, install/launch/pull on live container pending); live spoof re-probe (Phase 4, gated on L0b). |
+| **Orchestrator (Python runner + journal)** | **55%** | 2026-05-29 | `agents/orchestrator/SPEC.md` + `src/runner.py`, `src/aggregator.py`, NEW `src/report_validator.py` (SPEC §4 schema gate, stdlib-only). `--matrix replay` renders a **real 9-cell heatmap** (5 green + 4 amber, 0 grey) at `docs/super-action/W15/heatmap/22/`; suite is **41 tests** (was 18). Replay is honestly a **data projection** (no docker/adb per cell), NOT a true run. Missing 45%: `config_loader.py` + 8 manifests, `container_lifecycle.py`, per-cell live probe execution, `persistence.py`, deterministic run_id/`--resume`, concurrency pool (SPEC §15). |
+| **Stability / SpoofStack (Docker compose layers)** | **40%** | 2026-05-29 | 9 compose files (`agents/stability/stack/compose/L0a..L6.yml`) + 7 `*-RUNBOOK.md` + `L3-DEFAULT.md` (L3 runbook); image-pins set; cpuinfo-overlay + spoof-stack-magisk (86/104 hooks) complete; hide-frida-maps skeleton-only; L0a proven via PAR822349 full boot. Phase 4 live re-probe **EXECUTING but BLOCKED** on L0b root stack (Magisk daemon does not install via documented `pm install`/Direct-Install on a boot-imageless ReDroid; real method = bootanim.rc hijack + `magisk --setup-sbin` in a locally-built image — YELLOW, owner sign-off required). Missing 60%: L0b root bring-up, L1–L6 module stack execution. |
+| **:detector-app (in-process Android detector)** | **60%** | 2026-05-29 | NEW `apps/detector-app` (`com.android.application`, minSdk 28 / targetSdk 31) — read-only detector mirroring the CLI 65-probe inventory + schema-1.0 report; `AndroidProbeContext` implements 24 ProbeContext methods (real TelephonyManager/sysfs MAC/TracerPid reads), 5 abstainers graceful. **APK builds + 3/3 unit tests green**, endgate-APPROVED, no live-server/adb-install code committed (`audit/spoof-stack/endgate-detector-app-2026-05-29.md`). Remaining 40%: actual `adb install`/launch/`adb pull` on the live container for a signed in-process attestation verdict (install path verified working, run pending). |
 | **P21 real-world harness** | **75%** | 2026-05-21 | `scripts/p21/run-all-checks.py`, `p21/report.json` — 99 cells total = 21 testable + 78 not-tested; verdict counts 12 FAIL / 9 UNKNOWN / 78 NOT-TESTED; 57.1% match expected. Reviewer signoff `audit/spoof-stack/power-21-reviewer-signoff.md` (9/9 PASS). Missing 25%: re-run on freshly-provisioned ReDroid, P21 extension to ≥30 apps. |
 | **CI / automation** | **15%** | 2026-05-25 | Only `.github/workflows/detection-test.yml` lives in CI (regression gate for Kotlin tests). 1 wired Paperclip routine (quality-gate, 15-min cron). 8 manual-trigger loops, 4 missing, 2 broken. See "Automation loop inventory" below. |
 
-**Aggregate E2E**: ~55% — strongest in Detection + Live ReDroid + P21; weakest in CI automation + full-stack Orchestrator runs.
+**Aggregate E2E**: ~65% — strongest in Detection + Live ReDroid (OB1 now closed, full boot proven) + P21 + the new in-process `:detector-app`; weakest in CI automation + true (non-replay) full-matrix Orchestrator runs + the L0b-blocked live spoof delta.
 
 ---
 
@@ -36,10 +41,12 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 | # | Loop | Trigger | Evidence | Status |
 |---|---|---|---|---|
 | 1 | **Kotlin detection unit-test gate** | PR / push to `main` | `.github/workflows/detection-test.yml` runs `./gradlew :detection:test`, fails if test count drops below 3,000 | ✅ AUTOMATED-OK |
-| 2 | **Live-container probe verification on PAR822349** | manual `docker exec` | 9 probes (rank 1/3/4/7/9/13/27/28/30) fire with score 0.85–1.0 against ReDroid 12; full evidence in `audit/E2E-validation-2026-05-20.md` | ✅ MANUAL-VERIFIED |
-| 3 | **P21 real-world verdict harness** | manual `python scripts/p21/run-all-checks.py` | `p21/report.json` — 21 testable cells produced; 21 screenshots + 21 UIAs + 7 prop-diffs archived; 100% C-harness sub-checks PASS | ✅ MANUAL-RUNNABLE |
-| 4 | **Paperclip quality-gate sticky-lock routine** | Paperclip cron `*/15 * * * *` + `issue_completed` event | `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` — 5-layer routine (precheck → map → review → accumulate → enforce) | ✅ DECLARED + cron-scheduled (runtime firing not yet attested in STATUS evidence trail) |
-| 5 | **Orchestrator smoke import + journal seed/claim test** | manual `pytest tests/test_orchestrator_journal.py` | `tests/test_orchestrator_journal.py` covers journal mutations | ✅ TESTED, NOT IN CI |
+| 2 | **Live FULLY-BOOTED ReDroid 12 detection sweep on PAR822349** | manual read-only sweep | **OB1 CLOSED** — container boots (`sys.boot_completed=1`); 65-probe CLI replay of the booted capture = **DETECTED, 0.3462, 4 critical**; in-container `adb shell` run = **DETECTED, 0.3371, 4 critical**; 84-probe spoof panel CLEAN. All read-only (`audit/live-booted-sweep-2026-05-29.md`, `audit/apk-in-container-2026-05-29.md`) | ✅ MANUAL-VERIFIED (full boot) |
+| 3 | **`:detector-app` in-process detector (build + unit tests)** | `./gradlew :detector-app:assembleDebug` + unit test | APK present at `apps/detector-app/build/outputs/apk/debug/`; **3/3 unit tests green** (`AndroidProbeRegistryTest`); 65-probe inventory lockstep with CLI; endgate-APPROVED | ✅ BUILDS + TESTED (live install/launch pending) |
+| 4 | **Orchestrator `--matrix replay` 9-cell heatmap** | `python3 -m agents.orchestrator.src.runner --matrix replay --n 3` | `docs/super-action/W15/heatmap/22/heatmap.{svg,json}` — 9 non-grey cells (5 green + 4 amber), schema-gated via `report_validator.py`; **41 tests pass** | ✅ RUNNABLE (data projection, not a true per-cell run) |
+| 5 | **P21 real-world verdict harness** | manual `python scripts/p21/run-all-checks.py` | `p21/report.json` — 21 testable cells produced; 21 screenshots + 21 UIAs + 7 prop-diffs archived; 100% C-harness sub-checks PASS | ✅ MANUAL-RUNNABLE |
+| 6 | **Paperclip quality-gate sticky-lock routine** | Paperclip cron `*/15 * * * *` + `issue_completed` event | `docs/super-action/clawpatch/paperclip-routine-quality-gate.yml` — 5-layer routine (precheck → map → review → accumulate → enforce) | ✅ DECLARED + cron-scheduled (runtime firing not yet attested in STATUS evidence trail) |
+| 7 | **Orchestrator smoke import + journal seed/claim test** | manual `pytest tests/test_orchestrator_journal.py` | `tests/test_orchestrator_journal.py` covers journal mutations | ✅ TESTED, NOT IN CI |
 
 ---
 
@@ -47,10 +54,11 @@ The shortest path to "full E2E" is closing 4 loops: weekly heatmap render routin
 
 | Gap | Why it matters | Blocker class |
 |---|---|---|
-| **Full Orchestrator matrix run** (8 configs × N=60 = 480 cycles) | Single source of truth for "how detectable is each SpoofStack config?" — SPEC complete, code missing | impl-pending (11 PD) |
-| **SpoofStack L1–L6 layer execution** | Compose files written, never booted as a stack; module TODOs for identity-spoof, TrickyStore, Shamiko, VirtualSensor, host-NAT | impl-pending (modules) |
-| **Probe → Spoof-snapshot → Re-probe loop** (Power-8 plan, phase 1) | `RedroidSpoofedSnapshot.kt` + `FullProbeRunnerSpoofTest.kt` (84-probe full panel) BOTH present; opt-in via `./gradlew :detection:test -PrunSpoofPanel=true` → PASSED (CLEAN, 0 criticalFailures) | ✅ closed (Power-19 E2 + Phase 5.4 gate) |
-| **APK-inside-container probe delivery** | All probes run via JUnit on host JVM, not as installed app on ReDroid → "true real" attestation signal not yet captured | wiring-missing (gradle Android module + adb install) |
+| **TRUE full-matrix Orchestrator run** (real per-cell docker+adb+probe, not replay) | Single source of truth for "how detectable is each SpoofStack config?" — schema gate (`report_validator.py`) now real; `--matrix replay` is a data projection only | impl-pending (config_loader + container_lifecycle + adb_bridge + persistence, SPEC §15) |
+| **SpoofStack L1–L6 layer execution + L0b root** | Compose files written, never booted as a stack; L0b Magisk daemon does not install via documented method on boot-imageless ReDroid (real method = bootanim.rc hijack + `magisk --setup-sbin`, YELLOW pending owner sign-off) | impl-pending + owner-gated (L0b) |
+| **Probe → Spoof-snapshot → Re-probe loop** (Power-8 plan, phase 1) | `RedroidSpoofedSnapshot.kt` + `FullProbeRunnerSpoofTest.kt` (84-probe full panel) BOTH present; opt-in via `./gradlew :detection:test -PrunSpoofPanel=true` → PASSED (CLEAN, 0 criticalFailures) against the booted ground-truth reference | ✅ closed (Power-19 E2 + Phase 5.4 gate; re-confirmed 2026-05-29) |
+| **Installed-`:detector-app` APK attestation run on live container** | `:detector-app` now builds (3/3 tests) and the in-container `adb` install/launch/pull path is verified working, but the signed in-process run (Play Integrity token, in-process IMEI/MAC/TracerPid of the app) has not been executed against the live container | run-pending (artifact exists, install not yet issued) |
+| **Live spoof re-probe delta (Phase 4)** | Measures whether the in-house modules drop the live score toward the snapshot's ~0; **EXECUTING but blocked** on L0b root stack + owner sign-off on third-party supply-chain and `--privileged`-vs-hardened posture | owner-gated + L0b-blocked |
 | **Real-device baseline (Pixel 7/8)** | Without it, "< 0.05 = good" remains an aspirational anchor; rank 10 marker telemetry + Pixel 8 density (cross-cutting #2, #5) stay open | device-blocked (hardware) |
 | **P21 on cleanly re-provisioned ReDroid** | Verdict matrix could drift on a fresh container; no zero-state validation run recorded | low-effort, run-pending |
 
@@ -103,9 +111,14 @@ Optional, lower-priority:
 |---|---:|---:|---|
 | Probes implemented | <!--AUTO:probe_count-->86<!--/AUTO--> | 72 (inventory) | ✅ +19% over inventory |
 | Detection unit tests green | <!--AUTO:test_count-->4,241<!--/AUTO--> / 4,241 | ≥ 3,000 (CI floor) | ✅ +41% over CI floor |
+| Orchestrator (Python) tests green | <!--AUTO:orchestrator_test_count-->41<!--/AUTO--> | ≥ 18 (prior baseline) | ✅ +128% (report_validator + replay coverage) |
+| `:detector-app` unit tests green | <!--AUTO:detector_app_test_count-->3<!--/AUTO--> / 3 | 3 | ✅ APK builds, registry lockstep with CLI |
+| Live ReDroid 12 boot state | `sys.boot_completed=1` (OB1 CLOSED) | full boot | ✅ verified 2026-05-29 (read-only sweep) |
+| Live booted detection verdict | 0.3462 / 4-critical / DETECTED (replay); 0.3371 / 4-critical / DETECTED (in-container adb) | (measurement) | ✅ E2E proven on real booted device |
+| Orchestrator heatmap cells (replay) | 9 non-grey (5 green + 4 amber, 0 grey) | 9 (3×3 matrix) | ✅ real cells rendered at `W15/heatmap/22/` |
 | SpoofStack layers with compose file | <!--AUTO:compose_count-->9<!--/AUTO--> (L0a, L0b, L1×2, L2, L3, L4, L5, L6) | 8 (L0a/b split + L1–L6) | ✅ complete |
 | SpoofStack layers with RUNBOOK | <!--AUTO:runbook_count-->7<!--/AUTO--> + 1 (L3-DEFAULT.md) | 7 | ✅ all 7 named `*-RUNBOOK.md` (L0a runbook landed P22.3) |
-| SpoofStack modules implemented | 2 (cpuinfo-overlay, hide-frida-maps) | 7+ (one per layer) | 🟡 29% |
+| SpoofStack modules implemented | 2 functional (cpuinfo-overlay; spoof-stack-magisk 86/104 hooks) + hide-frida-maps skeleton-only | 7+ (one per layer) | 🟡 29% |
 | P21 cells dispositioned | <!--AUTO:p21_cells_total-->99<!--/AUTO--> (21 testable + 78 not-tested) | 99 | ✅ complete |
 | P21 verdict match-expected | <!--AUTO:p21_verdict_pct-->57.1%<!--/AUTO--> | ≥ 80% (post-spoof) | 🟡 baseline |
 | Cross-cutting follow-ups closed (per `audit/Power-3-FINAL-2026-05-20.md`) | <!--AUTO:cross_cutting_closed-->6<!--/AUTO--> / 8 | 8 (2 device-blocked) | ✅ all closable closed |
@@ -116,6 +129,13 @@ Optional, lower-priority:
 
 ## Next milestones
 
-After the user merges current work to `main`, the **phantomdroid-engine** agent team (4 teammates: ralph-coder + ralph-tester + ralph-frontend + ralph-security) will close the top-4 loops above in parallel. Target: aggregate E2E from 55% → 80% within one Power cycle.
+With OB1 (full live boot) now closed, the next gates are owner-decisions and a build-out, not the boot blocker:
 
-See `/home/coder/.claude/plans/lovely-sniffing-snowflake.md` for the full execution plan.
+1. **Phase 4 unblock (owner-gated)** — owner to (a) pin a reviewed `redroid-script` SHA + rule on Magisk APK provenance (Delta fork vs topjohnwu official), and (b) rule on `--privileged`-vs-scoped-caps for the throwaway `l0b-probe` cell. Then build the L0b root stack and prove `magisk --version` returns a daemon (the real P2 gate). Only then can the live spoof re-probe delta be measured (target: L1/build-prop + sysfs delta toward ~0, NOT full 0.0000 — L0b adds root tells). See `audit/phase4-l0b-buildout-plan-2026-05-29.md` + `audit/phase4-root-method-2026-05-29.md`.
+2. **Installed-`:detector-app` attestation run** — `adb install -r` the built APK on the live container, launch, `adb pull` the schema-1.0 report (artifact + install path already verified; only the run is pending).
+3. **TRUE full-matrix orchestrator run** — replace the replay data-projection with real per-cell docker+adb+probe (config_loader + container_lifecycle + adb_bridge + persistence, SPEC §15).
+4. **Standing security items** — owner to rotate the `paris` credential and `git filter-repo` the history (working tree already scrubbed; see `audit/spoof-stack/endgate-phase3-security-2026-05-29.md` S-01).
+
+Aggregate E2E target: ~65% → 80% once Phase 4 measures a live spoof delta and the installed-APK attestation run lands.
+
+See `/home/coder/.claude/plans/lovely-sniffing-snowflake.md` and the chronological session report `audit/SESSION-E2E-2026-05-29.md` for the full execution narrative.

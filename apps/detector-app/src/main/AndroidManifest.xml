@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DetectorLab on-device runner manifest.
+
+  Permission philosophy (defensive measurement, graceful degradation):
+  We DECLARE the read permissions the in-process probes can use, but the app is
+  designed to ABSTAIN (never crash) when a permission is not granted — the
+  expected state on a non-Play ReDroid container where no runtime grant flow
+  runs. The AndroidProbeContext catches SecurityException on every privileged
+  read and returns the conservative "no observation" answer.
+
+  No INTERNET permission is declared: ProbeRunner forbids live network I/O
+  (Probe invariant #2), so the APK has no network surface at all.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Identity probes (IMEI/serial/SIM). Not granted on a bare container →
+         TelephonyManager reads return null → probes ABSTAIN. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Wi-Fi security-type + MAC + SSID/BSSID + location-gated reads.
+         WifiInfo.getSSID()/getBSSID() are redacted ("<unknown ssid>" /
+         02:00:00:00:00:00) without a location/NEARBY_WIFI_DEVICES grant →
+         WifiSsidBssidProbe scores the benign privacy-default baseline. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <!-- Bluetooth adapter MAC (redacted to 02:00:00:00:00:00 without
+         LOCAL_MAC_ADDRESS; BluetoothMacProbe handles the redaction branch). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Installed-package enumeration for InstalledAppsProbe (A11+ requires
+         QUERY_ALL_PACKAGES or per-package <queries>; without it the probe
+         sees only visible packages and ABSTAINs on the rest). -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.DayNight">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

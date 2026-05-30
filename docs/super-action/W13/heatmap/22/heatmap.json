@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "iso_week": 22,
+  "week_dir": "W13",
+  "rendered_at": "2026-05-29T17:07:52Z",
+  "thresholds": {
+    "green": 0.3,
+    "amber": 0.65
+  },
+  "matrix": [
+    {
+      "device": "Pixel 8",
+      "os": "Android 14",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 8",
+      "os": "Android 15",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 8",
+      "os": "Android 16",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9",
+      "os": "Android 14",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9",
+      "os": "Android 15",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9",
+      "os": "Android 16",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9 Pro",
+      "os": "Android 14",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9 Pro",
+      "os": "Android 15",
+      "score": null,
+      "verdict": "no_data"
+    },
+    {
+      "device": "Pixel 9 Pro",
+      "os": "Android 16",
+      "score": null,
+      "verdict": "no_data"
+    }
+  ]
+}

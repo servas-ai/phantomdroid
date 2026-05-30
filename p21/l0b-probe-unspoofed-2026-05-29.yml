@@ -1,0 +1,93 @@
+# p21/l0b-probe-unspoofed-2026-05-29.yml
+#
+# Phase 4 — UNSPOOFED baseline of the THROWAWAY l0b-probe container
+# (redroid/redroid:12.0.0_magisk, built locally via ayasa520/redroid-script
+# @881f7f00d6a86af4f8e4947af5d587a144a1806c + Magisk Delta v30.6).
+#
+# Captured 2026-05-29 from PAR822349 via `docker exec l0b-probe getprop/ls/cat`
+# (READ-ONLY). Magisk daemon proven live (magisk -v -> 30.6:MAGISK:D, su -> uid=0).
+# This is the x86_64 (NOT _64only) redroid 12 base, so abilist differs slightly
+# from the redroid-test baseline snapshot, and the Magisk app + /system/xbin/su
+# are present as residual root tells (HONEST: this rooted image carries extra
+# root signals the unrooted redroid-test baseline did not).
+
+label: "l0b-probe-unspoofed-2026-05-29"
+capturedAt: "2026-05-29T21:10:00Z"
+sdkInt: 31
+
+systemProperties:
+  # rank 1 buildprop.fingerprint
+  "ro.build.fingerprint": "redroid/redroid_x86_64/redroid_x86_64:12/SP1A.210812.016.C2/eng.frank.20240527.144937:userdebug/test-keys"
+  "ro.build.display.id": "redroid_x86_64-userdebug 12 SP1A.210812.016.C2 eng.frank.20240527.144937 test-keys"
+  "ro.build.tags": "test-keys"
+  "ro.build.type": "userdebug"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+
+  # rank 9 model_brand_manufacturer
+  "ro.product.brand": "redroid"
+  "ro.product.model": "redroid12_x86_64"
+  "ro.product.manufacturer": "redroid"
+  "ro.product.device": "redroid_x86_64"
+  "ro.product.name": "redroid_x86_64"
+
+  # rank 4 qemu_artifacts — empty
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+
+  # rank 28 board_hardware
+  "ro.hardware": "redroid"
+  "ro.product.board": ""
+  "ro.board.platform": ""
+
+  # rank 27 cpu_abi — DUAL-ARCH
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a,x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist32": "x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+
+  # rank 13 bootloader
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "1"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+
+  # rank 14 selinux — props empty
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+
+  # post-boot signals
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+
+existingFiles:
+  # su lives at /system/xbin/su (base redroid)
+  - "/system/xbin/su"
+
+readableFiles:
+  # Host-kernel leak via /proc/version (non-Android host kernel)
+  "/proc/version": "Linux version 5.4.0-150-generic (buildd@bos03-amd64-012) (gcc version 7.5.0 (Ubuntu 7.5.0-3ubuntu1~18.04)) #167~18.04.1-Ubuntu SMP Wed May 24 00:51:42 UTC 2023"
+
+settingsSecure: {}
+settingsGlobal: {}
+settingsSystem: {}
+
+telephony: {}
+
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+  - "com.android.settings"
+  # residual root tell on this rooted image (NOT present on unrooted redroid-test):
+  - "com.topjohnwu.magisk"
+
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null

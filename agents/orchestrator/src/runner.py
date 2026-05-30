@@ -7,6 +7,15 @@ import json
 import sys
 from pathlib import Path
 
+import re
+
+from agents.orchestrator.src.aggregator import (
+    DEVICES,
+    OS_VERSIONS,
+    AggregationError,
+    ReportAssignment,
+    aggregate_to_cells_json,
+)
 from agents.orchestrator.src.journal import (
     CellNotClaimable,
     CellNotFound,
@@ -135,20 +144,36 @@ SMOKE_FIXTURE = (
     / "probe-result.fixture.json"
 )
 
+REPLAY_SPOOFED_REPORT = (
+    Path(__file__).resolve().parents[3] / "results" / "e2e-report-spoofed.json"
+)
+REPLAY_UNSPOOFED_REPORT = (
+    Path(__file__).resolve().parents[3] / "results" / "e2e-report-unspoofed.json"
+)
+# Layer set carried on a journal row when its cell replays the spoofed report;
+# the unspoofed (baseline) cell carries no SpoofStack layers.
+REPLAY_SPOOFED_LAYERS = ["L0a", "L1", "L2"]
+REPLAY_UNSPOOFED_LAYERS: list[str] = []
+
 
 def build_matrix_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="runner --matrix")
     parser.add_argument(
         "--matrix",
         required=True,
-        choices=["smoke"],
-        help="Matrix mode. 'smoke' runs 1 cell against a fixed mock fixture (no docker, no adb).",
+        choices=["smoke", "replay"],
+        help=(
+            "Matrix mode. 'smoke' runs 1 cell against a fixed mock fixture "
+            "(no docker, no adb). 'replay' maps the two committed e2e reports "
+            "across the full device x os matrix, seeding N journal rows per "
+            "cell and writing a multi-cell heatmap cells.json (no docker, no adb)."
+        ),
     )
     parser.add_argument(
         "--n",
         type=int,
         default=1,
-        help="Number of smoke cycles to run (default 1).",
+        help="Number of cycles per cell (default 1).",
     )
     parser.add_argument(
         "--journal-path",
@@ -162,12 +187,32 @@ def build_matrix_parser() -> argparse.ArgumentParser:
         default=SMOKE_FIXTURE,
         help="Mock probe-result fixture used for smoke mode.",
     )
+    parser.add_argument(
+        "--cells",
+        type=int,
+        default=None,
+        help=(
+            "replay mode only: how many device x os cells to fill "
+            "(default: the full matrix). Cells alternate spoofed/unspoofed."
+        ),
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help=(
+            "replay mode only: cells.json output path "
+            "(default: latest docs/super-action/W*/heatmap/cells.json)."
+        ),
+    )
     return parser
 
 
 def matrix_main(argv: list[str]) -> int:
     parser = build_matrix_parser()
     args = parser.parse_args(argv)
+    if args.matrix == "replay":
+        return replay_main(args)
     if args.n < 1:
         print("--n must be >= 1", file=sys.stderr)
         return 64
@@ -208,6 +253,164 @@ def matrix_main(argv: list[str]) -> int:
     return 0
 
 
+def replay_matrix_plan(num_cells: int | None) -> list[tuple[str, str, Path, list[str]]]:
+    """Return the ordered (device, os, report, layer_set) plan for replay mode.
+
+    Walks the full device x os matrix row-major and alternates the spoofed and
+    unspoofed e2e reports so the rendered heatmap shows a green/amber mix rather
+    than a single class. ``num_cells`` truncates the plan (default: full matrix).
+    """
+    full = [(device, os_version) for device in DEVICES for os_version in OS_VERSIONS]
+    if num_cells is None:
+        num_cells = len(full)
+    if num_cells < 1:
+        raise ValueError("--cells must be >= 1")
+    plan: list[tuple[str, str, Path, list[str]]] = []
+    for index, (device, os_version) in enumerate(full[:num_cells]):
+        if index % 2 == 0:
+            plan.append((device, os_version, REPLAY_SPOOFED_REPORT, REPLAY_SPOOFED_LAYERS))
+        else:
+            plan.append(
+                (device, os_version, REPLAY_UNSPOOFED_REPORT, REPLAY_UNSPOOFED_LAYERS)
+            )
+    return plan
+
+
+def replay_main(args: argparse.Namespace) -> int:
+    if args.n < 1:
+        print("--n must be >= 1", file=sys.stderr)
+        return 64
+    for report in (REPLAY_SPOOFED_REPORT, REPLAY_UNSPOOFED_REPORT):
+        if not report.exists():
+            print(f"replay report not found: {report}", file=sys.stderr)
+            return 65
+    try:
+        plan = replay_matrix_plan(args.cells)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
+
+    store = JournalStore(args.journal_path)
+    assignments: list[ReportAssignment] = []
+    try:
+        for cell_index, (device, os_version, report, layer_set) in enumerate(plan):
+            config_id = f"replay-cell-{cell_index:02d}"
+            for run_index in range(args.n):
+                store.seed_cell(config_id, run_index, layer_set)
+                try:
+                    store.claim_cell(config_id, run_index)
+                except CellNotClaimable:
+                    continue
+                store.complete_cell(config_id, run_index, "COMPLETED")
+            assignments.append(
+                ReportAssignment(
+                    report_path=report, device=device, os_version=os_version
+                )
+            )
+    except JournalUnavailable as exc:
+        print(f"journal unavailable: {exc}", file=sys.stderr)
+        return EXIT_INTERNAL
+    except (CellNotFound, InvalidStatus, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
+
+    try:
+        out_path = args.out if args.out is not None else default_cells_path()
+        cells = aggregate_to_cells_json(assignments, out_path)
+    except AggregationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
+
+    non_grey = sum(1 for value in cells.values() if value is not None)
+    print(
+        json.dumps(
+            {
+                "matrix": "replay",
+                "cells_filled": len(cells),
+                "non_grey_cells": non_grey,
+                "cycles_per_cell": args.n,
+                "out": str(out_path),
+                "result": "pass",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _latest_week_dir(super_action: Path) -> Path:
+    candidates = [
+        (int(m.group(1)), d)
+        for d in super_action.iterdir()
+        if d.is_dir() and (m := re.match(r"^W(\d+)$", d.name))
+    ]
+    if not candidates:
+        raise AggregationError(f"no W-numbered directories found in {super_action}")
+    return max(candidates, key=lambda item: item[0])[1]
+
+
+def default_cells_path() -> Path:
+    super_action = REPO_ROOT / "docs" / "super-action"
+    return _latest_week_dir(super_action) / "heatmap" / "cells.json"
+
+
+def build_aggregate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="runner aggregate")
+    parser.add_argument(
+        "--report",
+        action="append",
+        default=None,
+        metavar="PATH:DEVICE:OS",
+        help=(
+            "Report-to-cell assignment as PATH:DEVICE:OS, e.g. "
+            "'results/e2e-report-spoofed.json:Pixel 8:Android 14'. Repeatable. "
+            "DEVICE/OS must match the heatmap matrix."
+        ),
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Output cells.json path. Defaults to the latest docs/super-action/W*/heatmap/cells.json.",
+    )
+    return parser
+
+
+def _parse_assignment(raw: str) -> ReportAssignment:
+    parts = raw.split(":")
+    if len(parts) != 3:
+        raise AggregationError(
+            f"invalid --report {raw!r}; expected PATH:DEVICE:OS (exactly 2 colons)"
+        )
+    path, device, os_version = (part.strip() for part in parts)
+    if not path:
+        raise AggregationError(f"invalid --report {raw!r}; empty report path")
+    return ReportAssignment(
+        report_path=Path(path), device=device, os_version=os_version
+    )
+
+
+def aggregate_main(argv: list[str]) -> int:
+    parser = build_aggregate_parser()
+    args = parser.parse_args(argv)
+    if not args.report:
+        print("at least one --report PATH:DEVICE:OS is required", file=sys.stderr)
+        return 64
+    try:
+        assignments = [_parse_assignment(raw) for raw in args.report]
+        out_path = args.out if args.out is not None else default_cells_path()
+        cells = aggregate_to_cells_json(assignments, out_path)
+    except AggregationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
+    emit_json({"out": str(out_path), "cells": cells})
+    return 0
+
+
 USAGE = (
     "usage: runner <command> [options]\n"
     "\n"
@@ -216,10 +419,18 @@ USAGE = (
     "  journal seed     --config ID --run-index N --layer-set SETS [--journal-path PATH]\n"
     "  journal claim    --config ID --run-index N [--parent-issue-id ID] [--build-issue-id ID] [--probe-issue-id ID]\n"
     "  journal complete --config ID --run-index N --status STATUS [--error MSG]\n"
+    "  aggregate        --report PATH:DEVICE:OS [--report ...] [--out cells.json]\n"
+    "                   Reduce probe reports to per-cell weightedScore and write the\n"
+    "                   heatmap cells.json that render-heatmap.py consumes (local, no deps).\n"
     "  --matrix smoke   --n N [--journal-path PATH] [--fixture PATH]\n"
     "                   Smoke-grade health check: runs N cycles of 1 cell against\n"
     "                   a fixed mock fixture (no docker, no adb). Writes a journal\n"
     "                   row per cycle with config='smoke' and status='COMPLETED'.\n"
+    "  --matrix replay  --n N [--cells K] [--journal-path PATH] [--out cells.json]\n"
+    "                   Replay the two committed e2e reports across the device x os\n"
+    "                   matrix (no docker, no adb). Seeds N journal rows per cell,\n"
+    "                   schema-validates each report, and writes a multi-cell\n"
+    "                   heatmap cells.json for render-heatmap.py.\n"
     "\n"
     "options:\n"
     "  -h, --help       Show this help and exit\n"
@@ -236,6 +447,8 @@ def main(argv: list[str] | None = None) -> int:
     command = argv.pop(0)
     if command == "journal":
         return journal_main(argv)
+    if command == "aggregate":
+        return aggregate_main(argv)
     print(f"unknown runner command: {command}", file=sys.stderr)
     print(USAGE, file=sys.stderr)
     return 64

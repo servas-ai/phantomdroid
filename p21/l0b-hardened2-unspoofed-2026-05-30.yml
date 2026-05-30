@@ -1,0 +1,100 @@
+# p21/l0b-hardened2-unspoofed-2026-05-30.yml
+#
+# Phase 6 — UNSPOOFED capture of the THROWAWAY l0b-hardened2-probe container,
+# booted under ENFORCING custom seccomp (agents/stability/stack/seccomp/redroid-seccomp-l0b.json,
+# defaultAction=SCMP_ACT_ERRNO) with NO --privileged, --cap-drop ALL + a curated
+# cap set, --security-opt no-new-privileges NOT set (Magisk init re-exec requires
+# privilege gain — see audit/phase6-hardened-boot-2026-05-30.md), --device-cgroup
+# access, and --security-opt systempaths=unconfined.
+#
+# Same image as Phase 4 (redroid/redroid:12.0.0_magisk, ba09a823a823). Captured
+# 2026-05-30 from PAR822349 via `adb -s 127.0.0.1:15558 shell getprop/ls/pm`
+# (READ-ONLY). Magisk daemon proven live under enforcing seccomp
+# (magisk -V -> 30600, su 0 id -> uid=0, magisk on /sbin type tmpfs).
+#
+# PARITY CHECK: every field below is byte-for-byte identical to the Phase-4
+# unspoofed snapshot p21/l0b-probe-unspoofed-2026-05-29.yml — proving the
+# hardened enforcing-seccomp config presents the IDENTICAL detection surface as
+# the privileged Phase-4 config. Expected score therefore identical: 0.3815
+# DETECTED / 5 crit.
+
+label: "l0b-hardened2-unspoofed-2026-05-30"
+capturedAt: "2026-05-30T01:44:00Z"
+sdkInt: 31
+
+systemProperties:
+  # rank 1 buildprop.fingerprint
+  "ro.build.fingerprint": "redroid/redroid_x86_64/redroid_x86_64:12/SP1A.210812.016.C2/eng.frank.20240527.144937:userdebug/test-keys"
+  "ro.build.display.id": "redroid_x86_64-userdebug 12 SP1A.210812.016.C2 eng.frank.20240527.144937 test-keys"
+  "ro.build.tags": "test-keys"
+  "ro.build.type": "userdebug"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+
+  # rank 9 model_brand_manufacturer
+  "ro.product.brand": "redroid"
+  "ro.product.model": "redroid12_x86_64"
+  "ro.product.manufacturer": "redroid"
+  "ro.product.device": "redroid_x86_64"
+  "ro.product.name": "redroid_x86_64"
+
+  # rank 4 qemu_artifacts — empty
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+
+  # rank 28 board_hardware
+  "ro.hardware": "redroid"
+  "ro.product.board": ""
+  "ro.board.platform": ""
+
+  # rank 27 cpu_abi — DUAL-ARCH
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a,x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist32": "x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+
+  # rank 13 bootloader
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "1"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+
+  # rank 14 selinux — props empty
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+
+  # post-boot signals — REACHED UNDER ENFORCING SECCOMP
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+
+existingFiles:
+  # su lives at /system/xbin/su (base redroid)
+  - "/system/xbin/su"
+
+readableFiles:
+  # Host-kernel leak via /proc/version (non-Android host kernel) — UNCHANGED
+  "/proc/version": "Linux version 5.4.0-150-generic (buildd@bos03-amd64-012) (gcc version 7.5.0 (Ubuntu 7.5.0-3ubuntu1~18.04)) #167~18.04.1-Ubuntu SMP Wed May 24 00:51:42 UTC 2023"
+
+settingsSecure: {}
+settingsGlobal: {}
+settingsSystem: {}
+
+telephony: {}
+
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+  - "com.android.settings"
+  # residual root tell on this rooted image:
+  - "com.topjohnwu.magisk"
+
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null

@@ -1,0 +1,110 @@
+# p21/l0b-probe-spoofed-2026-05-29.yml
+#
+# Phase 4 — SPOOFED capture of the THROWAWAY l0b-probe container AFTER
+# deploying 2 Magisk modules (cpuinfo-overlay + spoof-stack-redroid-12) on the
+# locally-built rooted image redroid/redroid:12.0.0_magisk.
+#
+# Captured 2026-05-29 from PAR822349 via `docker exec l0b-probe getprop/cat`
+# AFTER the modules' resetprop/bind-mount hooks applied (verified live).
+#
+# HONEST RESIDUALS retained as captured (NOT spoofed away):
+#   - ro.product.cpu.abi* still x86_64: the 4 ABI resetprops were DISABLED
+#     because forcing arm64 abilist crashes zygote64 on the x86_64 ReDroid base
+#     (--cpu-abilist=arm64-v8a vs --instruction-set-variant=x86_64 mismatch ->
+#     system_server restart loop). Real arm64 abilist needs an arm64 ReDroid
+#     base or an LSPosed Build.SUPPORTED_ABIS reflection hook (not in these 2
+#     modules).
+#   - ro.boot.hardware still "redroid" (not resetprop'd by the module).
+#   - sys.boot_completed empty: full Android UI boot does NOT complete with
+#     spoof-stack fully active on this x86 base (props apply at post-fs-data,
+#     but later boot stages hang). zygote is running.
+#   - /system/xbin/su present + com.topjohnwu.magisk installed = root tells the
+#     2 Magisk-only modules do NOT hide (needs Magisk DenyList/Zygisk +
+#     hide-frida-maps, which the seccomp profile blocks per the root-method audit).
+
+label: "l0b-probe-spoofed-2026-05-29"
+capturedAt: "2026-05-29T21:30:00Z"
+sdkInt: 31
+
+systemProperties:
+  # rank 1 buildprop.fingerprint -> Pixel 7 (panther) SPOOFED
+  "ro.build.fingerprint": "google/panther/panther:12/SP1A.210812.016.C2/9471150:user/release-keys"
+  "ro.build.display.id": "SP1A.210812.016.C2"
+  "ro.build.tags": "release-keys"
+  "ro.build.type": "user"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+
+  # rank 9 model_brand_manufacturer -> Pixel 7 SPOOFED
+  "ro.product.brand": "google"
+  "ro.product.model": "Pixel 7"
+  "ro.product.manufacturer": "Google"
+  "ro.product.device": "panther"
+  "ro.product.name": "panther"
+
+  # rank 4 qemu_artifacts — empty
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+
+  # rank 28 board_hardware -> panther/gs201 SPOOFED
+  "ro.hardware": "panther"
+  "ro.product.board": "panther"
+  "ro.board.platform": "gs201"
+
+  # rank 27 cpu_abi — RESIDUAL (ABI resetprops disabled to keep boot alive)
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a,x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist32": "x86,armeabi-v7a,armeabi"
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+
+  # rank 13 bootloader -> locked/green SPOOFED
+  "ro.boot.vbmeta.device_state": "green"
+  "ro.boot.verifiedbootstate": "green"
+  "ro.boot.flash.locked": "1"
+  "ro.secure": "1"
+  "ro.debuggable": "0"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+
+  # rank 14 selinux -> enforcing SPOOFED (props)
+  "ro.boot.selinux": "enforcing"
+  "ro.build.selinux": "1"
+
+  # extras the module sets
+  "ro.serialno": "HQ7Y0V3RJL"
+  "ro.product.locale": "en-US"
+  "ro.product.locale.language": "en"
+  "ro.product.locale.region": "US"
+  "ro.sf.lcd_density": "420"
+
+  # post-boot signals (boot did NOT fully complete with spoof active)
+  "init.svc.zygote": "running"
+
+existingFiles:
+  # residual root tell — NOT hidden by these 2 modules
+  - "/system/xbin/su"
+
+readableFiles:
+  # /proc/version bind-mount -> Pixel-7 GKI 5.10.149 banner SPOOFED
+  "/proc/version": "Linux version 5.10.149-android13-4-00007-g4350da46ef7e-ab9947749 (kleaf@build-host) (Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7) #1 SMP PREEMPT Tue May 24 03:31:48 UTC 2022"
+
+settingsSecure: {}
+settingsGlobal: {}
+settingsSystem: {}
+
+telephony: {}
+
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+  - "com.android.settings"
+  # residual root tell — NOT hidden by these 2 modules
+  - "com.topjohnwu.magisk"
+
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null

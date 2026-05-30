@@ -1,0 +1,176 @@
+{
+  "_comment_purpose": "redroid-seccomp-l0b.json — PROPOSED hardened seccomp BPF profile for a Magisk-rooted ReDroid 12 L0b cell. This is a PROPOSAL ARTIFACT (Phase 6), NOT the pinned production profile. It is an exact copy of agents/stability/stack/seccomp/redroid-seccomp.json with ONE clearly-commented added ALLOW block (the PHASE5-AMENDMENT block) covering the 4 load-bearing syscalls (personality, arch_prctl, mount, setns) that Phase 5 proved are required for a Magisk-rooted ReDroid 12 to boot under enforcing seccomp. defaultAction remains SCMP_ACT_ERRNO (still enforcing, still allowlist style). Everything else is byte-for-byte identical to the production profile.",
+  "_comment_hardening": "Hardening posture vs. Docker's default seccomp + the earlier emulator-builder draft: (1) defaultAction is SCMP_ACT_ERRNO not SCMP_ACT_ALLOW; (2) process_vm_readv / process_vm_writev are REMOVED from allow; (3) ptrace is restricted to PTRACE_TRACEME (request==0) via arg filter — PTRACE_ATTACH/PEEK/POKE return EPERM; (4) PHASE6-NOTE: mount(2) is NO LONGER restricted to MS_BIND in this proposed L0b profile (see PHASE5-AMENDMENT group) because ReDroid init's tmpfs/proc/sysfs mounts and Magisk's `magisk --setup-sbin` tmpfs at /sbin are non-bind and seccomp CANNOT filter the fstype string (it is a userspace pointer arg); (5) init_module / finit_module / delete_module / create_module / query_module / kexec_load / kexec_file_load / reboot / iopl / ioperm / acct / quotactl / nfsservctl / vhangup / pivot_root / uselib / ustat / sysfs / setdomainname / sethostname remain DENIED by default (not listed in any allow group). PHASE6-NOTE: personality and setns, previously DENIED in the production profile, are now ALLOWED in this proposed L0b profile (see PHASE5-AMENDMENT group) — re-permitting them is the documented widening required for a rooted boot. process_vm_readv/writev stay removed; ptrace stays PTRACE_TRACEME-only.",
+  "_comment_compliance": "refuse-privileged-compose §4 + agents/orchestrator/SPEC.md §4 compliant. NOT a substitute for cap_drop:[ALL], no-new-privileges:true, or image digest pinning. PROPOSAL — board review required before promotion (re-permits personality + setns; relaxes mount MS_BIND filter).",
+  "_owner_agent_id": "174f9181-63c9-40b5-8041-46beef440e56",
+  "_owner_agent_name": "stability",
+  "_pinned_by_issue": "CLO-61",
+  "_proposal_provenance": "Phase 6 (audit/phase6-hardened-boot-2026-05-30.md) — empirically validated full boot+root under enforcing seccomp. Amendment list derived from Phase 5 (audit/phase5-hardened-l0b-2026-05-30.md §4).",
+  "_schema_version": "1",
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": ["SCMP_ARCH_X86", "SCMP_ARCH_X32"]
+    },
+    {
+      "architecture": "SCMP_ARCH_AARCH64",
+      "subArchitectures": ["SCMP_ARCH_ARM"]
+    }
+  ],
+  "syscalls": [
+    {
+      "_group": "PHASE5-AMENDMENT (CONDITION-2): minimal additions required for a Magisk-rooted ReDroid 12 to BOOT and ROOT under enforcing seccomp (defaultAction stays SCMP_ACT_ERRNO). Each entry is load-bearing with kernel type=1326 / F-libc evidence in audit/phase5-hardened-l0b-2026-05-30.md §3 and validated end-to-end in audit/phase6-hardened-boot-2026-05-30.md. arch_prctl(158): Bionic linker sets the TLS base (ARCH_SET_FS) at the start of EVERY process; denied -> null-TLS segfault in linker64 (container exits 139 before init logs). personality(135): Bionic reads/sets process personality on every zygote-forked app; denied -> 'F libc: error getting old personality value' -> zygote crash-loop -> no boot. setns(308): magiskd enters the per-process mount namespace for its module bind-mount overlay; denied -> magiskd namespace path EPERMs (degrades Magisk module mount-ns isolation). mount(165): re-permitted for NON-BIND filesystems (ReDroid init tmpfs/proc/sysfs + magisk --setup-sbin tmpfs at /sbin); the production profile's MS_BIND-only arg-filter on this syscall is intentionally REPLACED by this unfiltered allow here because seccomp cannot narrow by fstype string. SECURITY TRADE-OFF: this widens the profile (re-permits personality+setns, drops the MS_BIND mask on mount). It does NOT touch the strongest restrictions: process_vm_readv/writev stay removed, ptrace stays PTRACE_TRACEME-only, init_module/kexec_*/pivot_root/swapon stay denied. Bounded by no-new-privileges:true + cap_drop:[ALL] (no CAP_SYS_ADMIN in the curated set) + not --pid=host / --network=host.",
+      "names": [
+        "arch_prctl",
+        "personality",
+        "setns",
+        "mount"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "filesystem-and-namespace-core (Android boot + Magisk overlay needs; ptrace and mount are intentionally NOT here — see arg-filtered groups below. PHASE6-NOTE: mount is now in the PHASE5-AMENDMENT group above (unfiltered), so the magisk-mount-bind-only arg-filtered group below is retained for documentation/traceability but is superseded by the broader allow.)",
+      "names": [
+        "accept", "accept4", "access", "adjtimex", "alarm", "bind",
+        "brk", "capget", "capset", "chdir", "chmod", "chown", "chown32",
+        "chroot", "clock_adjtime", "clock_adjtime64", "clock_getres",
+        "clock_getres_time64", "clock_gettime", "clock_gettime64",
+        "clock_nanosleep", "clock_nanosleep_time64", "close",
+        "close_range", "connect", "copy_file_range", "creat",
+        "dup", "dup2", "dup3", "epoll_create", "epoll_create1",
+        "epoll_ctl", "epoll_ctl_old", "epoll_pwait", "epoll_pwait2",
+        "epoll_wait", "epoll_wait_old", "eventfd", "eventfd2",
+        "execve", "execveat", "exit", "exit_group", "faccessat",
+        "faccessat2", "fadvise64", "fadvise64_64", "fallocate",
+        "fanotify_mark", "fchdir", "fchmod", "fchmodat", "fchown",
+        "fchown32", "fchownat", "fcntl", "fcntl64", "fdatasync",
+        "fgetxattr", "flistxattr", "flock", "fork", "fremovexattr",
+        "fsetxattr", "fstat", "fstat64", "fstatat64", "fstatfs",
+        "fstatfs64", "fsync", "ftruncate", "ftruncate64", "futex",
+        "futex_time64", "futex_waitv", "futimesat", "getcpu", "getcwd",
+        "getdents", "getdents64", "getegid", "getegid32", "geteuid",
+        "geteuid32", "getgid", "getgid32", "getgroups", "getgroups32",
+        "getitimer", "getpeername", "getpgid", "getpgrp", "getpid",
+        "getppid", "getpriority", "getrandom", "getresgid",
+        "getresgid32", "getresuid", "getresuid32", "getrlimit",
+        "get_robust_list", "getrusage", "getsid", "getsockname",
+        "getsockopt", "get_thread_area", "gettid", "gettimeofday",
+        "getuid", "getuid32", "getxattr", "inotify_add_watch",
+        "inotify_init", "inotify_init1", "inotify_rm_watch",
+        "io_cancel", "ioctl", "io_destroy", "io_getevents",
+        "io_pgetevents", "io_pgetevents_time64", "ioprio_get",
+        "ioprio_set", "io_setup", "io_submit", "io_uring_enter",
+        "io_uring_register", "io_uring_setup", "ipc", "kill",
+        "landlock_add_rule", "landlock_create_ruleset",
+        "landlock_restrict_self", "lchown", "lchown32", "lgetxattr",
+        "link", "linkat", "listen", "listxattr", "llistxattr",
+        "_llseek", "lremovexattr", "lseek", "lsetxattr", "lstat",
+        "lstat64", "madvise", "membarrier", "memfd_create",
+        "memfd_secret", "mincore", "mkdir", "mkdirat", "mknod",
+        "mknodat", "mlock", "mlock2", "mlockall", "mmap", "mmap2",
+        "mprotect", "mq_getsetattr", "mq_notify", "mq_open",
+        "mq_timedreceive", "mq_timedreceive_time64", "mq_timedsend",
+        "mq_timedsend_time64", "mq_unlink", "mremap", "msgctl",
+        "msgget", "msgrcv", "msgsnd", "msync", "munlock",
+        "munlockall", "munmap", "name_to_handle_at", "nanosleep",
+        "newfstatat", "_newselect", "open", "openat", "openat2",
+        "pause", "pidfd_open", "pidfd_send_signal", "pipe", "pipe2",
+        "pkey_alloc", "pkey_free", "pkey_mprotect", "poll", "ppoll",
+        "ppoll_time64", "prctl", "pread64", "preadv", "preadv2",
+        "prlimit64", "process_mrelease", "pselect6", "pselect6_time64",
+        "pwrite64", "pwritev", "pwritev2", "read", "readahead",
+        "readlink", "readlinkat", "readv", "recv", "recvfrom",
+        "recvmmsg", "recvmmsg_time64", "recvmsg", "remap_file_pages",
+        "removexattr", "rename", "renameat", "renameat2",
+        "restart_syscall", "rmdir", "rseq", "rt_sigaction",
+        "rt_sigpending", "rt_sigprocmask", "rt_sigqueueinfo",
+        "rt_sigreturn", "rt_sigsuspend", "rt_sigtimedwait",
+        "rt_tgsigqueueinfo", "sched_get_priority_max",
+        "sched_get_priority_min", "sched_getaffinity",
+        "sched_getattr", "sched_getparam", "sched_getscheduler",
+        "sched_rr_get_interval", "sched_rr_get_interval_time64",
+        "sched_setaffinity", "sched_setattr", "sched_setparam",
+        "sched_setscheduler", "sched_yield", "seccomp", "select",
+        "semctl", "semget", "semop", "semtimedop", "semtimedop_time64",
+        "send", "sendfile", "sendfile64", "sendmmsg", "sendmsg",
+        "sendto", "setfsgid", "setfsgid32", "setfsuid", "setfsuid32",
+        "setgid", "setgid32", "setgroups", "setgroups32", "setitimer",
+        "setpgid", "setpriority", "setregid", "setregid32",
+        "setresgid", "setresgid32", "setresuid", "setresuid32",
+        "setreuid", "setreuid32", "setrlimit", "set_robust_list",
+        "setsid", "setsockopt", "set_thread_area", "set_tid_address",
+        "setuid", "setuid32", "setxattr", "shmat", "shmctl", "shmdt",
+        "shmget", "shutdown", "sigaltstack", "signalfd", "signalfd4",
+        "sigprocmask", "sigreturn", "socket", "socketcall",
+        "socketpair", "splice", "stat", "stat64", "statfs", "statfs64",
+        "statx", "symlink", "symlinkat", "sync", "sync_file_range",
+        "syncfs", "sysinfo", "tee", "tgkill", "time", "timer_create",
+        "timer_delete", "timer_getoverrun", "timer_gettime",
+        "timer_gettime64", "timer_settime", "timer_settime64",
+        "timerfd_create", "timerfd_gettime", "timerfd_gettime64",
+        "timerfd_settime", "timerfd_settime64", "times", "tkill",
+        "truncate", "truncate64", "ugetrlimit", "umask", "uname",
+        "unlink", "unlinkat", "utime", "utimensat", "utimensat_time64",
+        "utimes", "vfork", "vmsplice", "wait4", "waitid", "waitpid",
+        "write", "writev"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "magisk-mount-bind-only (PHASE6-SUPERSEDED: this MS_BIND-only arg-filter on mount is now superseded by the unfiltered mount allow in the PHASE5-AMENDMENT group above. Retained here for traceability against the production profile. cpuinfo-overlay's service.sh issues `mount --bind /data/adb/modules/cpuinfo-overlay/system/etc/cpuinfo.spoofed /proc/cpuinfo` which sets MS_BIND.)",
+      "names": ["mount"],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 3,
+          "op": "SCMP_CMP_MASKED_EQ",
+          "value": 4096,
+          "valueTwo": 4096
+        }
+      ]
+    },
+    {
+      "_group": "magisk-mount-unbind-and-namespace (umount/umount2/move_mount/open_tree/fsopen/fsconfig/fsmount/fspick/mount_setattr — required by Magisk's late_start_service to manage bind-mount lifecycle inside its mnt namespace; pivot_root, swapon, swapoff intentionally NOT included)",
+      "names": [
+        "umount", "umount2", "open_tree", "move_mount",
+        "fsopen", "fsconfig", "fsmount", "fspick", "mount_setattr"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "namespace-create (Android zygote + Magisk magiskhide. PHASE6-NOTE: setns is now ALLOWED in the PHASE5-AMENDMENT group above — magiskd requires it for per-process mount-namespace re-entry. The production profile's exclusion comment is preserved for traceability: 'setns intentionally NOT here — namespace re-entry would let escaped uid attach to host PID namespace'. In this L0b profile setns is bounded by no-new-privileges:true + cap_drop:[ALL] (no CAP_SYS_ADMIN) + not --pid=host.)",
+      "names": ["clone", "clone3", "unshare"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "keyring (Android keystore + Magisk policy load)",
+      "names": ["add_key", "keyctl", "request_key"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "ptrace-TRACEME-only (request==PTRACE_TRACEME==0). PTRACE_ATTACH (16), PTRACE_PEEK* (1/2/3), PTRACE_POKE* (4/5/6) all return EPERM via defaultAction because this arg-filtered allow does not cover them. magiskhide's tracer-pid scrub on hidden processes WILL fail; L4 Shamiko (L0b-level Zygisk hide) is the intended root-hiding mechanism and does not require host-side ptrace.",
+      "names": ["ptrace"],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "op": "SCMP_CMP_EQ",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "_group": "perf-and-bpf (Android Profiler + RenderScript dispatch). bpf is allowed but kernel BPF JIT must be off on host.",
+      "names": ["perf_event_open", "bpf"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "_group": "explicit-deny-documentation (these are denied because defaultAction=SCMP_ACT_ERRNO and they appear in NO allow group above; listed here for auditor traceability only). PHASE6-NOTE: personality and setns have been MOVED OUT of this deny list into the PHASE5-AMENDMENT allow group above. Remaining forbidden syscalls: process_vm_readv, process_vm_writev, init_module, finit_module, delete_module, create_module, query_module, kexec_load, kexec_file_load, reboot, iopl, ioperm, acct, quotactl, lookup_dcookie, nfsservctl, vhangup, pivot_root, swapon, swapoff, uselib, ustat, sysfs, setdomainname, sethostname.",
+      "names": [],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    }
+  ]
+}

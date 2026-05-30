@@ -1,0 +1,96 @@
+# p21/redroid-v12-live-booted-2026-05-30.yml
+#
+# FRESH live snapshot captured 2026-05-30 from PAR822349 (PAR822349) ReDroid 12
+# container (redroid-test, "Up 5 hours") AFTER FULL BOOT (sys.boot_completed=1)
+# via docker exec getprop/ls/cat over READ-ONLY SSH. Values are the exact
+# strings observed in the live booted container at capture time.
+#
+# Capture method (read-only, no server writes):
+#   sshpass ssh paris@195.154.209.133 'docker exec redroid-test getprop <key>'
+#   sshpass ssh paris@195.154.209.133 'docker exec redroid-test cat /proc/version'
+#   sshpass ssh paris@195.154.209.133 'docker exec redroid-test ls -la /system/xbin/su'
+#
+# Boot state at capture: sys.boot_completed=1, init.svc.zygote=running,
+# hwservicemanager.ready=true, service.bootanim.exit=1.
+# The probe-relevant build/identity surface is byte-for-byte identical to the
+# 2026-05-29 booted capture (p21/redroid-v12-live-booted-2026-05-29.yml); the
+# host kernel string in /proc/version is unchanged (5.4.0-150-generic).
+
+label: "redroid-12-amd64-live-booted-2026-05-30"
+capturedAt: "2026-05-30T00:00:00Z"
+sdkInt: 31
+
+systemProperties:
+  # rank 1 buildprop.fingerprint
+  "ro.build.fingerprint": "redroid/redroid_x86_64_only/redroid_x86_64_only:12/SP1A.210812.016.C2/eng.frank.20240527.145941:userdebug/test-keys"
+  "ro.build.display.id": "redroid_x86_64_only-userdebug 12 SP1A.210812.016.C2 eng.frank.20240527.145941 test-keys"
+  "ro.build.tags": "test-keys"
+  "ro.build.type": "userdebug"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+
+  # rank 9 model_brand_manufacturer
+  "ro.product.brand": "redroid"
+  "ro.product.model": "redroid12_x86_64_only"
+  "ro.product.manufacturer": "redroid"
+  "ro.product.device": "redroid_x86_64_only"
+  "ro.product.name": "redroid_x86_64_only"
+
+  # rank 4 qemu_artifacts — empty
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+
+  # rank 28 board_hardware
+  "ro.hardware": "redroid"
+  "ro.product.board": ""
+  "ro.board.platform": ""
+
+  # rank 27 cpu_abi — DUAL-ARCH (Houdini bridge)
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a"
+  "ro.product.cpu.abilist32": ""
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+
+  # rank 13 bootloader
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "1"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+
+  # rank 14 selinux — props empty (selinuxfs not exposed via replay model)
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+
+  # post-boot signals (init completed) — informational, no probe consumes
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+
+existingFiles:
+  # 2026-05-30: su lives at /system/xbin/su (-rwsr-x--- root shell, setuid)
+  - "/system/xbin/su"
+
+readableFiles:
+  # Host-kernel leak via /proc/version: non-Android host kernel 5.4.0-150-generic.
+  "/proc/version": "Linux version 5.4.0-150-generic (buildd@bos03-amd64-012) (gcc version 7.5.0 (Ubuntu 7.5.0-3ubuntu1~18.04)) #167~18.04.1-Ubuntu SMP Wed May 24 00:51:42 UTC 2023"
+
+settingsSecure: {}
+settingsGlobal: {}
+settingsSystem: {}
+
+telephony: {}
+
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+  - "com.android.settings"
+
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null

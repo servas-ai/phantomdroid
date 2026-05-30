@@ -31,7 +31,7 @@ Other available options for this server were CentOS 7, Arch Linux, ESXi 6.7 U3 �
 4. Set `os-version` = `373` (Ubuntu 18.04 LTS).
 5. Click `Next` → advanced to Step 2 / 3.
 6. First password attempt (30 chars) rejected: provider rule **max 15 characters, no special character**.
-7. Regenerated password to 14-char compliant value (`5GUAkuH7j7x5hJ`).
+7. Regenerated password to 14-char compliant value (stored in gitignored `.env`; redacted here).
 8. First username attempt `root` rejected: "Only lowercase letter, Minimum 4, Maximum 19 characters, The following strings are forbidden (root, ...)".
 9. Set `username` = `paris` → validation passed.
 10. Click `Next` → advanced to Step 3 / 3 (Particionamiento). `default-partitioning-choice` checked, "El disco está completamente particionado".
@@ -50,10 +50,7 @@ If reinstall succeeds, the server will come back online with:
 
 ## Credentials (sensitive — handle with care)
 
-Stored at `/home/coder/vk-repos/cloud-phone-research-planner/.env`:
-```
-ROOT_PW_PAR822349_2026_05_19=5GUAkuH7j7x5hJ
-```
+Stored in the gitignored `.env` under key `ROOT_PW_PAR822349_2026_05_19` (value redacted here — see `.env`).
 This file is git-ignored (`.gitignore:32`). Do not commit. Do not paste into chat unless explicitly requested.
 
 ## Next polling steps
