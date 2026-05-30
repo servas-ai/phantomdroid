@@ -4,9 +4,9 @@ Feature 9 (security / credential) is the ONE item that cannot be completed auton
 requires the owner's decision and access. Everything else is E2E-proven and pushed.
 
 ## State (verified 2026-05-31)
-- The PAR822349 `paris` SSH password appears in git **history blobs** in commits `896cd71` and `1d731fb`.
-- It is **NOT in the current HEAD working tree** (`git grep` over HEAD finds nothing; `.env` is gitignored).
-- Those commits are **already present on `origin/main`** (and `origin/report/CLO-143-weekly-W20`) — i.e. the secret was published to the GitHub remote `servas-ai/phantomdroid` by a prior push, BEFORE this session. Pushing the `session/e2e-2026-05-30` branch does **not** create new exposure of that blob (the object already exists on origin); this session's new commits are secret-free (verified by staged-diff scan before commit).
+- The PAR822349 `paris` SSH password is present on the remote **`origin/main` in a TRACKED file**: `audit/track-a-reinstall-submitted-2026-05-19.md` (line `ROOT_PW_PAR822349_2026_05_19=...`). It is also in history blobs `896cd71` and `1d731fb`. This is a pre-existing exposure, published to `servas-ai/phantomdroid` BEFORE this session.
+- **This branch (`session/e2e-2026-05-30`) is secret-free**: `git grep` over its pushed tree finds zero hits — the offending file/lines are absent here, and every new file added this session was scanned and redacted before commit (`<ssh-pw-redacted>` / `<panel-login-redacted>`). The diff `origin/main..this-branch` shows the secret only as REMOVED (`-`) lines.
+- Therefore pushing this branch does NOT add new exposure; it is actually cleaner than `main`.
 
 ## Why it's owner-gated (cannot be done autonomously)
 1. **Rotate the live `paris` SSH password** on the PAR822349 server — changes a live production credential; owner decision.
