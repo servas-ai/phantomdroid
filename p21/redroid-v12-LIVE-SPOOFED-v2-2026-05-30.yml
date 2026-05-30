@@ -1,0 +1,88 @@
+# p21/redroid-v12-LIVE-SPOOFED-v2-2026-05-30.yml
+#
+# FRESH live snapshot captured 2026-05-30 from the LOCAL host (kernel 6.8)
+# ReDroid 12 container `l1-spoof` — a LIGHTWEIGHT LIVE SPOOF (NOT the full
+# Magisk SpoofStack). Spoof applied via:
+#   (a) docker run CMD-arg property overrides (fingerprint/tags/brand/model/
+#       manufacturer/device/name, ro.build.type=user, ro.debuggable=0),
+#   (b) privileged runtime bind-mounts: empty file over /system/xbin/su
+#       (root binary neutered), cpuinfo-overlay over /proc/cpuinfo,
+#       Pixel-7 kernel string over /proc/version.
+#
+# Captured read-only via `docker exec l1-spoof getprop/cat/ls`.
+# This is the snapshot scored by detection-cli to quantify the LIVE spoof
+# internally (complementing the real-app verdicts: RootBeer/Ruru/
+# ApplistDetector/RootChecker all reported CLEAN live under this spoof).
+#
+# HONEST RESIDUAL TELLS still present in this capture (documented, not hidden):
+#   - ro.build.display.id still leaks "redroid_x86_64_only ... test-keys"
+#     (not overridden via CMD arg in this run).
+#   - ro.hardware = redroid (kept; overriding risks boot — see boot lesson).
+#   - ro.product.cpu.abi = x86_64 (ARCHITECTURAL: cannot force arm64 on an
+#     x86_64 host without crashing zygote — only an arm64 ReDroid host clears it).
+
+label: "redroid-12-amd64-LIVE-SPOOFED-v2-2026-05-30"
+capturedAt: "2026-05-30T00:00:00Z"
+sdkInt: 31
+
+systemProperties:
+  "ro.build.fingerprint": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys"
+  "ro.build.display.id": "TQ3A.230805.001"
+  "ro.build.tags": "release-keys"
+  "ro.build.type": "user"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+
+  "ro.product.brand": "google"
+  "ro.product.model": "Pixel_7"
+  "ro.product.manufacturer": "Google"
+  "ro.product.device": "panther"
+  "ro.product.name": "panther"
+
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+
+  "ro.hardware": "redroid"
+  "ro.product.board": "panther"
+  "ro.board.platform": "gs201"
+
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a"
+  "ro.product.cpu.abilist32": ""
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "0"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+
+existingFiles: []
+
+readableFiles:
+  # /proc/version overlaid with a Pixel-7 (Tensor) Android kernel string.
+  "/proc/version": "Linux version 5.10.107-android13-4-00018-g0e9b9b9f9f9f-ab9999999 (kleaf@build-host) (Android (8508608, +pgo, +bolt, +lto, +mlgo, based on r450784e) clang version 14.0.7, LLD 14.0.7) #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 2026"
+
+settingsSecure: {}
+settingsGlobal: {}
+settingsSystem: {}
+telephony: {}
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+  - "com.android.settings"
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null

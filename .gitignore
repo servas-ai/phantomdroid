@@ -1,50 +1,35 @@
-# Lab-Daten und Geheimnisse
-experiments/runs/**/*.json
-experiments/aggregate/*.csv
-experiments/artifacts/*.svg
-experiments/artifacts/*.png
+# OS
+.DS_Store
+Thumbs.db
 
-# Keyboxen NIEMALS committen
-**/keybox*.xml
-**/keybox*.bin
-
-# Container-Images (zu gross)
-*.img
-*.img.xz
-
-# IDE
-.idea/
+# Editor
 .vscode/
-*.iml
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
 
 # Build
-build/
 dist/
-*.apk
-*.xapk
-*.aab
+build/
+*.egg-info/
 
-# Gradle (CLO-115)
-.gradle/
-gradle-app.setting
-!gradle-wrapper.jar
+# Logs
+*.log
+logs/
 
-# Detection orchestrator runtime journal (CLO-115)
-results/
-
-# Secrets
+# Environment
 .env
 .env.local
-secrets.yml
-audit-reports/
 
-# Importer runtime state (W7 paperclip-issues import)
-docs/super-action/W7/.import-state.json
+# Claude Code local (worktrees contain secret-bearing checkouts; never commit)
+.claude/
 
-# Python
-__pycache__/
-*.pyc
-
-# Claude Code session-local state
-.claude/scheduled_tasks.lock
-.claude/scheduled_tasks.json
+# Large detector-app binaries (test inputs, ~260MB; not proof artifacts)
+p21/apks/
+.gradle/
