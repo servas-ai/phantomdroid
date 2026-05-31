@@ -63,3 +63,17 @@ def test_main_preflight_real_L0a_compose_or_synthetic(tmp_path):
     g = tmp_path / "ok.yml"
     g.write_text("services:\n  redroid:\n    image: redroid/redroid\n    cap_drop: [ALL]\n")
     assert main(["--preflight", str(g)]) == 0
+
+
+def test_build_hardened_run_argv_is_never_privileged():
+    from agents.orchestrator.src.container_lifecycle import (
+        build_hardened_run_argv, HARDENED_SECCOMP, DEVICE_CGROUP_RULES,
+    )
+    argv = build_hardened_run_argv("redroid/redroid", "c1", 15599, "/tmp/d")
+    assert "--privileged" not in argv
+    assert "--cap-drop" in argv and "ALL" in argv
+    assert any("seccomp=" in a and "l0b" in a for a in argv)
+    assert "apparmor=unconfined" in argv and "no-new-privileges" in argv
+    # device access via cgroup rule, not privileged
+    assert argv.count("--device-cgroup-rule") == len(DEVICE_CGROUP_RULES)
+    assert "127.0.0.1:15599:5555" in argv

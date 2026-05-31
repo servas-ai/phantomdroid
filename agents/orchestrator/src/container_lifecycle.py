@@ -27,6 +27,20 @@ DEFAULT_CAP_ADD = [
     "DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "FSETID", "KILL", "AUDIT_WRITE",
 ]
 DEFAULT_SECCOMP = "agents/stability/stack/seccomp/redroid-seccomp.json"
+# The purpose-built profile that boots a NON-privileged hardened ReDroid on binderfs-only
+# kernels (proven 2026-05-31: base redroid-seccomp.json exits the container; l0b boots).
+HARDENED_SECCOMP = "agents/stability/stack/seccomp/redroid-seccomp-l0b.json"
+# Device access WITHOUT --privileged (the missing piece for binderfs-only boot, proven 2026-05-31).
+DEVICE_CGROUP_RULES = ["c *:* rmw", "b *:* rmw"]
+# Cap set that actually boots ReDroid non-privileged (proven 2026-05-31: the narrow 15-cap
+# DEFAULT_CAP_ADD leaves zygote in a restart loop; this broader-but-bounded set boots fully).
+# Still excludes the dangerous caps (SYS_RAWIO, SYS_PACCT, MAC_ADMIN/OVERRIDE, etc.) → not privileged.
+HARDENED_CAP_ADD = [
+    "SYS_ADMIN", "SYS_NICE", "SYS_RESOURCE", "SYS_PTRACE", "SYS_BOOT", "SYS_TIME",
+    "SYS_CHROOT", "SYS_MODULE", "MKNOD", "SETUID", "SETGID", "SETPCAP", "SETFCAP",
+    "CHOWN", "NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE", "DAC_OVERRIDE", "DAC_READ_SEARCH",
+    "FOWNER", "FSETID", "KILL", "AUDIT_WRITE", "IPC_LOCK", "WAKE_ALARM", "BLOCK_SUSPEND",
+]
 
 
 class PrivilegedRefused(RuntimeError):
@@ -82,6 +96,40 @@ def is_hardened(service: dict) -> bool:
     has_nnp = any(str(o).replace(" ", "") == "no-new-privileges:true" for o in opts)
     has_seccomp = any(str(o).startswith("seccomp=") for o in opts)
     return has_nnp and has_seccomp and "SYS_ADMIN" in service.get("cap_add", [])
+
+
+def build_hardened_run_argv(
+    image: str, name: str, host_port: int, data_dir: str,
+    seccomp: str = HARDENED_SECCOMP, cap_add: list[str] | None = None,
+    cmd: list[str] | None = None,
+) -> list[str]:
+    """Proven NON-privileged hardened `docker run` argv (binderfs-only kernel, 2026-05-31).
+
+    Recipe (no --privileged): cap_drop ALL + bounded cap_add + device-cgroup-rules for device
+    access + l0b seccomp + apparmor=unconfined + no-new-privileges. This boots ReDroid 12 fully
+    (boot_completed=1) without the F37 host-root-escape of `privileged:true`.
+    """
+    import os
+    # docker requires an ABSOLUTE path for a seccomp profile file (a relative path is
+    # silently mishandled and the container fails to boot — proven 2026-05-31).
+    seccomp_abs = os.path.abspath(seccomp)
+    argv = ["docker", "run", "-itd", "--name", name, "--cap-drop", "ALL"]
+    for c in (cap_add if cap_add is not None else HARDENED_CAP_ADD):
+        argv += ["--cap-add", c]
+    for rule in DEVICE_CGROUP_RULES:
+        argv += ["--device-cgroup-rule", rule]
+    argv += [
+        "--security-opt", f"seccomp={seccomp_abs}",
+        "--security-opt", "apparmor=unconfined",
+        "--security-opt", "no-new-privileges",
+        "-v", f"{data_dir}:/data",
+        "-p", f"127.0.0.1:{host_port}:5555",
+        image,
+    ]
+    argv += (cmd if cmd is not None
+             else ["androidboot.hardware=redroid", "androidboot.redroid_gpu_mode=guest"])
+    assert "--privileged" not in argv  # invariant: hardened path is NEVER privileged
+    return argv
 
 
 def up(compose_path: str, project: str, *, dry_run: bool = True) -> list[str]:
