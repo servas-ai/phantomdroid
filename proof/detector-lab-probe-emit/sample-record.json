@@ -1,0 +1,1 @@
+{"schema_version":"2.0","probe_id":"runtime.installed_apps","probe_name":"InstalledAppsProbe","category":"runtime","layer":"L0a","score":0.0,"runtime_ms":12,"sample_count":1,"seed_ms":1780196255226,"raw":{"stdout":"raw"}}

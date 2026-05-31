@@ -1,0 +1,7 @@
+tests/test_probe_emit.py::test_build_record_has_all_required_fields_and_schema_version PASSED [ 16%]
+tests/test_probe_emit.py::test_build_record_passes_schema_validation PASSED [ 33%]
+tests/test_probe_emit.py::test_no_additional_properties_leak PASSED      [ 50%]
+tests/test_probe_emit.py::test_invalid_category_is_rejected PASSED       [ 66%]
+tests/test_probe_emit.py::test_invalid_layer_is_rejected PASSED          [ 83%]
+tests/test_probe_emit.py::test_reference_fixture_matches_schema PASSED   [100%]
+============================== 6 passed in 0.05s ===============================
