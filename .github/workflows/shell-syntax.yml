@@ -1,0 +1,40 @@
+name: "Shell :: syntax gate (bash -n)"
+
+on:
+  pull_request:
+    paths:
+      - '**/*.sh'
+      - '.github/workflows/shell-syntax.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.sh'
+      - '.github/workflows/shell-syntax.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bash-n:
+    name: bash -n all shell scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Syntax-check every .sh (no external tool needed)
+        run: |
+          set -uo pipefail
+          fail=0
+          while IFS= read -r s; do
+            case "$s" in */.claude/worktrees/*) continue;; esac
+            if bash -n "$s" 2>/tmp/sherr; then
+              echo "OK   $s"
+            else
+              echo "::error file=$s::$(head -1 /tmp/sherr)"; fail=$((fail+1))
+            fi
+          done < <(find . -name '*.sh' -not -path './.git/*')
+          echo "shell syntax failures: $fail"
+          exit $((fail > 0 ? 1 : 0))

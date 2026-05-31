@@ -1,0 +1,1 @@
+all repo .sh pass bash -n; gate added (bash -n, no external tool)
