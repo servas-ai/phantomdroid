@@ -28,6 +28,7 @@ from pathlib import Path
 from .run_id import compute_run_id, config_id_from_layers
 from .persistence import persist_report
 from .journal import JournalStore
+from .config_loader import load_manifest
 
 # Props the detection snapshot needs (mirrors the live-capture snapshots in p21/).
 _PROP_KEYS = [
@@ -113,9 +114,18 @@ def _yaml_dump_snapshot(snap: dict) -> str:
 
 
 def run_cell(container: str, layers: list[str], label: str, cli: str, out_root: Path,
-             run_index: int = 0) -> dict:
-    """One TRUE cell: live capture -> CLI score -> persist. Returns a summary dict."""
-    config_id = config_id_from_layers(layers)
+             run_index: int = 0, manifest: dict | None = None) -> dict:
+    """One TRUE cell: live capture -> CLI score -> persist. Returns a summary dict.
+
+    If a validated `manifest` (SPEC §5) is supplied, the run_id derives from the
+    manifest + its pinned apk/image hash (SPEC §6 canonical). Otherwise it derives
+    from the cell metadata + the stable detection-cli binary sha (snapshot-only mode).
+    """
+    if manifest is not None:
+        config_id = manifest["config_id"]
+        layers = config_id.split("-")
+    else:
+        config_id = config_id_from_layers(layers)
     snap = capture_live_snapshot(container, label)
     out_root.mkdir(parents=True, exist_ok=True)
     snap_path = out_root / f"{config_id}-snapshot.yml"
@@ -124,11 +134,16 @@ def run_cell(container: str, layers: list[str], label: str, cli: str, out_root: 
     subprocess.run([cli, "run", "--snapshot", str(snap_path), "-o", str(report_path)],
                    capture_output=True, text=True, timeout=120, check=True)
     report = json.loads(report_path.read_text())
-    manifest = {"layers": layers, "label": label, "container": container}
-    # run_id must be idempotent (SPEC §6): derive from the STABLE prober artifact
-    # (the detection-cli binary), NOT the snapshot file (whose capturedAt is volatile).
-    prober_sha = hashlib.sha256(Path(cli).read_bytes()).hexdigest()
-    run_id = compute_run_id(manifest, prober_sha, run_index)
+    if manifest is not None:
+        # SPEC §6 canonical: stable pinned hash from the manifest.
+        id_manifest = manifest
+        stable_sha = (manifest.get("detector_lab_apk_hash")
+                      or manifest.get("container_image_hash") or "")
+    else:
+        id_manifest = {"layers": layers, "label": label, "container": container}
+        # idempotent: stable prober artifact (NOT the snapshot file whose capturedAt is volatile).
+        stable_sha = hashlib.sha256(Path(cli).read_bytes()).hexdigest()
+    run_id = compute_run_id(id_manifest, stable_sha, run_index)
     persisted = persist_report(report, config_id, run_id, runs_root=out_root / "runs")
     agg = report.get("aggregate", {})
     return {
@@ -150,8 +165,11 @@ def _completed_index(journal: JournalStore) -> set[tuple[str, int]]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="live_matrix")
-    p.add_argument("--cell", action="append", required=True,
+    p.add_argument("--cell", action="append", default=[],
                    help="container:layers:label  e.g. l0a-diag2:L0a:unspoofed-baseline")
+    p.add_argument("--config", help="run manifest (SPEC §5) driving one cell; needs --container")
+    p.add_argument("--container", help="already-booted container to attach to (with --config)")
+    p.add_argument("--label", default="manifest-run", help="cell label (with --config)")
     p.add_argument("--cli", default="agents/detection-cli/build/install/detection-cli/bin/detection-cli")
     p.add_argument("--out", default="experiments/live-matrix")
     p.add_argument("--run-index", type=int, default=0)
@@ -161,11 +179,23 @@ def main(argv: list[str] | None = None) -> int:
     out_root = Path(args.out)
     journal = JournalStore(path=args.journal)
     done = _completed_index(journal) if args.resume else set()
-    rows = []
+
+    # Build the work list: --config (manifest-driven single cell) and/or --cell specs.
+    work: list[tuple[str, list[str], str, dict | None]] = []
+    if args.config:
+        if not args.container:
+            p.error("--config requires --container (hardened auto-boot is owner-gated; see BLOCKERS)")
+        manifest = load_manifest(args.config)
+        work.append((args.container, manifest["config_id"].split("-"), args.label, manifest))
     for spec in args.cell:
         container, layers_raw, label = spec.split(":", 2)
-        layers = layers_raw.split("+")
-        config_id = config_id_from_layers(layers)
+        work.append((container, layers_raw.split("+"), label, None))
+    if not work:
+        p.error("provide --config (+--container) and/or at least one --cell")
+
+    rows = []
+    for container, layers, label, manifest in work:
+        config_id = manifest["config_id"] if manifest else config_id_from_layers(layers)
         key = (config_id, args.run_index)
         if key in done:
             rows.append({"config_id": config_id, "run_index": args.run_index,
@@ -181,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
         try:
-            row = run_cell(container, layers, label, args.cli, out_root, run_index=args.run_index)
+            row = run_cell(container, layers, label, args.cli, out_root,
+                           run_index=args.run_index, manifest=manifest)
             journal.complete_cell(config_id=config_id, run_index=args.run_index, status="COMPLETED")
             row["status"] = "COMPLETED"
             rows.append(row)

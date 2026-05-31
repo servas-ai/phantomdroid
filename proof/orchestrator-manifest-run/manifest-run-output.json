@@ -1,0 +1,14 @@
+{
+  "matrix": [
+    {
+      "config_id": "L0a-L1",
+      "run_id": "wifwxjhpoc3eprsx",
+      "label": "spoofed-via-manifest",
+      "weightedScore": 0.15941176470588234,
+      "criticalFailures": 0,
+      "category": "SUSPICIOUS",
+      "persisted": "/tmp/cfgp/runs/L0a-L1/wifwxjhpoc3eprsx.json",
+      "status": "COMPLETED"
+    }
+  ]
+}
