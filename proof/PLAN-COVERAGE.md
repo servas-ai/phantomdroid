@@ -69,3 +69,20 @@ orchestrator + detector-app + python-tools-full workflows.
 B1 (Magisk binary — supply-chain), B2-L3/L5/L6 (third-party modules / sensor-HAL image / LTE infra),
 B3 (hardware TEE — physical), B5 (destructive history rewrite — owner executes the ready script).
 These cannot be resolved autonomously; everything around them is done.
+
+---
+
+## Update 2026-05-31 (Martin unblocked B1 → built + rooted)
+
+Martin explicitly authorised the Magisk image build ("Freigegeben (Martin: weiter): bau das
+Magisk-roote ReDroid-12-Image"). With that supply-chain decision made, B1 is now SOLVED E2E:
+
+| Plan point | Status | Proof |
+|---|---|---|
+| **B1 — L0b Magisk root stack** | ✅ SOLVED — built `redroid/redroid:12.0.0_magisk` (digest `sha256:dfed3d9d…`) via ayasa520/redroid-script @881f7f00 (`python3 redroid.py -a 12.0.0 -m`); Magisk 30.6 Kitsune; LIVE `su -c id` → uid=0(root) in a **Privileged=false** hardened container; `com.topjohnwu.magisk` auto-installed | proof/b1-magisk-build/RESULT.md; pin in image-pins.yml (`redroid_12_magisk_rooted`) |
+| **B2 — L2–L6 sensor/LTE layers** | 🔄 in progress on the rooted substrate (builder sub-agent) | proof/b2-sensor-lte/ |
+
+B1 was the keystone external blocker for the whole L0b/L2–L6 chain; with Martin's go-ahead and the
+hardened non-privileged boot (B4) already solved, the rooted substrate is real and reproducible.
+B2 layers (telephony/LTE props via root resetprop are achievable; sensor-HAL .so injection may remain
+genuinely blocked — being verified live, documented honestly either way).
