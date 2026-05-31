@@ -98,3 +98,11 @@ Live check: `dumpsys sensorservice` → "No Sensors on the device", `devInitChec
 exposes NO native injection socket, so `sensors.accelerometer_gyro` (0.5) cannot be cleaned autonomously —
 it needs a sensor-HAL-enabled ReDroid image or the VirtualSensor Magisk module (asset-gated, B2/L5).
 (A simulated Bluetooth HAL `android.hardware.bluetooth@1.1-service.sim` IS present, listening on 6111/6211/6311.)
+
+## L5 sensors — DEFINITIVE closure (2026-05-31)
+Exhaustive live search of the stock image found **NO sensor HAL whatsoever**: no `/vendor/lib*/hw/sensors*.so`,
+no `android.hardware.sensors@*` impl lib, no `/*/bin/hw/*sensors*` service binary, no sensor socket/port
+(unlike the present `android.hardware.bluetooth@1.1-service.sim` on 6111/6211/6311). There is therefore
+nothing to feed — a synthetic-sensor feeder is impossible without first adding a HAL. `sensors.accelerometer_gyro`
+(0.5) is hard-gated on a sensor-HAL-enabled ReDroid image OR the VirtualSensor module (B2/L5 asset). This is
+verified-irreducible for autonomous work on this image, not a lazy skip.
