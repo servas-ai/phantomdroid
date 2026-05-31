@@ -27,6 +27,7 @@ from pathlib import Path
 
 from .run_id import compute_run_id, config_id_from_layers
 from .persistence import persist_report
+from .journal import JournalStore
 
 # Props the detection snapshot needs (mirrors the live-capture snapshots in p21/).
 _PROP_KEYS = [
@@ -139,19 +140,60 @@ def run_cell(container: str, layers: list[str], label: str, cli: str, out_root: 
     }
 
 
+def _completed_index(journal: JournalStore) -> set[tuple[str, int]]:
+    """Set of (config_id, run_index) already COMPLETED (for --resume, SPEC §7)."""
+    try:
+        return {(c.config_id, c.run_index) for c in journal.list_cells(statuses=["COMPLETED"])}
+    except Exception:
+        return set()
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="live_matrix")
     p.add_argument("--cell", action="append", required=True,
                    help="container:layers:label  e.g. l0a-diag2:L0a:unspoofed-baseline")
     p.add_argument("--cli", default="agents/detection-cli/build/install/detection-cli/bin/detection-cli")
     p.add_argument("--out", default="experiments/live-matrix")
+    p.add_argument("--run-index", type=int, default=0)
+    p.add_argument("--resume", action="store_true", help="skip cells already COMPLETED in the journal")
+    p.add_argument("--journal", default="results/live-matrix-journal.sqlite")
     args = p.parse_args(argv)
     out_root = Path(args.out)
+    journal = JournalStore(path=args.journal)
+    done = _completed_index(journal) if args.resume else set()
     rows = []
     for spec in args.cell:
         container, layers_raw, label = spec.split(":", 2)
         layers = layers_raw.split("+")
-        rows.append(run_cell(container, layers, label, args.cli, out_root))
+        config_id = config_id_from_layers(layers)
+        key = (config_id, args.run_index)
+        if key in done:
+            rows.append({"config_id": config_id, "run_index": args.run_index,
+                         "status": "SKIPPED_RESUME", "label": label})
+            continue
+        # seed (PENDING) then claim (RUNNING); tolerate pre-existing rows
+        try:
+            journal.seed_cell(config_id=config_id, run_index=args.run_index, layer_set=layers)
+        except Exception:
+            pass
+        try:
+            journal.claim_cell(config_id=config_id, run_index=args.run_index)
+        except Exception:
+            pass
+        try:
+            row = run_cell(container, layers, label, args.cli, out_root, run_index=args.run_index)
+            journal.complete_cell(config_id=config_id, run_index=args.run_index, status="COMPLETED")
+            row["status"] = "COMPLETED"
+            rows.append(row)
+        except Exception as exc:  # boot/capture/score failure → terminal, resumable
+            status = "BOOT_FAIL" if "not booted" in str(exc) else "FAILED"
+            try:
+                journal.complete_cell(config_id=config_id, run_index=args.run_index,
+                                      status=status, error=str(exc)[:300])
+            except Exception:
+                pass
+            rows.append({"config_id": config_id, "run_index": args.run_index,
+                         "status": status, "label": label, "error": str(exc)[:200]})
     print(json.dumps({"matrix": rows}, indent=2))
     return 0
 
