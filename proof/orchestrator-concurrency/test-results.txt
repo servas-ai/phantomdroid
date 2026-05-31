@@ -1,0 +1,7 @@
+tests/test_orchestrator_concurrency.py::test_port_pool_allocates_unique_odd_ports PASSED [ 16%]
+tests/test_orchestrator_concurrency.py::test_port_pool_release_recycles PASSED [ 33%]
+tests/test_orchestrator_concurrency.py::test_port_pool_exhaustion PASSED [ 50%]
+tests/test_orchestrator_concurrency.py::test_compose_project_name PASSED [ 66%]
+tests/test_orchestrator_concurrency.py::test_run_pool_caps_concurrency PASSED [ 83%]
+tests/test_orchestrator_concurrency.py::test_run_pool_captures_worker_errors PASSED [100%]
+============================== 6 passed in 0.05s ===============================
