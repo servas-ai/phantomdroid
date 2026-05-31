@@ -43,3 +43,23 @@ The live spoofed device's irreducible detectability is the **6 architectural pro
 hardware string, and absent modem/WiFi/sensor hardware). Everything else in the 0.1394 is measurement
 incompleteness. No mainstream verdict-emitting detector app flags the device (proven: 5/5 CLEAN,
 `audit/anti-spoof-80/`); the architectural floor only matters to a custom probe aggregator.
+
+---
+
+## Update 2026-05-31 (post capture-completion + spoof-consistency fixes)
+
+Spoofed cell driven **0.1594 → 0.1018** via verified+pushed work:
+- android_id captured → identity.android_id 0.85→0.0
+- locale captured → env.language_country 0.85→0.0
+- default_input_method captured → ui.input_method 0.7→0.0
+- **resolution fixed** (1080x2400@420 Pixel-7) → ui.screen_resolution 1.0→0.0
+- **timezone fixed** (America/Los_Angeles, consistent w/ en-US) → env.timezone_locale_mismatch 0.95→0.0
+
+Two of those (resolution, timezone) were REAL spoof-incompleteness tells that "missing" had masked —
+fixed in the spoof, not hidden. Remaining ≥0.5 probes are now the ARCHITECTURAL FLOOR + deeper-spoof items:
+- Architectural (owner/hardware-gated B1-B4): buildprop.board_hardware (ro.hardware=redroid), emulator.cpu_abi (x86_64), identity.imei_serial/sim_iccid (no modem), identity.wifi_mac (no wlan0), sensors.accelerometer_gyro (no sensor HAL).
+- Deeper-spoof (need module/asset, not just capture): ui.system_fonts (would need a Pixel font overlay bind-mount), env.location_mock_rasp (needs a mock-location provider), network.dns_server (container has no resolver config), runtime.debugger_tracerpid (no faithful host-side capture).
+
+The verdict-app reality is unchanged: 0 mainstream detector apps flag the device (5/5 CLEAN). The 0.1018
+internal residual matters only to a custom probe aggregator and is now dominated by the irreducible
+no-modem/no-wifi/no-sensor/x86 hardware floor.
