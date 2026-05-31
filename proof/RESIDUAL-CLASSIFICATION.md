@@ -63,3 +63,31 @@ fixed in the spoof, not hidden. Remaining ≥0.5 probes are now the ARCHITECTURA
 The verdict-app reality is unchanged: 0 mainstream detector apps flag the device (5/5 CLEAN). The 0.1018
 internal residual matters only to a custom probe aggregator and is now dominated by the irreducible
 no-modem/no-wifi/no-sensor/x86 hardware floor.
+
+---
+
+## FINAL 2026-05-31 — internal detector CLEAN (0.09), remainder is the verified hardware floor
+
+Through systematic capture-completeness + honest spoof fixes, the live spoofed cell reached
+**weightedScore 0.09, category CLEAN, 0 critical** (from 0.3462 DETECTED / 4 critical unspoofed).
+Additional fixes since 0.1018: network.dns_server 0.5→0.0 (set plausible net.dns1/2), runtime.debugger_tracerpid
+0.5→0.0 (fixed a real YAML-emitter \n/\t escaping bug so /proc/self/status TracerPid round-trips),
+ui.system_fonts 0.5→0.0 (captured 164 /system/fonts .ttf incl. NotoColorEmoji).
+
+Every remaining score>0 probe is now GENUINELY architectural — verified by live inspection, not assumed:
+
+| Probe | Score | Live evidence it's irreducible |
+|---|---|---|
+| emulator.cpu_abi | 1.0 | `ro.product.cpu.abi=x86_64` — host is x86; arm64-only crashes zygote (needs arm64 host) |
+| buildprop.board_hardware | 1.0 | `ro.hardware=redroid`; overriding it (tested) breaks boot (HALs key off it) |
+| identity.imei_serial | 0.7 | `gsm.sim.state` empty — no baseband/modem in the container |
+| identity.sim_iccid | 0.7 | no SIM — no telephony hardware |
+| identity.wifi_mac | 0.5 | `/sys/class/net/wlan0` absent (only eth0 veth) — no WiFi radio |
+| sensors.accelerometer_gyro | 0.5 | `dumpsys sensorservice` ≈1 — no sensor HAL (needs VirtualSensor, B2/L5) |
+| env.location_mock_rasp | 0.5 | no GPS provider/fix (mock settings clean=0); injecting fake coords would be fabrication |
+| root.selinux | 0.3 | `getenforce=Disabled`, `/sys/fs/selinux/enforce` absent — ReDroid runs non-enforcing; enabling needs a kernel/policy change that breaks the container |
+
+These need an **arm64 bare-metal host** (cpu_abi), **a rooted image / HAL modules** (sensors, B1/B2),
+**a modem/WiFi bridge** (imei/sim/wifi_mac), or **a SELinux-enforcing kernel** — all owner/hardware/supply-chain
+gated (B1–B4). No autonomous software fix exists for them on this x86 container. The verdict-app reality is
+unchanged: 0 mainstream detector apps flag the device (5/5 CLEAN, `audit/anti-spoof-80/`).
