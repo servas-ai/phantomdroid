@@ -1,0 +1,5 @@
+OK: agents/stability/stack/compose/L0a.yml declares no privileged:true
+  exit=0 for agents/stability/stack/compose/L0a.yml
+OK: agents/stability/stack/compose/L1.compose.yml declares no privileged:true
+  exit=0 for agents/stability/stack/compose/L1.compose.yml
+  exit=78 (expect 78)
