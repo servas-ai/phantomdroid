@@ -1,0 +1,9 @@
+tests/test_orchestrator_config_loader.py::test_valid_manifest_passes PASSED [ 12%]
+tests/test_orchestrator_config_loader.py::test_unknown_key_refused PASSED [ 25%]
+tests/test_orchestrator_config_loader.py::test_missing_required_key PASSED [ 37%]
+tests/test_orchestrator_config_loader.py::test_bad_schema_version PASSED [ 50%]
+tests/test_orchestrator_config_loader.py::test_bad_image_hash_rejected PASSED [ 62%]
+tests/test_orchestrator_config_loader.py::test_bad_config_id_rejected PASSED [ 75%]
+tests/test_orchestrator_config_loader.py::test_target_runs_bounds PASSED [ 87%]
+tests/test_orchestrator_config_loader.py::test_load_real_example_manifest PASSED [100%]
+============================== 8 passed in 0.04s ===============================

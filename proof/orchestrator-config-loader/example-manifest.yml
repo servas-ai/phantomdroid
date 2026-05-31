@@ -1,0 +1,13 @@
+# Example run manifest (SPEC §5) for the L0a+L1 (spoofed Pixel-7) config.
+schema_version: "runner.v1"
+config_id: "L0a-L1"
+created: "2026-05-31T00:00:00Z"
+container_image_hash: "sha256:e6f799d56b9a"   # redroid/redroid pinned digest (prefix)
+compose_file: "agents/stability/stack/compose/L1.compose.yml"
+seccomp_profile: "agents/stability/stack/seccomp/redroid-seccomp.json"
+detector_lab_apk: "apps/detector-app/build/outputs/apk/debug/detector-app-debug.apk"
+target_runs: 30
+warmup_seconds: 30
+probe_timeout_seconds: 240
+binder_device: "/dev/binder"
+seed: "0x9c3a"
