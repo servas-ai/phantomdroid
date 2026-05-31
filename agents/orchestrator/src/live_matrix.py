@@ -93,6 +93,28 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     resolv = _docker_exec(container, "cat /etc/resolv.conf 2>/dev/null").strip()
     if resolv:
         readable["/etc/resolv.conf"] = resolv
+    # timezone + locale (env.timezone_locale_mismatch) and display (ui.screen_resolution)
+    tz = (props.get("persist.sys.timezone") or _docker_exec(container, "getprop persist.sys.timezone").strip()) or None
+    locale = props.get("ro.product.locale", "")
+    loc_lang = loc_country = None
+    if "-" in locale:
+        loc_lang, _, loc_country = locale.partition("-")
+    elif locale:
+        loc_lang = locale
+    w = h = dens = None
+    msize = _docker_exec(container, "wm size").strip()
+    if "x" in msize:
+        try:
+            wh = msize.split(":")[-1].strip().split("x")
+            w, h = int(wh[0]), int(wh[1])
+        except Exception:
+            pass
+    mdens = _docker_exec(container, "wm density").strip()
+    if mdens:
+        try:
+            dens = int(mdens.split(":")[-1].strip())
+        except Exception:
+            pass
     return {
         "label": label,
         "capturedAt": captured_at,
@@ -103,6 +125,8 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
         "telephony": {}, "installedPackages": ["android", "com.android.systemui"],
         "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": tz, "localeLanguage": loc_lang, "localeCountry": loc_country,
+        "displayWidthPixels": w, "displayHeightPixels": h, "displayDensityDpi": dens,
         "gpsLat": None, "gpsLng": None, "gpsAccuracy": None,
         "gpsProvider": None, "gpsIsMock": None,
     }
@@ -141,7 +165,14 @@ def _yaml_dump_snapshot(snap: dict) -> str:
     for p in snap["installedPackages"]:
         lines.append(f"  - {q(p)}")
     lines.append("sensorTypes: []")
-    for key in ("bluetoothMac", "gpsLat", "gpsLng", "gpsAccuracy", "gpsProvider", "gpsIsMock"):
+    lines.append("bluetoothMac: null")
+    for key in ("timezoneId", "localeLanguage", "localeCountry"):
+        v = snap.get(key)
+        lines.append(f"{key}: {q(v) if v is not None else 'null'}")
+    for key in ("displayWidthPixels", "displayHeightPixels", "displayDensityDpi"):
+        v = snap.get(key)
+        lines.append(f"{key}: {v if v is not None else 'null'}")
+    for key in ("gpsLat", "gpsLng", "gpsAccuracy", "gpsProvider", "gpsIsMock"):
         lines.append(f"{key}: null")
     return "\n".join(lines) + "\n"
 

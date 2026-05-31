@@ -12,7 +12,10 @@ def test_emitter_renders_settings_maps_and_empty():
         "settingsSecure": {"android_id": "fbd37772bd01a050"},
         "settingsGlobal": {"adb_enabled": "0"}, "settingsSystem": {},
         "telephony": {}, "installedPackages": ["android"],
-        "sensorTypes": [], "bluetoothMac": None, "gpsLat": None, "gpsLng": None,
+        "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": "America/Los_Angeles", "localeLanguage": "en", "localeCountry": "US",
+        "displayWidthPixels": 1080, "displayHeightPixels": 2400, "displayDensityDpi": 420,
+        "gpsLat": None, "gpsLng": None,
         "gpsAccuracy": None, "gpsProvider": None, "gpsIsMock": None,
     }
     out = _yaml_dump_snapshot(snap)
@@ -22,3 +25,6 @@ def test_emitter_renders_settings_maps_and_empty():
     import yaml
     parsed = yaml.safe_load(out)
     assert parsed["settingsSecure"]["android_id"] == "fbd37772bd01a050"
+    assert parsed["timezoneId"] == "America/Los_Angeles"
+    assert parsed["localeCountry"] == "US"
+    assert parsed["displayWidthPixels"] == 1080 and parsed["displayDensityDpi"] == 420

@@ -1,0 +1,2918 @@
+{
+  "schemaVersion": "1.0",
+  "deviceLabel": "spoofed",
+  "timestamp": "2026-05-31T02:09:53.635684741Z",
+  "appVersion": "0.1.0",
+  "aggregate": {
+    "weightedScore": 0.10176470588235292,
+    "criticalFailures": 0,
+    "category": "SUSPICIOUS"
+  },
+  "probes": [
+    {
+      "id": "app.ig_family_device_id_header",
+      "rank": 67,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.0,
+      "evidence": [],
+      "method": "(skipped)",
+      "runtimeMs": 1,
+      "failed": true,
+      "failureReason": "skipped: Capture file not found — mitmproxy harness not running or sandbox account not configured."
+    },
+    {
+      "id": "app.tiktok_argus_signing",
+      "rank": 66,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.0,
+      "evidence": [],
+      "method": "(skipped)",
+      "runtimeMs": 5,
+      "failed": true,
+      "failureReason": "skipped: TikTok not installed (checked: com.zhiliaoapp.musically, com.ss.android.ugc.tiktok)"
+    },
+    {
+      "id": "buildprop.board_hardware",
+      "rank": 28,
+      "category": "buildprop",
+      "score": 1.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "ro.product.board",
+          "value": "panther",
+          "expected": "<not empty, not goldfish>"
+        },
+        {
+          "key": "ro.board.platform",
+          "value": "gs201",
+          "expected": "<real SoC>"
+        },
+        {
+          "key": "ro.hardware",
+          "value": "redroid",
+          "expected": "<not goldfish/ranchu/vbox86/redroid>"
+        },
+        {
+          "key": "ro.hardware.chipname",
+          "value": "<unreadable>",
+          "expected": "<vendor chipset name>"
+        },
+        {
+          "key": "ro.board.manufacturer",
+          "value": "<unreadable>",
+          "expected": "<Qualcomm|Samsung|MediaTek|Google|etc>"
+        },
+        {
+          "key": "board.is_emulator_marker",
+          "value": "true",
+          "expected": "false"
+        },
+        {
+          "key": "board.pattern",
+          "value": "emu_hardware",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read ro.product.board + ro.board.platform + ro.hardware + ro.hardware.chipname + ro.board.manufacturer; detect goldfish/ranchu/vbox86/redroid emulator markers; cross-check board codename vs claimed model",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "buildprop.fingerprint",
+      "rank": 1,
+      "category": "buildprop",
+      "score": 0.0,
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "key": "ro.build.fingerprint",
+          "value": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys",
+          "expected": null
+        },
+        {
+          "key": "ro.build.display.id",
+          "value": "TQ3A.230805.001",
+          "expected": null
+        },
+        {
+          "key": "ro.build.tags",
+          "value": "release-keys",
+          "expected": "release-keys"
+        },
+        {
+          "key": "ro.build.type",
+          "value": "user",
+          "expected": "user"
+        },
+        {
+          "key": "ro.product.brand",
+          "value": "google",
+          "expected": null
+        },
+        {
+          "key": "ro.product.model",
+          "value": "Pixel_7",
+          "expected": null
+        },
+        {
+          "key": "ro.product.manufacturer",
+          "value": "Google",
+          "expected": null
+        }
+      ],
+      "method": "Compare ro.build.* against expected manufacturer pattern + emulator markers",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "buildprop.model_brand_manufacturer",
+      "rank": 9,
+      "category": "buildprop",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "ro.product.brand",
+          "value": "google",
+          "expected": "<lowercase OEM>"
+        },
+        {
+          "key": "ro.product.model",
+          "value": "Pixel_7",
+          "expected": "<no emu keyword>"
+        },
+        {
+          "key": "ro.product.manufacturer",
+          "value": "Google",
+          "expected": "<matches brand case-insensitive>"
+        },
+        {
+          "key": "buildprop.brand_manufacturer_aligned",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "buildprop.has_emulator_model_keyword",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "buildprop.model_brand_manufacturer_pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read ro.product.brand + model + manufacturer; detect emulator keywords in model, 'unknown' sentinel values, empty fields, and brand-vs-manufacturer mismatches modulo known-OEM aliases. Focused-extraction probe separate from rank 1 BuildFingerprint.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "buildprop.tags_and_type",
+      "rank": 7,
+      "category": "buildprop",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "ro.build.tags",
+          "value": "release-keys",
+          "expected": "release-keys"
+        },
+        {
+          "key": "ro.build.type",
+          "value": "user",
+          "expected": "user"
+        },
+        {
+          "key": "build.tags_violation",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "build.type_violation",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "build.is_production_user_build",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "build.tags_type_pattern",
+          "value": "clean",
+          "expected": "clean"
+        },
+        {
+          "key": "tags_and_type.ro.debuggable",
+          "value": "0",
+          "expected": "0"
+        },
+        {
+          "key": "tags_and_type.ro.secure",
+          "value": "1",
+          "expected": "1"
+        },
+        {
+          "key": "tags_and_type.debuggable_violation",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "tags_and_type.secure_violation",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "tags_and_type.dangerous_props_violation",
+          "value": "false",
+          "expected": "false"
+        }
+      ],
+      "method": "Read ro.build.tags + ro.build.type + ro.debuggable + ro.secure and verify production-build pattern (release-keys + user + debuggable=0 + secure=1). Scoped focus separate from rank 1 BuildFingerprint (which checks tags/type as fingerprint co-factors) and rank 13 Bootloader (which checks debuggable as AVB co-factor). Dangerous-props axis closes Power-13 real-world gap #5 — RootBeer checkForDangerousProps().",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "emulator.cpu_abi",
+      "rank": 27,
+      "category": "emulator",
+      "score": 1.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "cpu.supported_abis",
+          "value": "x86_64,arm64-v8a",
+          "expected": "<ARM-list>"
+        },
+        {
+          "key": "cpu.primary_abi",
+          "value": "x86_64",
+          "expected": "arm64-v8a or similar"
+        },
+        {
+          "key": "cpu.has_x86",
+          "value": "true",
+          "expected": "false"
+        },
+        {
+          "key": "cpu.has_arm",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "cpu.has_dual_arch",
+          "value": "true",
+          "expected": "false"
+        },
+        {
+          "key": "cpu.ro_product_cpu_abi",
+          "value": "x86_64",
+          "expected": "<arm-prefixed>"
+        },
+        {
+          "key": "cpu.abi_matches_model_oem",
+          "value": "unknown_model",
+          "expected": "true"
+        },
+        {
+          "key": "cpu.pattern",
+          "value": "x86_primary",
+          "expected": "clean_arm"
+        }
+      ],
+      "method": "Read Build.SUPPORTED_ABIS + ro.product.cpu.abilist; detect x86 primary on ARM-claimed model, dual-arch Houdini bridge, and minimal emulator-stripped ABI lists",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "emulator.gpu_renderer",
+      "rank": 26,
+      "category": "emulator",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "gl.renderer",
+          "value": "<unavailable: no GL accessor>",
+          "expected": "<hardware GPU name>"
+        },
+        {
+          "key": "gl.vendor",
+          "value": "<unavailable: no GL accessor>",
+          "expected": "<hardware vendor: Qualcomm|ARM|Apple|etc>"
+        },
+        {
+          "key": "gl.version",
+          "value": "<unavailable: no GL accessor>",
+          "expected": "<no software-renderer markers>"
+        },
+        {
+          "key": "ro.hardware.egl",
+          "value": "null",
+          "expected": "adreno|mali|powervr|videocore (not swiftshader|mesa)"
+        },
+        {
+          "key": "gpu.is_software_renderer",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "gpu.is_emulator_translator",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "gpu.pattern",
+          "value": "none",
+          "expected": "hardware_gpu"
+        }
+      ],
+      "method": "Read GL_RENDERER/GL_VENDOR/GL_VERSION via OpenGL ES context (or ProbeContext.queryGlInfo) + ro.hardware.egl property; detect SwiftShader/llvmpipe/ANGLE/Software-renderer markers",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "emulator.proc_version",
+      "rank": 30,
+      "category": "emulator",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "proc_version.raw",
+          "value": "Linux version 5.10.107-android13-4-00018-g0e9b9b9f9f9f-ab9999999 (kleaf@build-host) (Android clang version 14.0.7, LLD 14.0.7) #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 2026",
+          "expected": "<no emulator markers>"
+        },
+        {
+          "key": "proc_version.kernel_name",
+          "value": "android",
+          "expected": "android"
+        },
+        {
+          "key": "proc_version.has_x86_arch_leak",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "proc_version.build_host",
+          "value": "build-host",
+          "expected": "<not localhost>"
+        },
+        {
+          "key": "proc_version.compiler",
+          "value": "clang",
+          "expected": "clang on recent Android"
+        },
+        {
+          "key": "proc_version.pattern",
+          "value": "clean_android",
+          "expected": "clean_android"
+        }
+      ],
+      "method": "Read /proc/version and parse for emulator kernel-name markers, x86 arch leak, localhost build host, GCC compiler leak",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "emulator.qemu_artifacts",
+      "rank": 4,
+      "category": "emulator",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "ro.kernel.qemu",
+          "value": "",
+          "expected": "empty or '0'"
+        },
+        {
+          "key": "ro.kernel.qemu.gles",
+          "value": "",
+          "expected": "empty"
+        },
+        {
+          "key": "qemu.device_nodes_present",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "goldfish.device_nodes_present",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "qemu.socket_nodes_present",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "qemu.is_avd_canonical",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "qemu.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read ro.kernel.qemu / ro.kernel.qemu.gles + check /dev/qemu_*, /dev/goldfish_*, /dev/socket/qemud/baseband_genyd device nodes; detect canonical AVD marker + QEMU/Goldfish-specific kernel surface",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.accessibility_services",
+      "rank": 59,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "secure.enabled_accessibility_services",
+          "value": "<unavailable>",
+          "expected": "<empty or system-only services>"
+        },
+        {
+          "key": "accessibility.service_count",
+          "value": "<unavailable>",
+          "expected": "0-2 on consumer device"
+        },
+        {
+          "key": "accessibility.has_suspicious_service",
+          "value": "unknown",
+          "expected": "false"
+        },
+        {
+          "key": "accessibility.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read Settings.Secure.enabled_accessibility_services and detect suspicious automation/RAT accessibility services or many-services-enabled on phone-class devices",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.accounts",
+      "rank": 40,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "accounts.total_count",
+          "value": "<unreadable>",
+          "expected": ">=1 on phone-class"
+        },
+        {
+          "key": "accounts.google_count",
+          "value": "<unreadable>",
+          "expected": ">=1 on non-Huawei phone"
+        },
+        {
+          "key": "accounts.types",
+          "value": "<unreadable>",
+          "expected": "includes com.google"
+        },
+        {
+          "key": "accounts.has_test_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "accounts.is_huawei_brand",
+          "value": "false",
+          "expected": "<used in scoring guard>"
+        },
+        {
+          "key": "accounts.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read AccountManager.getAccounts() + getAccountsByType('com.google'); detect zero-Google-account on non-Huawei phone-class device, and EMULATOR/TEST/mock markers in account names",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.battery_level",
+      "rank": 33,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "battery.level",
+          "value": "<unreadable>",
+          "expected": "1-99 normally"
+        },
+        {
+          "key": "battery.scale",
+          "value": "<unreadable>",
+          "expected": "100"
+        },
+        {
+          "key": "battery.percent_computed",
+          "value": "<unreadable>",
+          "expected": "matches battery.level"
+        },
+        {
+          "key": "battery.charging_state",
+          "value": "UNKNOWN",
+          "expected": "CHARGING|DISCHARGING|FULL|NOT_CHARGING|null"
+        },
+        {
+          "key": "battery.is_static_max",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "battery.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read BatteryManager BATTERY_PROPERTY_CAPACITY + ACTION_BATTERY_CHANGED level/scale + charging state; detect 100%+NOT_CHARGING contradictions and AVD-default 50% values",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.battery_temperature",
+      "rank": 34,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "battery.temperature_tenths_c",
+          "value": "<unreadable>",
+          "expected": "100-500 not multiple of 100"
+        },
+        {
+          "key": "battery.temperature_celsius",
+          "value": "<unreadable>",
+          "expected": "10.0-50.0"
+        },
+        {
+          "key": "battery.temperature_plausible",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "battery.temperature_is_round_100",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "battery.temperature_pattern",
+          "value": "null",
+          "expected": "plausible"
+        }
+      ],
+      "method": "Read battery temperature via BatteryManager/ACTION_BATTERY_CHANGED EXTRA_TEMPERATURE; detect AVD 25.0°C default, round-100 stub values, and out-of-plausible-range values",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.bluetooth_state",
+      "rank": 49,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "bluetooth.adapter_present",
+          "value": "<unavailable>",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "bluetooth.state",
+          "value": "<unavailable>",
+          "expected": "ON|OFF|TURNING_ON|TURNING_OFF"
+        },
+        {
+          "key": "bluetooth.state_raw",
+          "value": "<unavailable>",
+          "expected": "10|11|12|13"
+        },
+        {
+          "key": "bluetooth.has_system_feature",
+          "value": "<unavailable>",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "bluetooth.has_le_feature",
+          "value": "<unavailable>",
+          "expected": "true on Android 4.3+"
+        },
+        {
+          "key": "bluetooth.is_consistent",
+          "value": "unknown",
+          "expected": "true"
+        },
+        {
+          "key": "bluetooth.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read BluetoothAdapter + PackageManager.FEATURE_BLUETOOTH/BLUETOOTH_LE; detect missing-adapter on phone-class (BT is near-universal on Android), feature-vs-adapter contradictions, and invalid state values.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.bootloader",
+      "rank": 13,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "key": "ro.boot.vbmeta.device_state",
+          "value": "",
+          "expected": "green"
+        },
+        {
+          "key": "ro.boot.verifiedbootstate",
+          "value": "",
+          "expected": "green"
+        },
+        {
+          "key": "ro.boot.flash.locked",
+          "value": "",
+          "expected": "1"
+        },
+        {
+          "key": "ro.oem_unlock_supported",
+          "value": "missing",
+          "expected": "0"
+        },
+        {
+          "key": "ro.secure",
+          "value": "1",
+          "expected": "1"
+        },
+        {
+          "key": "ro.debuggable",
+          "value": "0",
+          "expected": "0"
+        },
+        {
+          "key": "ro.boot.warranty_bit",
+          "value": "missing",
+          "expected": "0"
+        },
+        {
+          "key": "ro.warranty_bit",
+          "value": "missing",
+          "expected": "0"
+        }
+      ],
+      "method": "Read ro.boot.* / ro.oem_unlock_supported / ro.secure / ro.debuggable / ro.boot.warranty_bit properties and compare against expected production-locked values",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.camera_info",
+      "rank": 53,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "camera.count",
+          "value": "<unavailable>",
+          "expected": ">=2 on phone-class"
+        },
+        {
+          "key": "camera.facing_back_count",
+          "value": "<unavailable>",
+          "expected": ">=1"
+        },
+        {
+          "key": "camera.facing_front_count",
+          "value": "<unavailable>",
+          "expected": ">=1"
+        },
+        {
+          "key": "camera.hardware_levels",
+          "value": "<unavailable>",
+          "expected": "FULL+ on flagship"
+        },
+        {
+          "key": "camera.sensor_width_min_mm",
+          "value": "<unavailable>",
+          "expected": "2-15 mm"
+        },
+        {
+          "key": "camera.has_emulator_keyword",
+          "value": "<unavailable>",
+          "expected": "false"
+        },
+        {
+          "key": "camera.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Enumerate CameraManager.getCameraIdList() + characteristics per camera; detect zero/single-camera on phone-class, LEGACY-level on flagship, implausible sensor sizes, and emulator vendor keywords",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.charging_state",
+      "rank": 35,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "battery.status",
+          "value": "<unreadable>",
+          "expected": "CHARGING when plugged, DISCHARGING when unplugged"
+        },
+        {
+          "key": "battery.status_name",
+          "value": "null",
+          "expected": "CHARGING|DISCHARGING|FULL based on plug state"
+        },
+        {
+          "key": "battery.plugged",
+          "value": "<unreadable>",
+          "expected": "0|1|2|4|8"
+        },
+        {
+          "key": "battery.plugged_name",
+          "value": "null",
+          "expected": "any valid"
+        },
+        {
+          "key": "battery.status_plugged_consistent",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "battery.charging_state_pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read BatteryManager BATTERY_PROPERTY_STATUS + EXTRA_PLUGGED; detect status-vs-plug contradictions (CHARGING+unplugged, FULL+<100%) and invalid plug enum values",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.developer_options",
+      "rank": 19,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.6,
+      "evidence": [
+        {
+          "key": "global.development_settings_enabled",
+          "value": "absent",
+          "expected": "0"
+        },
+        {
+          "key": "global.adb_enabled",
+          "value": "0",
+          "expected": "0"
+        },
+        {
+          "key": "global.adb_wifi_enabled",
+          "value": "absent",
+          "expected": "0"
+        },
+        {
+          "key": "global.package_verifier_enable",
+          "value": "absent",
+          "expected": "1"
+        },
+        {
+          "key": "ro.debuggable",
+          "value": "0",
+          "expected": "0"
+        }
+      ],
+      "method": "Read Settings.Global dev/adb/verifier toggles + ro.debuggable, score escalation pattern from any-flag → both-flags-set",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.gps_coordinates",
+      "rank": 41,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "location.hasLastKnownLocation",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "location.latitude",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "location.longitude",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "location.accuracy_meters",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "location.provider",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "location.isFromMockProvider",
+          "value": "null",
+          "expected": null
+        },
+        {
+          "key": "model.phone_class",
+          "value": false,
+          "expected": null
+        }
+      ],
+      "method": "LocationManager.getLastKnownLocation() + Location.isFromMockProvider() (API >= 18). Five signals: mock-provider flag, null-island sentinel coords, missing-fix-on-phone, sub-meter accuracy, fused-without-GPS-hardware. Max-wins.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.language_country",
+      "rank": 36,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "locale.language",
+          "value": "en",
+          "expected": "<ISO 639-1>"
+        },
+        {
+          "key": "locale.country",
+          "value": "US",
+          "expected": "<ISO 3166-1 alpha-2>"
+        },
+        {
+          "key": "locale.display_name",
+          "value": "<unreadable>",
+          "expected": "<human-readable>"
+        },
+        {
+          "key": "ro_product_locale",
+          "value": "en-US",
+          "expected": "<matches runtime locale>"
+        },
+        {
+          "key": "ro_product_locale_region",
+          "value": "<empty>",
+          "expected": "<matches country>"
+        },
+        {
+          "key": "locale.is_valid_iso",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "locale.mismatch_build_vs_runtime",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "locale.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read Locale.getDefault() + ro.product.locale.* properties; detect empty-country/language defaults, invalid ISO codes, and runtime-vs-build locale divergence. No live IP geolocation.",
+      "runtimeMs": 6,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.location_mock",
+      "rank": 39,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "location.isFromMockProvider",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "Settings.Secure.mock_location",
+          "value": "0",
+          "expected": "0"
+        },
+        {
+          "key": "packages_with_ACCESS_MOCK_LOCATION",
+          "value": 0,
+          "expected": 0
+        },
+        {
+          "key": "location.geocoder_anomaly",
+          "value": false,
+          "expected": false
+        }
+      ],
+      "method": "isFromMockProvider + Settings.Secure.mock_location + ACCESS_MOCK_LOCATION package scan + reverse-geocoder anomaly",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.location_mock_rasp",
+      "rank": 82,
+      "category": "env",
+      "score": 0.5,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "secure.location.is_from_mock_provider",
+          "value": "<unavailable>",
+          "expected": "0"
+        },
+        {
+          "key": "secure.mock_location",
+          "value": "<unavailable>",
+          "expected": "0"
+        },
+        {
+          "key": "secure.mock_location_app",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "build.version.sdk_int",
+          "value": "31",
+          "expected": ">= 23 on modern Android"
+        },
+        {
+          "key": "location.rasp_mock_detected",
+          "value": "unknown",
+          "expected": "false"
+        },
+        {
+          "key": "location.location_mock_rasp_pattern",
+          "value": "no_location_available",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read Location.isFromMockProvider() + ALLOW_MOCK_LOCATION setting + MOCK_LOCATION_APP setting; focused RASP-attribution probe per freeRASP T16. Augments rank 39 LocationMockProbe with explicit RASP-mapped score.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.nfc_state",
+      "rank": 48,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "nfc.adapter_present",
+          "value": "<unavailable>",
+          "expected": "depends on model"
+        },
+        {
+          "key": "nfc.is_enabled",
+          "value": "<unavailable>",
+          "expected": "depends on user setting"
+        },
+        {
+          "key": "nfc.has_system_feature",
+          "value": "<unavailable>",
+          "expected": "matches adapter_present"
+        },
+        {
+          "key": "nfc.is_consistent",
+          "value": "unknown",
+          "expected": "true"
+        },
+        {
+          "key": "nfc.is_flagship_model",
+          "value": "false",
+          "expected": "depends"
+        },
+        {
+          "key": "nfc.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read NfcAdapter + PackageManager.FEATURE_NFC; detect adapter-vs-feature contradictions and missing-NFC on flagship-model devices. Score 'no NFC' only weakly since NFC is not universal.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.screen_lock",
+      "rank": 61,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "state",
+          "value": "unknown",
+          "expected": "pin_set"
+        },
+        {
+          "key": "Build.VERSION.SDK_INT",
+          "value": 0,
+          "expected": null
+        },
+        {
+          "key": "KeyguardManager.isDeviceSecure",
+          "value": "null",
+          "expected": "true"
+        },
+        {
+          "key": "KeyguardManager.isKeyguardSecure",
+          "value": "null",
+          "expected": "true"
+        }
+      ],
+      "method": "KeyguardManager.isDeviceSecure() + isKeyguardSecure() with API<23 unknown-fallback",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.time_spoofing",
+      "rank": 4,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.97,
+      "evidence": [
+        {
+          "key": "wall_clock_ms",
+          "value": 1780193393614,
+          "expected": null
+        },
+        {
+          "key": "elapsed_realtime_ms",
+          "value": 1780193393614,
+          "expected": null
+        },
+        {
+          "key": "gps_timestamp_ms",
+          "value": "unavailable",
+          "expected": null
+        },
+        {
+          "key": "ntp_timestamp_ms",
+          "value": "unavailable",
+          "expected": null
+        },
+        {
+          "key": "d1_anchor_seeded_boot_epoch_ms",
+          "value": 0,
+          "expected": null
+        },
+        {
+          "key": "delta_wall_vs_gps_ms",
+          "value": "skipped: GPS unavailable",
+          "expected": null
+        },
+        {
+          "key": "delta_wall_vs_ntp_ms",
+          "value": "skipped: NTP unavailable",
+          "expected": null
+        },
+        {
+          "key": "delta_gps_vs_ntp_ms",
+          "value": "skipped: GPS or NTP unavailable",
+          "expected": null
+        }
+      ],
+      "method": "cross-validate bootEpoch anchor + wall/GPS/NTP per freeRASP T15",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.timezone_locale_mismatch",
+      "rank": 20,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "timezone_id",
+          "value": "America/Los_Angeles",
+          "expected": "America/Los_Angeles"
+        },
+        {
+          "key": "locale_country",
+          "value": "US",
+          "expected": "US"
+        },
+        {
+          "key": "timezone_offset_minutes",
+          "value": 0,
+          "expected": "<utc-offset>"
+        },
+        {
+          "key": "locale_language",
+          "value": "en",
+          "expected": "<bcp47>"
+        },
+        {
+          "key": "pair_match",
+          "value": "match",
+          "expected": "match"
+        }
+      ],
+      "method": "Compare java.util.TimeZone.getDefault() against java.util.Locale.getDefault().country using a static table of common timezone→country mappings",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.uptime",
+      "rank": 47,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "uptime.seconds_since_boot",
+          "value": "<unreadable>",
+          "expected": ">60 normally"
+        },
+        {
+          "key": "uptime.idle_seconds",
+          "value": "<unreadable>",
+          "expected": "<= boot seconds"
+        },
+        {
+          "key": "uptime.elapsed_realtime_ms",
+          "value": "<unavailable>",
+          "expected": "matches uptime ± 100ms"
+        },
+        {
+          "key": "uptime.boot_time_iso8601",
+          "value": "<unreadable>",
+          "expected": "<not in future, not >10y past>"
+        },
+        {
+          "key": "uptime.is_round_minute",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "uptime.pattern",
+          "value": "plausible",
+          "expected": "plausible"
+        }
+      ],
+      "method": "Read /proc/uptime + SystemClock.uptimeMillis() + elapsedRealtime; detect zero-uptime stubs, implausible >10y values, future-boot-time, round-minute-multiples, and short (<60s) uptime patterns",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "env.wifi_security_type",
+      "rank": 65,
+      "category": "env",
+      "score": 0.0,
+      "confidence": 0.0,
+      "evidence": [],
+      "method": "(skipped)",
+      "runtimeMs": 1,
+      "failed": true,
+      "failureReason": "skipped: ACCESS_FINE_LOCATION not granted"
+    },
+    {
+      "id": "identity.android_id",
+      "rank": 11,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "android_id",
+          "value": "fbd37772bd01a050",
+          "expected": "<unique 16-hex>"
+        },
+        {
+          "key": "android_id.length",
+          "value": "16",
+          "expected": "16"
+        },
+        {
+          "key": "android_id.pattern",
+          "value": "normal",
+          "expected": "normal"
+        },
+        {
+          "key": "android_id.entropy_bits_per_char",
+          "value": "3.156",
+          "expected": ">=3.0"
+        }
+      ],
+      "method": "Read Settings.Secure.ANDROID_ID and check against known factory defaults, sequential patterns, and Shannon entropy threshold",
+      "runtimeMs": 6,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.bluetooth_mac",
+      "rank": 31,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "bluetooth_mac.adapter",
+          "value": "null",
+          "expected": "<real-OUI mac>"
+        },
+        {
+          "key": "bluetooth_mac.sysfs",
+          "value": "<unreadable>",
+          "expected": "<real-OUI mac>"
+        },
+        {
+          "key": "bluetooth_mac.oui_first_byte",
+          "value": "<unreadable>",
+          "expected": "<known IEEE-registered OEM OUI>"
+        },
+        {
+          "key": "bluetooth_mac.locally_administered",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "bluetooth_mac.emulator_oui_match",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "bluetooth_mac.adapter_available",
+          "value": "false",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "bluetooth_mac.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read BluetoothAdapter.address + /sys/class/bluetooth/hci0/address; validate OUI prefix against emulator-vendor allowlist; check locally-administered bit. Cross-reference rank-15 WifiMac OUI table.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.carrier_mccmnc",
+      "rank": 22,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "telephony.network_operator",
+          "value": "null",
+          "expected": "<5-6 digit MCC+MNC>"
+        },
+        {
+          "key": "telephony.network_operator_name",
+          "value": "null",
+          "expected": "<non-test carrier>"
+        },
+        {
+          "key": "telephony.sim_operator",
+          "value": "null",
+          "expected": "<5-6 digit MCC+MNC>"
+        },
+        {
+          "key": "telephony.sim_operator_name",
+          "value": "null",
+          "expected": "<non-test carrier>"
+        },
+        {
+          "key": "telephony.mcc",
+          "value": "unknown",
+          "expected": "<3-digit ITU code, not 000/001>"
+        },
+        {
+          "key": "telephony.mnc",
+          "value": "unknown",
+          "expected": "<2-3 digit operator code>"
+        },
+        {
+          "key": "telephony.is_known_emulator_carrier",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "telephony.pattern",
+          "value": "null",
+          "expected": "valid"
+        },
+        {
+          "key": "carrier_mccmnc.line1_number",
+          "value": "<unavailable>",
+          "expected": "<not in AOSP emulator block>"
+        },
+        {
+          "key": "carrier_mccmnc.emulator_phone_match",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "carrier_mccmnc.subscriber_id",
+          "value": "<unavailable>",
+          "expected": "<not AOSP 310260000000000>"
+        },
+        {
+          "key": "carrier_mccmnc.emulator_imsi_match",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "carrier_mccmnc.operator_name_match",
+          "value": "false",
+          "expected": "false"
+        }
+      ],
+      "method": "Read TelephonyManager.networkOperator + networkOperatorName + line1Number + subscriberId; detect known emulator-default carrier names, MCC/MNC values, AOSP-block phone numbers (strazzere/anti-emulator 16-entry list), and AOSP canonical IMSI 310260000000000. Power-13 Gap #6.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.gaid",
+      "rank": 16,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "gaid",
+          "value": "null",
+          "expected": "<UUID v4>"
+        },
+        {
+          "key": "gaid.length",
+          "value": 0,
+          "expected": "36"
+        },
+        {
+          "key": "gaid.format_valid",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "gaid.is_all_zero",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "gaid.limit_ad_tracking",
+          "value": "null",
+          "expected": "true_or_false (not null)"
+        },
+        {
+          "key": "gaid.entropy_bits_per_char",
+          "value": "0.000",
+          "expected": ">= 3.0"
+        },
+        {
+          "key": "gaid.opt_out_consistent",
+          "value": "true",
+          "expected": "true"
+        }
+      ],
+      "method": "Read AdvertisingIdInfo (Google Play Services), validate UUID format, check opt-out consistency, and detect known-emulator-stub UUIDs",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.gsf_id",
+      "rank": 17,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "gsf_id",
+          "value": "null",
+          "expected": "<16-hex non-zero>"
+        },
+        {
+          "key": "gsf_id.length",
+          "value": 0,
+          "expected": "16"
+        },
+        {
+          "key": "gsf_id.format_valid",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "gsf_id.is_zero",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "gsf_id.pattern",
+          "value": "null",
+          "expected": "normal"
+        },
+        {
+          "key": "gsf_id.entropy_bits_per_char",
+          "value": "0.000",
+          "expected": ">= 3.0"
+        }
+      ],
+      "method": "Read Google Services Framework android_id via ContentProvider gservices, validate 16-hex format, check against factory-default and entropy thresholds",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.imei_serial",
+      "rank": 12,
+      "category": "identity",
+      "score": 0.7,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "imei",
+          "value": "null",
+          "expected": "<15-digit Luhn-valid>"
+        },
+        {
+          "key": "imei.length",
+          "value": 0,
+          "expected": "15"
+        },
+        {
+          "key": "imei.luhn_valid",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "imei.known_emulator",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "ro.serialno",
+          "value": "null",
+          "expected": "<unique non-default>"
+        },
+        {
+          "key": "build.serial",
+          "value": "null",
+          "expected": "<unique non-default>"
+        },
+        {
+          "key": "serial.pattern",
+          "value": "unknown",
+          "expected": "valid"
+        }
+      ],
+      "method": "Read TelephonyManager.imei + ro.serialno, validate against known emulator IMEIs, Luhn checksum, and default-serial patterns",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.mediadrm",
+      "rank": 29,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "mediadrm.widevine_supported",
+          "value": "null",
+          "expected": "true"
+        },
+        {
+          "key": "mediadrm.security_level",
+          "value": "null",
+          "expected": "L1 on phone-class device"
+        },
+        {
+          "key": "mediadrm.vendor",
+          "value": "null",
+          "expected": "<real-OEM vendor>"
+        },
+        {
+          "key": "mediadrm.version",
+          "value": "null",
+          "expected": "<non-empty>"
+        },
+        {
+          "key": "mediadrm.device_unique_id_hex",
+          "value": "null",
+          "expected": "<non-zero high-entropy SHA-256 hex>"
+        },
+        {
+          "key": "mediadrm.device_unique_id_length",
+          "value": 0,
+          "expected": "32"
+        },
+        {
+          "key": "mediadrm.entropy_bits_per_byte",
+          "value": "0.000",
+          "expected": ">= 6.0"
+        },
+        {
+          "key": "mediadrm.pattern",
+          "value": "no_signals",
+          "expected": "clean_l1"
+        }
+      ],
+      "method": "Query MediaDrm Widevine UUID for security level + vendor + version + 32-byte device unique ID; detect L3 software fallback and zero/low-entropy unique-ID stubs",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.sim_iccid",
+      "rank": 21,
+      "category": "identity",
+      "score": 0.7,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "sim_iccid",
+          "value": "null",
+          "expected": "<89-prefix 19-or-20-digit Luhn-valid>"
+        },
+        {
+          "key": "sim_iccid.length",
+          "value": 0,
+          "expected": "19 or 20"
+        },
+        {
+          "key": "sim_iccid.prefix_valid",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "sim_iccid.luhn_valid",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "sim_iccid.is_known_emulator",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "sim_iccid.pattern",
+          "value": "null",
+          "expected": "valid"
+        }
+      ],
+      "method": "Read TelephonyManager.simSerialNumber, validate 89-prefix + length + Luhn checksum, detect known emulator-default ICCIDs",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.wifi_mac",
+      "rank": 15,
+      "category": "identity",
+      "score": 0.5,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "wifi_mac.wifimanager",
+          "value": "<unavailable: WifiManagerView lacks macAddress accessor>",
+          "expected": "<real-OUI mac>"
+        },
+        {
+          "key": "wifi_mac.sysfs",
+          "value": "<unreadable>",
+          "expected": "<real-OUI mac>"
+        },
+        {
+          "key": "wifi_mac.oui_first_byte",
+          "value": "<unreadable>",
+          "expected": "<known IEEE-registered OEM OUI>"
+        },
+        {
+          "key": "wifi_mac.locally_administered",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "wifi_mac.multicast_bit",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "wifi_mac.emulator_oui_match",
+          "value": "none",
+          "expected": "none"
+        }
+      ],
+      "method": "Read WifiManager.connectionInfo.macAddress + /sys/class/net/wlan0/address, validate OUI prefix against emulator-vendor allowlist, check locally-administered bit",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "identity.wifi_ssid_bssid",
+      "rank": 32,
+      "category": "identity",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "wifi.ssid",
+          "value": "null",
+          "expected": "<real SSID, not AndroidWifi/Genymotion>"
+        },
+        {
+          "key": "wifi.bssid",
+          "value": "null",
+          "expected": "<real OUI>"
+        },
+        {
+          "key": "wifi.ssid_length",
+          "value": "<unreadable>",
+          "expected": "1-32"
+        },
+        {
+          "key": "wifi.bssid_oui",
+          "value": "<unreadable>",
+          "expected": "<known IEEE OEM, not emulator OUI>"
+        },
+        {
+          "key": "wifi.connection_state",
+          "value": "null",
+          "expected": "connected if scoring requires it"
+        },
+        {
+          "key": "wifi.is_emulator_ssid",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "wifi.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read WifiManager.connectionInfo SSID + BSSID; detect emulator-default SSIDs (AndroidWifi/Genymotion) + cross-reference rank-15 OUI table for BSSID prefix",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "integrity.app_signature",
+      "rank": 60,
+      "category": "integrity",
+      "score": 0.0,
+      "confidence": 0.85,
+      "evidence": [
+        {
+          "key": "app_signature.spoofstack_tell_pkg",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "app_signature.xposed_family",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "app_signature.method",
+          "value": "package-name-scan-for-tamper-frameworks",
+          "expected": null
+        }
+      ],
+      "method": "package-name-scan-for-tamper-frameworks",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "integrity.play_integrity_signals",
+      "rank": 71,
+      "category": "integrity",
+      "score": 0.0,
+      "confidence": 0.85,
+      "evidence": [
+        {
+          "key": "play_integrity.basic_integrity_predicted_fail",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "play_integrity.device_integrity_predicted_fail",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "play_integrity.strong_integrity_predicted_fail",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "play_integrity.method",
+          "value": "buildprop-surface-inference",
+          "expected": null
+        },
+        {
+          "key": "play_integrity.ro.build.tags",
+          "value": "release-keys",
+          "expected": "release-keys"
+        },
+        {
+          "key": "play_integrity.ro.debuggable",
+          "value": "0",
+          "expected": "0"
+        },
+        {
+          "key": "play_integrity.ro.build.fingerprint",
+          "value": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys",
+          "expected": "no emulator marker"
+        },
+        {
+          "key": "play_integrity.ro.boot.verifiedbootstate",
+          "value": "",
+          "expected": "green"
+        },
+        {
+          "key": "play_integrity.ro.boot.flash.locked",
+          "value": "",
+          "expected": "1"
+        }
+      ],
+      "method": "buildprop-surface-inference",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "kernel.cpuinfo_bogomips_implementer",
+      "rank": 9,
+      "category": "emulator",
+      "score": 0.0,
+      "confidence": 0.0,
+      "evidence": [],
+      "method": "(skipped)",
+      "runtimeMs": 1,
+      "failed": true,
+      "failureReason": "skipped: cpuinfo unavailable (/proc/cpuinfo not readable)"
+    },
+    {
+      "id": "network.dns_server",
+      "rank": 37,
+      "category": "network",
+      "score": 0.5,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "dns.server1",
+          "value": "null",
+          "expected": "<ISP DNS>"
+        },
+        {
+          "key": "dns.server2",
+          "value": "null",
+          "expected": "<fallback DNS>"
+        },
+        {
+          "key": "dns.server3",
+          "value": "null",
+          "expected": "<optional>"
+        },
+        {
+          "key": "dns.private_dns_mode",
+          "value": "<unreadable>",
+          "expected": "off|opportunistic|hostname"
+        },
+        {
+          "key": "dns.private_dns_specifier",
+          "value": "<unreadable>",
+          "expected": "<DoT hostname if hostname mode>"
+        },
+        {
+          "key": "dns.is_emulator_default",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "dns.pattern",
+          "value": "no_dns_configured",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read net.dns1-4 properties + ConnectivityManager link DNS + Settings.Global private DNS; detect emulator DNS subnets (10.0.2.x, 192.168.42.x) and isolated public-DNS-only configs. No live DNS lookups.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "network.http_proxy",
+      "rank": 38,
+      "category": "network",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "jvm.http.proxyHost",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.http.proxyPort",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.https.proxyHost",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.https.proxyPort",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.socksProxyHost",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.socksProxyPort",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "jvm.http.nonProxyHosts",
+          "value": "<unavailable>",
+          "expected": "<empty>"
+        },
+        {
+          "key": "proxy.any_proxy_configured",
+          "value": "unknown",
+          "expected": "false"
+        },
+        {
+          "key": "proxy.http_proxy_pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read JVM System.getProperty for http.proxyHost/Port + https.* + socksProxy*; detect locally-running proxy (127.0.0.1), SOCKS proxy, and explicit proxy host. Focused-extraction probe separate from rank 18 VpnProxy which checks Android system properties.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "network.network_type",
+      "rank": 25,
+      "category": "network",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "net.active_transport",
+          "value": "null",
+          "expected": "WIFI or CELLULAR"
+        },
+        {
+          "key": "net.has_cellular_capability",
+          "value": "false",
+          "expected": "true (on phone-class device)"
+        },
+        {
+          "key": "telephony.data_network_type",
+          "value": "null",
+          "expected": "!= UNKNOWN if cellular phone"
+        },
+        {
+          "key": "telephony.sim_state",
+          "value": "null",
+          "expected": "READY on phone with SIM"
+        },
+        {
+          "key": "net.is_emulator_pattern",
+          "value": "none",
+          "expected": "none"
+        }
+      ],
+      "method": "Read ConnectivityManager.activeNetwork transport + TelephonyManager.dataNetworkType + simState; classify WiFi-only-no-SIM and TRANSPORT_USB as emulator signals. No live network requests.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "network.vpn_proxy",
+      "rank": 18,
+      "category": "network",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "vpn.interfaces_detected",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "vpn.transport_vpn_flag",
+          "value": "null",
+          "expected": "false"
+        },
+        {
+          "key": "vpn.system_proxy",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "vpn.container_interfaces",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "vpn.virtualization_interfaces",
+          "value": "none",
+          "expected": "none"
+        }
+      ],
+      "method": "Read /proc/net/dev interface list + ConnectivityManager transport flags + Settings.Global HTTP_PROXY; classify against known VPN, container, and virtualization interface patterns. No live network requests.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "root.selinux",
+      "rank": 14,
+      "category": "root",
+      "score": 0.3,
+      "confidence": 0.6,
+      "evidence": [
+        {
+          "key": "/sys/fs/selinux/enforce",
+          "value": "absent",
+          "expected": "1"
+        },
+        {
+          "key": "ro.boot.selinux",
+          "value": "",
+          "expected": "enforcing"
+        },
+        {
+          "key": "ro.build.selinux",
+          "value": "",
+          "expected": "1"
+        },
+        {
+          "key": "selinux_kernel_support",
+          "value": "false",
+          "expected": "true"
+        }
+      ],
+      "method": "Read /sys/fs/selinux/enforce + ro.boot.selinux + ro.build.selinux + optional getcon context, score Permissive/inconsistent as root indicator",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "root.su_detection",
+      "rank": 3,
+      "category": "root",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "/system/bin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/xbin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/sbin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/sd/xbin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/bin/failsafe/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/local/xbin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/local/bin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/local/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/sbin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/vendor/bin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/su/bin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/magisk/.core/bin/su",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/sbin/.magisk",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/bin/magisk",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/cache/magisk.log",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/adb/magisk",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "su_search.pkg.com.topjohnwu.magisk",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "su_search.pkg.eu.chainfire.supersu",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "su_search.pkg.com.koushikdutta.superuser",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "su_search.pkg.com.thirdparty.superuser",
+          "value": "absent",
+          "expected": "absent"
+        }
+      ],
+      "method": "Filesystem path + package-list scan for known root toolchains (RootBeer-pattern subset)",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.automation_tools",
+      "rank": 69,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "appium.accessibility_service_enabled",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "uiautomator.package_installed",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "settings.adb_enabled",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "proc_net_tcp.port_5555_established",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "adb_shell_active",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "automation_tools.overlay_present",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "automation_tools.overlay_hits",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "automation_tools.capture_present",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "automation_tools.capture_hits",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "automation_tools.control_present",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "automation_tools.control_hits",
+          "value": "none",
+          "expected": "none"
+        }
+      ],
+      "method": "accessibility_settings+package_manager+proc_net_tcp+overlay/capture/control_package_scan (Power-13 Gap #13)",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.debugger_tracerpid",
+      "rank": 80,
+      "category": "runtime",
+      "score": 0.5,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "proc_self_status.tracer_pid",
+          "value": "<unavailable>",
+          "expected": "0"
+        },
+        {
+          "key": "proc_self_status.readable",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "debugger.attached",
+          "value": "unknown",
+          "expected": "false"
+        },
+        {
+          "key": "debugger.tracerpid_pattern",
+          "value": "status_unreadable",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read /proc/self/status and parse TracerPid field; non-zero value indicates ptrace-attached debugger (freeRASP T2 / MASTG-RESILIENCE-2)",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.installed_apps",
+      "rank": 10,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "leak_group",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "installed_list_empty",
+          "value": false,
+          "expected": false
+        }
+      ],
+      "method": "PackageManager-visible scan for known root managers, dynamic-analysis tools, clone apps, automation frameworks, and third-party emulator clients (hide-manager mitigation failure signal — Power-13 Gap #7)",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.multi_instance",
+      "rank": 68,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.6,
+      "evidence": [
+        {
+          "key": "user_handle.my_user_id",
+          "value": "unknown",
+          "expected": 0
+        },
+        {
+          "key": "user_handle.is_secondary_user",
+          "value": false,
+          "expected": false
+        },
+        {
+          "key": "packages.clone_suffix_found",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "packages.clone_suffix_count",
+          "value": 0,
+          "expected": 0
+        },
+        {
+          "key": "packages.oem_framework_found",
+          "value": "none",
+          "expected": "none"
+        }
+      ],
+      "method": "user_handle+clone_suffix_scan+oem_framework_check|talsec_disclosure:more_techniques_coming",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.screen_recording",
+      "rank": 70,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.0,
+      "evidence": [],
+      "method": "(skipped)",
+      "runtimeMs": 4,
+      "failed": true,
+      "failureReason": "skipped: api_too_low: SDK_INT=0 < 34"
+    },
+    {
+      "id": "runtime.services_processes",
+      "rank": 50,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "runtime.process_count",
+          "value": "0",
+          "expected": "N/A or >=10"
+        },
+        {
+          "key": "runtime.service_count",
+          "value": "0",
+          "expected": "N/A or >=5"
+        },
+        {
+          "key": "runtime.hostile_processes",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "runtime.debug_processes",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "runtime.mitm_processes",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "runtime.automation_processes",
+          "value": "none",
+          "expected": "none on production"
+        },
+        {
+          "key": "runtime.process_list_filtered",
+          "value": "true",
+          "expected": "known on Android 8+ unprivileged"
+        },
+        {
+          "key": "runtime.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read ActivityManager getRunningServices + getRunningAppProcesses; scan service/process names for hostile root-tool/instrumentation/MITM substrings; document Android 8+ visibility filter as confidence-degradation.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "runtime.xposed_lsposed",
+      "rank": 8,
+      "category": "runtime",
+      "score": 0.0,
+      "confidence": 0.85,
+      "evidence": [
+        {
+          "key": "/system/framework/XposedBridge.jar",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/lib/libxposed_art.so",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/lib64/libxposed_art.so",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/bin/app_process32_xposed",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/system/bin/app_process64_xposed",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/adb/lspd/",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/adb/modules/zygisk_lsposed/",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "/data/adb/modules/riru_edxposed/",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "xposed.pkg.de.robv.android.xposed.installer",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "xposed.pkg.org.lsposed.manager",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "xposed.pkg.org.meowcat.edxposed.manager",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "xposed.pkg.io.va.exposed",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "xposed.pkg.com.solohsu.android.edxp.manager",
+          "value": "absent",
+          "expected": "absent"
+        },
+        {
+          "key": "proc.self.maps.readable",
+          "value": false,
+          "expected": true
+        },
+        {
+          "key": "proc.self.maps.hook_lib_matches",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "xposed.generic_zygisk_present",
+          "value": false,
+          "expected": null
+        }
+      ],
+      "method": "Filesystem path + package-list scan + /proc/self/maps hook-library detection (narrow Xposed-family scoring markers, generic libzygisk emitted as observability- only evidence — Power-13 Gap #11). Classloader signal class deferred — see KDoc.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "sensors.accelerometer_gyro",
+      "rank": 24,
+      "category": "sensors",
+      "score": 0.5,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "sensor_count",
+          "value": 0,
+          "expected": ">=6"
+        },
+        {
+          "key": "has_accelerometer",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "has_gyroscope",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "has_barometer",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "accelerometer.vendor",
+          "value": "<unavailable>",
+          "expected": "<known OEM, not Goldfish>"
+        },
+        {
+          "key": "accelerometer.maxRange",
+          "value": "<unavailable>",
+          "expected": "<≠ exact 9.8>"
+        },
+        {
+          "key": "stub_pattern_detected",
+          "value": "false",
+          "expected": "false"
+        }
+      ],
+      "method": "Enumerate SensorManager sensors and check for emulator vendor/name keywords, stub default values, missing-sensor patterns, and (optional) live-sample variance",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "sensors.barometer",
+      "rank": 45,
+      "category": "sensors",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "barometer.present",
+          "value": "false",
+          "expected": "true on known-barometer-model phones"
+        },
+        {
+          "key": "barometer.vendor_name",
+          "value": "<unavailable>",
+          "expected": "<known OEM, not Goldfish/AVD/Genymotion>"
+        },
+        {
+          "key": "barometer.emu_name_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "barometer.sample_summary",
+          "value": "<no samples>",
+          "expected": "dynamic value in 300-1100 hPa"
+        },
+        {
+          "key": "barometer.out_of_range",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "barometer.constant_stub",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "barometer.is_known_barometer_model",
+          "value": "false",
+          "expected": "<used in scoring guard>"
+        },
+        {
+          "key": "barometer.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Check SensorManager for TYPE_PRESSURE presence + emulator vendor names + plausibility (300-1100 hPa range) + AVD-stub-value detection (1013.25 / 1000.0 / 0.0). Score 'missing sensor' lower than other sensor probes since barometer is not universal.",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "sensors.light",
+      "rank": 43,
+      "category": "sensors",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "light.present",
+          "value": "false",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "light.vendor_name",
+          "value": "<unavailable>",
+          "expected": "<known OEM, not Goldfish/AVD/Genymotion>"
+        },
+        {
+          "key": "light.emu_name_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "light.sample_summary",
+          "value": "<no samples>",
+          "expected": "dynamic lux when sensor present"
+        },
+        {
+          "key": "light.implausible_lux",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "light.constant_stub",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "light.phone_class",
+          "value": "false",
+          "expected": "<used in scoring guard>"
+        },
+        {
+          "key": "light.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Check SensorManager for TYPE_LIGHT presence + emulator vendor names + (optional) lux-value plausibility and sample variance",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "sensors.magnetometer",
+      "rank": 44,
+      "category": "sensors",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "magnetometer.present",
+          "value": "false",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "magnetometer.vendor_name",
+          "value": "<unavailable>",
+          "expected": "<known OEM, not Goldfish/AVD/Genymotion>"
+        },
+        {
+          "key": "magnetometer.emu_name_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "magnetometer.sample_summary",
+          "value": "<no samples>",
+          "expected": "magnitude in 20-65 µT range"
+        },
+        {
+          "key": "magnetometer.avd_stub_triple",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "magnetometer.implausible_high",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "magnetometer.implausible_low",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "magnetometer.phone_class",
+          "value": "false",
+          "expected": "<used in scoring guard>"
+        },
+        {
+          "key": "magnetometer.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Check SensorManager for TYPE_MAGNETIC_FIELD presence + emulator vendor names + 3-axis magnitude plausibility (5-200 µT range) + AVD-stub-triple detection",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "sensors.proximity",
+      "rank": 42,
+      "category": "sensors",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "proximity.present",
+          "value": "false",
+          "expected": "true on phone-class"
+        },
+        {
+          "key": "proximity.vendor_name",
+          "value": "<unavailable>",
+          "expected": "<known OEM, not Goldfish/AVD/Genymotion>"
+        },
+        {
+          "key": "proximity.emu_name_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "proximity.sample_summary",
+          "value": "<no samples>",
+          "expected": "non-constant when sensor present"
+        },
+        {
+          "key": "proximity.constant_samples",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "proximity.phone_class",
+          "value": "false",
+          "expected": "<used in scoring guard>"
+        },
+        {
+          "key": "proximity.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Check SensorManager for TYPE_PROXIMITY presence + emulator vendor names + (optional) sample variance",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "ui.display_cutout",
+      "rank": 52,
+      "category": "ui",
+      "score": 0.0,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "display.has_cutout",
+          "value": "<unavailable>",
+          "expected": "depends on model year"
+        },
+        {
+          "key": "display.cutout_safe_inset_top",
+          "value": "<unavailable>",
+          "expected": "24-44 dp on flagship"
+        },
+        {
+          "key": "display.cutout_bounds_count",
+          "value": "<unavailable>",
+          "expected": "0 or 1"
+        },
+        {
+          "key": "display.is_cutout_capable_model",
+          "value": "false",
+          "expected": "true if Pixel 6+/Galaxy S22+"
+        },
+        {
+          "key": "display.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read DisplayCutout via WindowInsets / Display.cutout; detect missing cutout on flagship-with-notch models, implausible inset values, and inset-vs-bounds contradictions",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "ui.input_method",
+      "rank": 58,
+      "category": "ui",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "secure.default_input_method",
+          "value": "com.android.inputmethod.latin/.LatinIME",
+          "expected": "<real OEM IME component>"
+        },
+        {
+          "key": "input_method.has_emu_marker",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "input_method.is_populated",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "input_method.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read Settings.Secure.default_input_method and detect emulator/test/mock IME substrings or empty default IME (real devices always populate this setting)",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "ui.refresh_rate",
+      "rank": 46,
+      "category": "ui",
+      "score": 0.0,
+      "confidence": 0.3,
+      "evidence": [
+        {
+          "key": "display.refresh_rate_hz",
+          "value": "<unavailable>",
+          "expected": "60/90/120/144/165"
+        },
+        {
+          "key": "display.supported_modes_count",
+          "value": "<unavailable>",
+          "expected": ">=1"
+        },
+        {
+          "key": "display.supported_modes",
+          "value": "<unavailable>",
+          "expected": "adaptive on flagship"
+        },
+        {
+          "key": "display.is_plausible_hz",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "display.is_120hz_capable_model",
+          "value": "false",
+          "expected": "depends on model"
+        },
+        {
+          "key": "display.pattern",
+          "value": "clean",
+          "expected": "clean"
+        }
+      ],
+      "method": "Read Display.refreshRate + supportedModes; detect implausible Hz values, single-60Hz-mode on 120Hz-capable flagships, and stub patterns",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "ui.screen_resolution",
+      "rank": 23,
+      "category": "ui",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "display.widthPixels",
+          "value": 1080,
+          "expected": "<model-spec>"
+        },
+        {
+          "key": "display.heightPixels",
+          "value": 2400,
+          "expected": "<model-spec>"
+        },
+        {
+          "key": "display.densityDpi",
+          "value": 420,
+          "expected": "<model-spec>"
+        },
+        {
+          "key": "display.xdpi",
+          "value": "absent",
+          "expected": "<≠ density typically>"
+        },
+        {
+          "key": "display.ydpi",
+          "value": "absent",
+          "expected": "<≠ density typically>"
+        },
+        {
+          "key": "display.aspect_ratio",
+          "value": "2.222",
+          "expected": "<known mobile aspect>"
+        },
+        {
+          "key": "model_match",
+          "value": "unknown_model",
+          "expected": "match"
+        }
+      ],
+      "method": "Read DisplayMetrics + ro.product.model and cross-check resolution/density/dpi against known device profiles and emulator defaults",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "ui.system_fonts",
+      "rank": 51,
+      "category": "ui",
+      "score": 0.5,
+      "confidence": 0.5,
+      "evidence": [
+        {
+          "key": "fonts.system_count",
+          "value": "via fileExists: 0/32",
+          "expected": ">=100"
+        },
+        {
+          "key": "fonts.has_noto_color_emoji",
+          "value": "false",
+          "expected": "true"
+        },
+        {
+          "key": "fonts.roboto_variant_count",
+          "value": "via fileExists: 0",
+          "expected": ">=20"
+        },
+        {
+          "key": "fonts.default_family",
+          "value": "<unavailable>",
+          "expected": "sans-serif"
+        },
+        {
+          "key": "fonts.sample",
+          "value": "<no observation>",
+          "expected": "real font names"
+        },
+        {
+          "key": "fonts.pattern",
+          "value": "no_observation",
+          "expected": "clean"
+        }
+      ],
+      "method": "Enumerate /system/fonts/ directory; detect missing NotoColorEmoji, low font count (<50), low Roboto variant count, non-standard default family",
+      "runtimeMs": 2,
+      "failed": false,
+      "failureReason": null
+    }
+  ]
+}
