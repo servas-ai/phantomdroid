@@ -1,0 +1,1 @@
+boot=1 fp=google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys res=Physical size: 1080x2400 tz=America/Los_Angeles dns=1.1.1.1 tags=release-keys
