@@ -191,6 +191,60 @@ modules:
     filed_under_issue: "CLO-61"
     proposal_id: "019e2f12-726b-74b7-bbd9-6d9a17e208ea"
 
+  # ---------- L4 runtime root-hiding ----------
+  # L4 root-hiding is BLOCKED for fresh-fork durability (round 3, 2026-05-31). A freshly
+  # forked denylisted app (com.android.calendar, PID 700122, parent zygote64) still saw
+  # 4/16 SuDetectionProbe paths BEFORE any manual per-PID nsenter/unmount intervention:
+  # /system/xbin/su, /sbin/su, /sbin/.magisk, and /data/adb/magisk. Root remained intact
+  # in the control namespace. The earlier round-2 0/16 result is a manual namespace-mask
+  # demo only, not durable L4 proof. See proof/b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md.
+  #
+  # The HIDING MECHANISM IS NOT SHAMIKO. On this system-as-root x86_64 image Shamiko self-
+  # reports "Unsupported environment" and Zygisk does NOT auto-inject into the zygote
+  # (libzygisk: 0 mappings in zygote64), so Shamiko hides nothing — its pin is retained ONLY
+  # for provenance/completeness. Manual nsenter masks can hide the paths after an app PID
+  # already exists, but Magisk Delta does not apply that masking automatically at fork on this
+  # image.
+  - id: shamiko
+    layer: L4
+    pinned_version: "v1.2.5 (414)"
+    source: "github.com/LSPosed/LSPosed.github.io"   # canonical LSPosed Shamiko release host
+    release_tag: "shamiko-414"
+    artifact: "Shamiko-v1.2.5-414-release.zip"
+    download_url: "https://github.com/LSPosed/LSPosed.github.io/releases/download/shamiko-414/Shamiko-v1.2.5-414-release.zip"
+    # sha256 of the FULL release zip, computed on the project host 2026-05-31.
+    artifact_sha256: "308d31b2f52a80e49eb58f46bc4c764a6588a79e4b8d101b44860832023f88b4"
+    artifact_published_at_utc: "2025-06-18T11:37:10Z"
+    pinned_at_utc: "2026-05-31T15:48:00Z"
+    local_cache: "/home/coder/redroid-cache/l4-shamiko/Shamiko-v1.2.5-414-release.zip"  # gitignored, NOT committed
+    module_id: "zygisk_shamiko"                       # /data/adb/modules/zygisk_shamiko
+    config:
+      mode: "denylist-enforcement"   # blacklist mode: hide root from Magisk-denylisted apps
+      requires_zygisk: true          # Magisk built-in Zygisk MUST be enabled (settings zygisk=1)
+      requires_denylist_enforced: true
+      whitelist_mode_available: false  # needs a preinit dir; ReDroid install reports "Unable to find preinit dir"
+      functional_on_this_image: false  # MEASURED 2026-05-31: "Unsupported environment", no app injection, Shamiko itself hides nothing
+      # L4 root-hide is NOT durable on this image. The only clean result is manual post-fork masking:
+      hiding_mechanism: "manual-post-fork-nsenter-mask-only"
+      measured_su_detection_in_fresh_fork_before_manual_unmount: 1.0  # round 3: 4/16 paths visible => SuDetectionProbe fails
+      measured_paths_present_in_fresh_fork_before_manual_unmount: 4
+      measured_su_detection_in_denylisted_ns_after_manual_mask: 0.0  # round 2 demo: 0/16 after nsenter unmount/masks
+      measured_su_detection_in_root_ns: 1.0        # control: root genuinely present (4 paths) in global ns
+      durable_fork_time_hiding: false
+      blocker: "proof/b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md"
+    cross_ref:
+      spoofstack_modules_md: "L4 row 'Shamiko (Zygisk denylist enforcement)'"
+      layers_md: "agents/stability/stack/layers.md::L4 — Runtime Hiding"
+      proof: "proof/b2-l4-zygisk/RESULT.md"
+    policy:
+      pin_mode: "sha256"
+      # The zip carries zstd-compressed entries (compression method 95). Only Magisk's
+      # bundled libzip / the in-container busybox can extract it; host `unzip`/python
+      # zipfile cannot. Install therefore runs INSIDE the container via
+      # `magisk --install-module`, after provisioning util_functions.sh from magisk.apk
+      # (see RESULT §install). On install the payload stages to /data/adb/modules_update
+      # and activates on the next reboot (standard Magisk module flow).
+
 # -----------------------------------------------------------------------------
 # Verification contract (consumed by container_lifecycle.py preflight)
 # -----------------------------------------------------------------------------

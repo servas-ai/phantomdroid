@@ -18,7 +18,10 @@
 #                                                        (dumpsys sensorservice = "No Sensors on the
 #                                                        device", devInitCheck:-19). See BLOCKER-L5.md.
 #   L3  attestation (PIF/TrickyStore keybox)          — out of B2 scope (needs keybox; tracked L3-DEFAULT.md)
-#   L4  runtime hiding (Shamiko/HMA)                  — out of B2 scope (Zygisk module install)
+#   L4  runtime root-hiding (Magisk Delta denylist)   — BLOCKED for fresh-fork durability: new
+#                                                        denylisted app forks see root until the
+#                                                        manual per-PID nsenter masks below run.
+#                                                        See proof/b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md.
 #
 # NOTE on measurement: the internal detector observes identity via the live-capture snapshot pipeline
 # (agents/orchestrator/src/live_matrix.py). That capture currently hardcodes telephony={}, sensorTypes=[],
@@ -116,9 +119,65 @@ docker exec "$NAME" su -c "
 # (3) Post-boot overlays (need SYS_ADMIN, present in the hardened cap set) + display/tz/dns/settings.
 docker cp "$CPUINFO" "$NAME:/data/cpuinfo.spoofed" >/dev/null 2>&1 || true
 docker exec "$NAME" sh -c '
-  touch /data/empty_su; mount --bind /data/empty_su /system/xbin/su 2>/dev/null || true
   [ -f /data/cpuinfo.spoofed ] && mount --bind /data/cpuinfo.spoofed /proc/cpuinfo 2>/dev/null || true
 '
+
+# (3a) L4 manual root-mask demo via Magisk Delta denylist targets (NOT durable).
+#  MECHANISM (honest): on this system-as-root x86_64 image Shamiko self-reports "Unsupported
+#  environment" and Zygisk does NOT auto-inject into the zygote, so Shamiko is NOT the hiding agent.
+#  Round-3 validator result: a freshly forked denylisted app still sees /system/xbin/su, /sbin/su,
+#  /sbin/.magisk, and /data/adb/magisk before manual per-PID intervention. Therefore this block is
+#  only a post-fork demo mask for currently running PIDs, not an L4 PASS. ROOT IS UNAFFECTED
+#  throughout: the magiskd daemon stays resident and su keeps resolving via /sbin/su in the
+#  global/root namespace (su -c id => uid=0; magisk -V => 30600).
+#  DENYLIST_APPS: space-separated package[/proc] targets to hide root from. Override via env.
+DENYLIST_APPS="${DENYLIST_APPS:-com.android.smspush com.android.launcher3}"
+# Provision /data/adb/magisk from the bundled apk (the redroid script leaves it empty, which blocks
+# module install + the denylist runtime). Idempotent.
+docker exec "$NAME" su -c '
+  APK=/system/etc/init/magisk/magisk.apk
+  if [ -f "$APK" ] && [ ! -x /data/adb/magisk/magisk64 ]; then
+    mkdir -p /data/adb/magisk
+    for f in libmagisk.so libmagiskboot.so libmagiskinit.so libmagiskpolicy.so libbusybox.so libinit-ld.so; do
+      unzip -p "$APK" "lib/x86_64/$f" > "/data/adb/magisk/$f" 2>/dev/null || true
+    done
+    cp -f /data/adb/magisk/libmagisk.so      /data/adb/magisk/magisk64    2>/dev/null || true
+    cp -f /data/adb/magisk/libmagiskboot.so  /data/adb/magisk/magiskboot  2>/dev/null || true
+    cp -f /data/adb/magisk/libmagiskinit.so  /data/adb/magisk/magiskinit  2>/dev/null || true
+    cp -f /data/adb/magisk/libmagiskpolicy.so /data/adb/magisk/magiskpolicy 2>/dev/null || true
+    cp -f /data/adb/magisk/libbusybox.so     /data/adb/magisk/busybox     2>/dev/null || true
+    unzip -p "$APK" assets/util_functions.sh > /data/adb/magisk/util_functions.sh 2>/dev/null || true
+    chmod 755 /data/adb/magisk/magisk64 /data/adb/magisk/magiskboot /data/adb/magisk/magiskinit /data/adb/magisk/magiskpolicy /data/adb/magisk/busybox 2>/dev/null || true
+  fi
+' 2>/dev/null || true
+# Arm + enforce the denylist (zygisk+denylist bits, then enforcement, then targets). Re-run-safe.
+docker exec "$NAME" su -c "
+  magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',1)\" 2>/dev/null || true
+  magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('denylist',1)\" 2>/dev/null || true
+  magisk --denylist enable 2>/dev/null || true
+  for app in $DENYLIST_APPS; do
+    pkg=\${app%%/*}; proc=\${app#*/}; [ \"\$proc\" = \"\$app\" ] && proc=\$pkg
+    magisk --denylist add \"\$pkg\" \"\$proc\" 2>/dev/null || true
+  done
+  magisk --denylist status; magisk --denylist ls
+" 2>/dev/null || true
+# Hide the Magisk MANAGER package (the only non-namespace SuDetectionProbe residual). Root persists
+# via the resident magiskd daemon. (Magisk Delta's GUI "repackage to random name" is unavailable
+# headless; uninstall is the verifiable equivalent.)
+docker exec "$NAME" su -c 'pm uninstall com.topjohnwu.magisk 2>/dev/null || true' 2>/dev/null || true
+# Apply the manual masks to every CURRENTLY-RUNNING denylisted process. This is not durable:
+# round-3 proved new forks must be re-processed and can observe root before this block runs.
+# Root (global ns) is untouched.
+docker exec "$NAME" su -c "
+  for app in $DENYLIST_APPS; do
+    pkg=\${app%%/*}
+    for pid in \$(pidof \"\$pkg\" 2>/dev/null); do
+      nsenter -t \"\$pid\" -m -- umount -l /sbin 2>/dev/null || true
+      nsenter -t \"\$pid\" -m -- mount -t tmpfs -o ro,mode=0750,size=4k tmpfs /system/xbin 2>/dev/null || true
+      nsenter -t \"\$pid\" -m -- mount -t tmpfs -o ro,mode=0700,size=4k tmpfs /data/adb 2>/dev/null || true
+    done
+  done
+" 2>/dev/null || true
 docker exec "$NAME" sh -c "printf '%s\n' '$PIXEL_KVER' > /data/version.spoofed; mount --bind /data/version.spoofed /proc/version 2>/dev/null || true"
 docker exec "$NAME" sh -c 'cat > /data/meminfo.spoofed <<EOF
 MemTotal:        7847328 kB
@@ -144,3 +203,4 @@ echo "[l2-l6] $NAME ready on 127.0.0.1:${PORT} — Privileged=$PRIV root=$(docke
 echo "[l2-l6] L1/L0b/L2/L6 spoofed: model=$(docker exec "$NAME" getprop ro.product.model) op=$(docker exec "$NAME" getprop gsm.operator.alpha)/$(docker exec "$NAME" getprop gsm.operator.numeric) net=$(docker exec "$NAME" getprop gsm.network.type) serial=$(docker exec "$NAME" getprop ro.serialno)"
 echo "[l2-l6] L5 sensors BLOCKED (no HAL) — see proof/b2-sensor-lte/BLOCKER-L5.md"
 echo "[l2-l6] L2 telephony/serial scored only via telephony-aware capture — see proof/b2-sensor-lte/RESULT.md"
+echo "[l2-l6] L4 root hiding BLOCKED for fresh-fork durability — manual masks are demo-only; see proof/b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md"

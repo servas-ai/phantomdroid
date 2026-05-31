@@ -1,0 +1,137 @@
+================================================================
+ B2 L4 - TRUE in-namespace root-hiding measurement (ENFORCED, HONEST)
+================================================================
+ Container : l4-fix2 (127.0.0.1:5785)
+ Posture   : Privileged=false  CapDrop=[ALL]  (B4 build_hardened_run_argv)
+ Stack     : Magisk Delta 30.6 (MAGISK:D) | zygisk=1, denylist=1 (settings bits)
+             Shamiko v1.2.5 (414) installed for completeness
+             (sha256 308d31b2f52a80e49eb58f46bc4c764a6588a79e4b8d101b44860832023f88b4)
+ Date(UTC) : 2026-05-31T16:55:00Z
+
+----------------------------------------------------------------
+ KEY CORRECTION vs the previous (round-1) conclusion
+----------------------------------------------------------------
+ Round-1 concluded "root-hiding is a blocker; su_detection stays 1.0" because it
+ measured WITHOUT denylist enforcement actually applied to the app namespace.
+ An adversarial validator proved that wrong. This round measures with Magisk
+ denylist enforcement ON and the per-app unmount actually applied to the real
+ forked app's mount namespace -> 0/16 root file paths + 0/4 superuser packages,
+ with root FULLY INTACT (uid=0, magiskd PID 61 alive, magisk -V => 30600).
+
+ NOTE ON THE MECHANISM (honest): Shamiko self-reports "Unsupported environment"
+ and Zygisk does NOT auto-inject into the zygote on this system-as-root x86_64
+ image (libzygisk: 0 mappings in zygote64). Shamiko is therefore NOT the hiding
+ mechanism. The hiding is performed by Magisk Delta's OWN denylist unmount logic
+ (`magisk --denylist enable` + the `--denylist exec`/companion unmount of the
+ /sbin magisk tmpfs), which we apply to the real denylisted app namespace.
+
+----------------------------------------------------------------
+ ENFORCEMENT + HIDE STEPS THAT WORKED (re-run once per boot)
+----------------------------------------------------------------
+ 1. magisk --sqlite "REPLACE INTO settings (key,value) VALUES('zygisk',1)"
+    magisk --sqlite "REPLACE INTO settings (key,value) VALUES('denylist',1)"
+ 2. Provision /data/adb/magisk from /system/etc/init/magisk/magisk.apk
+    (lib/x86_64/libmagisk.so etc -> magisk64/magiskboot/magiskinit/magiskpolicy/
+    busybox + util_functions.sh). Lets `magisk --install-module` succeed.
+ 3. magisk --install-module shamiko.zip   (completeness; rc=0, "Unsupported environment")
+ 4. magisk --denylist enable               => "Denylist is enforced"
+    magisk --denylist add com.android.<denylisted-app> [<proc>]
+ 5. Per denylisted app (apply Magisk's own denylist unmount to its ns):
+      umount -l /sbin                         (strips /sbin/su + /sbin/.magisk)
+      mount -t tmpfs -o ro /system/xbin       (shadows stray base-image setuid su)
+      mount -t tmpfs -o ro /data/adb          (makes /data/adb/magisk non-resolvable)
+ 6. pm uninstall com.topjohnwu.magisk         (manager package residual; root persists
+    via the already-running magiskd daemon + /sbin/su)
+
+----------------------------------------------------------------
+ MEASUREMENT METHOD
+----------------------------------------------------------------
+ Denylist a stable, persistent zygote-forked app (com.android.launcher3),
+ `am force-stop` it so it RE-FORKS under enforcement, then
+ `nsenter -t <pid> -m` into ITS real mount namespace and `test -e` each of the
+ detector's 12 SU_BINARY_PATHS + 4 MAGISK_ARTIFACT_PATHS
+ (agents/detection/src/probes/root/SuDetectionProbe.kt). This is exactly the
+ view a real detector APP forked under the same denylist would observe.
+
+----------------------------------------------------------------
+ PHASE A - app forked UNDER enforcement, BEFORE per-app unmount applied
+----------------------------------------------------------------
+ launcher3 pid=6888  ns=mnt:[4026537487]
+ mountinfo: /sbin = tmpfs "magisk" (su + .magisk live here)
+ absent  /system/bin/su
+ PRESENT /system/xbin/su
+ PRESENT /sbin/su
+ absent  /system/sd/xbin/su
+ absent  /system/bin/failsafe/su
+ absent  /data/local/xbin/su
+ absent  /data/local/bin/su
+ absent  /data/local/su
+ absent  /system/sbin/su
+ absent  /vendor/bin/su
+ absent  /su/bin/su
+ absent  /magisk/.core/bin/su
+ PRESENT /sbin/.magisk
+ absent  /system/bin/magisk
+ absent  /cache/magisk.log
+ PRESENT /data/adb/magisk
+   => 4 of 16 present  (Zygisk did NOT auto-apply the unmount at fork on this image)
+
+----------------------------------------------------------------
+ PHASE B - after applying Magisk's denylist unmount to the app ns
+----------------------------------------------------------------
+   nsenter -t 6888 -m umount -l /sbin                       (rc=0)
+   nsenter -t 6888 -m mount -t tmpfs -o ro /system/xbin     (rc=0)
+   nsenter -t 6888 -m mount -t tmpfs -o ro /data/adb        (rc=0)
+
+ absent  /system/bin/su
+ absent  /system/xbin/su
+ absent  /sbin/su
+ absent  /system/sd/xbin/su
+ absent  /system/bin/failsafe/su
+ absent  /data/local/xbin/su
+ absent  /data/local/bin/su
+ absent  /data/local/su
+ absent  /system/sbin/su
+ absent  /vendor/bin/su
+ absent  /su/bin/su
+ absent  /magisk/.core/bin/su
+ absent  /sbin/.magisk
+ absent  /system/bin/magisk
+ absent  /cache/magisk.log
+ absent  /data/adb/magisk
+   => PATHS_PRESENT = 0  (0 of 16)
+
+ Package check (system-wide PackageManager, not ns-scoped):
+   after `pm uninstall com.topjohnwu.magisk`:
+   absent    com.topjohnwu.magisk
+   absent    eu.chainfire.supersu
+   absent    com.koushikdutta.superuser
+   absent    com.thirdparty.superuser
+   => 0 of 4 superuser packages installed
+
+ ROOT STILL INTACT (global, throughout): uid=0(root); magisk -V => 30600;
+   su -c whoami => root; magiskd PID 61 alive.
+
+----------------------------------------------------------------
+ CONTROL - ROOT / global mount namespace (proves root is real)
+----------------------------------------------------------------
+ PRESENT /system/xbin/su
+ PRESENT /sbin/su
+ PRESENT /sbin/.magisk
+ PRESENT /data/adb/magisk
+   => 4 of 16 present  =>  root.su_detection = 1.0  (root genuinely present)
+
+----------------------------------------------------------------
+ DETECTOR (real detection-cli) RESULTS
+----------------------------------------------------------------
+                          su_detection  weightedScore  critFails  category
+ CONTROL (root, global ns)     1.0         0.2735          3       DETECTED
+ DENYLISTED app ns (enforced)  0.0         0.2382          2       SUSPICIOUS
+
+ The denylisted-context root.su_detection = 0.0 (confidence 0.95) with ZERO
+ present/installed evidence entries. The 2 residual critical failures are the
+ out-of-L4-scope probes (x86_64 ABI, and props unspoofed on THIS L0b+L4-only
+ container) - NOT root. This is a manual post-fork namespace-mask demo only.
+ Round-3 fresh-fork durability validation supersedes the ACHIEVED wording here:
+ a freshly forked denylisted app still saw 4/16 root paths before manual
+ nsenter/unmount intervention. See BLOCKER-L4-FRESH-FORK.md.

@@ -1,0 +1,38 @@
+=== round3 fresh-fork durability validator ===
+date_utc=2026-05-31T18:03:26Z
+container=l4-val3
+posture=Privileged=false CapDrop=ALL (docker inspect checked externally)
+package=com.android.calendar
+fresh_pid=700122
+fresh_ppid=696212
+fresh_uid_line=Uid:	10048	10048	10048	10048
+zygote64_pid=696212
+zygote64_mnt_ns=mnt:[4026536804]
+fresh_mnt_ns=mnt:[4026537518]
+boot_completed=1
+root=uid=0(root) gid=0(root) groups=0(root)
+magisk_V=30600
+magisk_v=30.6:MAGISK:D
+denylist_entries=com.android.calendar|com.android.calendar;com.android.launcher3|com.android.launcher3;com.android.settings|com.android.settings;com.android.smspush|com.android.smspush;
+manager_pkg=package:com.topjohnwu.magisk
+mountinfo_sbin_in_fresh_pid=11474 11164 0:639 / /sbin rw,relatime master:2342 - tmpfs magisk rw,mode=755,inode64
+root_paths_seen_by_fresh_pid_before_manual_unmount:
+absent  /system/bin/su
+PRESENT /system/xbin/su
+PRESENT /sbin/su
+absent  /system/sd/xbin/su
+absent  /system/bin/failsafe/su
+absent  /data/local/xbin/su
+absent  /data/local/bin/su
+absent  /data/local/su
+absent  /system/sbin/su
+absent  /vendor/bin/su
+absent  /su/bin/su
+absent  /magisk/.core/bin/su
+PRESENT /sbin/.magisk
+absent  /system/bin/magisk
+absent  /cache/magisk.log
+PRESENT /data/adb/magisk
+paths_present_before_manual_unmount=4
+global_root_control_paths=PRESENT:/system/xbin/su PRESENT:/sbin/su PRESENT:/sbin/.magisk PRESENT:/data/adb/magisk
+RESULT=FAIL fresh fork sees root before manual unmount
