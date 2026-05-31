@@ -91,3 +91,10 @@ These need an **arm64 bare-metal host** (cpu_abi), **a rooted image / HAL module
 **a modem/WiFi bridge** (imei/sim/wifi_mac), or **a SELinux-enforcing kernel** — all owner/hardware/supply-chain
 gated (B1–B4). No autonomous software fix exists for them on this x86 container. The verdict-app reality is
 unchanged: 0 mainstream detector apps flag the device (5/5 CLEAN, `audit/anti-spoof-80/`).
+
+## Sensor-HAL note (2026-05-31) — L5 confirmed asset-gated, not lazy
+Live check: `dumpsys sensorservice` → "No Sensors on the device", `devInitCheck:-19` (ENODEV); no
+`/dev/redroid*` sensor socket; no sensor HAL service. The stock ReDroid image ships NO sensor HAL and
+exposes NO native injection socket, so `sensors.accelerometer_gyro` (0.5) cannot be cleaned autonomously —
+it needs a sensor-HAL-enabled ReDroid image or the VirtualSensor Magisk module (asset-gated, B2/L5).
+(A simulated Bluetooth HAL `android.hardware.bluetooth@1.1-service.sim` IS present, listening on 6111/6211/6311.)
