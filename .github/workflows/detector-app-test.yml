@@ -1,0 +1,87 @@
+name: "Detector-App :: build + unit tests"
+
+on:
+  pull_request:
+    paths:
+      - 'apps/detector-app/**'
+      - 'agents/detection/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/detector-app-test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/detector-app/**'
+      - 'agents/detection/**'
+      - '.github/workflows/detector-app-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  detector-app:
+    name: assembleDebug + testDebugUnitTest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # v4.8.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # ubuntu-latest GitHub runners ship a preinstalled Android SDK at $ANDROID_HOME.
+      - name: Build debug APK
+        run: ./gradlew :detector-app:assembleDebug --no-daemon
+
+      - name: Run detector-app unit tests
+        run: ./gradlew :detector-app:testDebugUnitTest --no-daemon
+
+      - name: Assert APK artifact exists
+        run: |
+          set -euo pipefail
+          APK="apps/detector-app/build/outputs/apk/debug/detector-app-debug.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::detector-app debug APK not produced at $APK"
+            exit 1
+          fi
+          echo "detector-app APK built: $(du -h "$APK" | cut -f1)"
+
+      - name: Assert unit-test results present (0 failures)
+        if: always()
+        run: |
+          set -euo pipefail
+          DIR="apps/detector-app/build/test-results/testDebugUnitTest"
+          if [ ! -d "$DIR" ]; then
+            echo "::error::detector-app unit-test results not found: $DIR"
+            exit 1
+          fi
+          python3 - "$DIR" <<'PY'
+          import glob, sys, xml.etree.ElementTree as ET
+          t = f = e = 0
+          for x in glob.glob(sys.argv[1] + "/*.xml"):
+              r = ET.parse(x).getroot()
+              t += int(r.get("tests", 0)); f += int(r.get("failures", 0)); e += int(r.get("errors", 0))
+          print(f"detector-app tests: total={t} failures={f} errors={e}")
+          sys.exit(1 if (f or e or t == 0) else 0)
+          PY
+
+      - name: Upload APK + test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: detector-app-debug
+          path: |
+            apps/detector-app/build/outputs/apk/debug/detector-app-debug.apk
+            apps/detector-app/build/test-results/testDebugUnitTest/*.xml
+          retention-days: 14
+          if-no-files-found: warn
