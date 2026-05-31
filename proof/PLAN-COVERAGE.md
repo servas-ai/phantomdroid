@@ -42,3 +42,30 @@ or `audit/anti-spoof-80/`. Owner-gated = skipped + documented in `proof/BLOCKERS
 
 **Net:** every well-defined, non-owner-gated plan point is DONE + E2E + pushed. The remainder is
 owner-gated (B1–B5, documented) or out-of-scope/speculative.
+
+---
+
+## Update 2026-05-31 (continued autonomous run — major additions)
+
+Since the initial coverage map, the following were implemented + E2E-proven + pushed (each with proof/):
+
+| Plan point | Status | Proof |
+|---|---|---|
+| **B4 hardened NON-privileged boot** | ✅ SOLVED (was mis-filed as posture-blocked) — device-cgroup-rule + l0b seccomp, codified in `container_lifecycle.build_hardened_run_argv()` | proof/orchestrator-hardened-nonpriv/ |
+| Internal detector vs live spoof | ✅ DETECTED 0.3462 → **CLEAN 0.09** (capture gaps closed + real resolution/timezone/DNS fixes) | proof/orchestrator-{capture-gaps,spoof-consistency,internal-clean,fonts}/, RESIDUAL-CLASSIFICATION.md |
+| Durable one-command spoof launch | ✅ launch-l1-spoof.sh → CLEAN reproducibly | proof/durable-spoof-launch/ |
+| Capstone: hardened NON-priv + spoofed | ✅ launch-l0b-hardened-spoof.sh → Privileged=false + CLEAN | proof/capstone-hardened-spoofed/ |
+| TRUE 4-cell matrix across postures | ✅ unspoofed/hardened/spoofed/hardened+spoofed | proof/true-full-matrix/ |
+| **P21 verdict substring-overlap BUG** | ✅ FIXED ('rooted' ⊂ 'not rooted' neutralised clean verdicts) + 14 tests | proof/p21-verdict-fix/ |
+| Host-side Python tooling test coverage | ✅ probe_emit(6) + p21-verdict(14) + render-heatmap(3) + auto-status(4); full suite 104 | proof/{detector-lab-probe-emit,p21-verdict-fix,render-heatmap-tests,auto-status-tests}/ |
+| CI: full Python suite gated | ✅ python-tools-test.yml (104 tests, ≥90 regression guard) | proof/ci-python-tools/ |
+| Orchestrator container_lifecycle (last SPEC module) | ✅ preflight refuses privileged (exit 78) + hardening | proof/orchestrator-container-lifecycle/ |
+
+**Orchestrator pillar: 100% of SPEC modules implemented + tested (75 orchestrator tests).** Detection: full
+inventory + 4241 tests. Anti-spoof: internal CLEAN + 5/5 real verdict apps CLEAN. CI: detection +
+orchestrator + detector-app + python-tools-full workflows.
+
+**Genuinely external-blocked (unchanged, live-evidence in BLOCKERS-owner-gated.md + OWNER-ACTION-KIT.md):**
+B1 (Magisk binary — supply-chain), B2-L3/L5/L6 (third-party modules / sensor-HAL image / LTE infra),
+B3 (hardware TEE — physical), B5 (destructive history rewrite — owner executes the ready script).
+These cannot be resolved autonomously; everything around them is done.
