@@ -52,6 +52,16 @@ def _docker_exec(container: str, shell_cmd: str) -> str:
     return out.stdout
 
 
+def _capture_settings(container: str, namespace: str, keys: list[str]) -> dict:
+    """Read `settings get <namespace> <key>` for each key; omit null/empty (real-value capture)."""
+    out: dict[str, str] = {}
+    for k in keys:
+        v = _docker_exec(container, f"settings get {namespace} {k}").strip()
+        if v and v.lower() != "null":
+            out[k] = v
+    return out
+
+
 def capture_live_snapshot(container: str, label: str) -> dict:
     """Fresh read-only capture of a booted container's identity surface."""
     raw = _docker_exec(container, "; ".join(f'echo "{k}|$(getprop {k})"' for k in _PROP_KEYS))
@@ -66,6 +76,9 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     proc_version = _docker_exec(container, "cat /proc/version").strip()
     su_present = bool(_docker_exec(container, "test -x /system/xbin/su && echo yes").strip())
     captured_at = _docker_exec(container, "date -u +%Y-%m-%dT%H:%M:%SZ").strip() or "1970-01-01T00:00:00Z"
+    secure = _capture_settings(container, "secure", ["android_id"])
+    glob = _capture_settings(container, "global",
+                             ["adb_enabled", "development_settings_enabled", "boot_count", "data_roaming"])
     return {
         "label": label,
         "capturedAt": captured_at,
@@ -73,7 +86,7 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "systemProperties": {k: props.get(k, "") for k in _PROP_KEYS},
         "existingFiles": (["/system/xbin/su"] if su_present else []),
         "readableFiles": {"/proc/version": proc_version},
-        "settingsSecure": {}, "settingsGlobal": {}, "settingsSystem": {},
+        "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
         "telephony": {}, "installedPackages": ["android", "com.android.systemui"],
         "sensorTypes": [], "bluetoothMac": None,
         "gpsLat": None, "gpsLng": None, "gpsAccuracy": None,
@@ -103,7 +116,13 @@ def _yaml_dump_snapshot(snap: dict) -> str:
     for k, v in snap["readableFiles"].items():
         lines.append(f'  {q(k)}: {q(v)}')
     for key in ("settingsSecure", "settingsGlobal", "settingsSystem", "telephony"):
-        lines.append(f"{key}: {{}}")
+        m = snap.get(key) or {}
+        if not m:
+            lines.append(f"{key}: {{}}")
+        else:
+            lines.append(f"{key}:")
+            for k, v in m.items():
+                lines.append(f'  {q(k)}: {q(v)}')
     lines.append("installedPackages:")
     for p in snap["installedPackages"]:
         lines.append(f"  - {q(p)}")

@@ -1,0 +1,56 @@
+label: "spoofed"
+capturedAt: "2026-05-31T00:35:25Z"
+sdkInt: 31
+systemProperties:
+  "ro.build.fingerprint": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys"
+  "ro.build.display.id": "TQ3A.230805.001"
+  "ro.build.tags": "release-keys"
+  "ro.build.type": "user"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+  "ro.product.brand": "google"
+  "ro.product.model": "Pixel_7"
+  "ro.product.manufacturer": "Google"
+  "ro.product.device": "panther"
+  "ro.product.name": "panther"
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+  "ro.hardware": "redroid"
+  "ro.product.board": "panther"
+  "ro.board.platform": "gs201"
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a"
+  "ro.product.cpu.abilist32": ""
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "0"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+existingFiles: []
+readableFiles:
+  "/proc/version": "Linux version 5.10.107-android13-4-00018-g0e9b9b9f9f9f-ab9999999 (kleaf@build-host) (Android clang version 14.0.7, LLD 14.0.7) #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 2026"
+settingsSecure:
+  "android_id": "fbd37772bd01a050"
+settingsGlobal:
+  "adb_enabled": "0"
+  "boot_count": "1"
+  "data_roaming": "0"
+settingsSystem: {}
+telephony: {}
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+sensorTypes: []
+bluetoothMac: null
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null
