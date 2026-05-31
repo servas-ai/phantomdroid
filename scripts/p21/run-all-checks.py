@@ -255,11 +255,18 @@ def extract_verdict(text_nodes: list[tuple[str, str]], focused_pkg: str | None,
     fail_hits: list[tuple[str, str]] = []
     for attr, val in text_nodes:
         low = val.lower()
-        for kw in PASS_KEYWORDS:
-            if kw in low:
-                pass_hits.append((kw, val))
+        matched_pass = [kw for kw in PASS_KEYWORDS if kw in low]
+        for kw in matched_pass:
+            pass_hits.append((kw, val))
+        # Mask matched PASS phrases before the FAIL scan so a FAIL keyword that is a
+        # SUBSTRING of a PASS phrase does not also fire (e.g. "rooted" ⊂ "not rooted").
+        # A node explicitly stating a clean verdict must not be neutralised to UNKNOWN
+        # by an overlapping fail-substring of that same phrase.
+        masked = low
+        for kw in matched_pass:
+            masked = masked.replace(kw, " ")
         for kw in FAIL_KEYWORDS:
-            if kw in low:
+            if kw in masked:
                 fail_hits.append((kw, val))
 
     for kw, val in pass_hits:
