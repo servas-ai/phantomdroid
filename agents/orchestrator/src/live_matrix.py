@@ -41,6 +41,9 @@ _PROP_KEYS = [
     "ro.boot.vbmeta.device_state", "ro.boot.verifiedbootstate", "ro.boot.flash.locked",
     "ro.secure", "ro.debuggable", "ro.bootloader", "ro.boot.hardware",
     "ro.boot.selinux", "ro.build.selinux", "sys.boot_completed", "init.svc.zygote",
+    # env.language_country (locale) + network.dns_server probe inputs
+    "ro.product.locale", "ro.product.locale.language", "ro.product.locale.region",
+    "net.dns1", "net.dns2",
 ]
 
 
@@ -76,16 +79,27 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     proc_version = _docker_exec(container, "cat /proc/version").strip()
     su_present = bool(_docker_exec(container, "test -x /system/xbin/su && echo yes").strip())
     captured_at = _docker_exec(container, "date -u +%Y-%m-%dT%H:%M:%SZ").strip() or "1970-01-01T00:00:00Z"
-    secure = _capture_settings(container, "secure", ["android_id"])
+    secure = _capture_settings(container, "secure", ["android_id", "default_input_method"])
     glob = _capture_settings(container, "global",
-                             ["adb_enabled", "development_settings_enabled", "boot_count", "data_roaming"])
+                             ["adb_enabled", "development_settings_enabled", "boot_count",
+                              "data_roaming", "private_dns_mode", "private_dns_specifier"])
+    # readable files consumed by the network.dns_server probe.
+    # NOTE: /proc/self/status is deliberately NOT captured — under `docker exec cat`
+    # it reflects the `cat` process (TracerPid 0 but no app context), which the
+    # runtime.debugger_tracerpid probe scores WORSE (0.85) than absent (0.5). The
+    # snapshot model has no faithful way to capture an app's tracer state from the
+    # host side, so we leave it absent (honest "degraded" rather than a misleading value).
+    readable = {"/proc/version": proc_version}
+    resolv = _docker_exec(container, "cat /etc/resolv.conf 2>/dev/null").strip()
+    if resolv:
+        readable["/etc/resolv.conf"] = resolv
     return {
         "label": label,
         "capturedAt": captured_at,
         "sdkInt": int(props.get("ro.build.version.sdk") or 31),
         "systemProperties": {k: props.get(k, "") for k in _PROP_KEYS},
         "existingFiles": (["/system/xbin/su"] if su_present else []),
-        "readableFiles": {"/proc/version": proc_version},
+        "readableFiles": readable,
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
         "telephony": {}, "installedPackages": ["android", "com.android.systemui"],
         "sensorTypes": [], "bluetoothMac": None,
