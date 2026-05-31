@@ -78,8 +78,13 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         raise RuntimeError(f"container {container} not booted (sys.boot_completed={boot!r})")
     proc_version = _docker_exec(container, "cat /proc/version").strip()
     su_present = bool(_docker_exec(container, "test -x /system/xbin/su && echo yes").strip())
+    # font files present (ui.system_fonts probe fileExists fallback: NotoColorEmoji + Roboto = real set)
+    font_files = [ln.strip() for ln in
+                  _docker_exec(container, "ls /system/fonts/*.ttf 2>/dev/null").splitlines() if ln.strip()]
     captured_at = _docker_exec(container, "date -u +%Y-%m-%dT%H:%M:%SZ").strip() or "1970-01-01T00:00:00Z"
-    secure = _capture_settings(container, "secure", ["android_id", "default_input_method"])
+    secure = _capture_settings(container, "secure",
+                               ["android_id", "default_input_method",
+                                "mock_location", "allow_mock_location", "mock_location_app"])
     glob = _capture_settings(container, "global",
                              ["adb_enabled", "development_settings_enabled", "boot_count",
                               "data_roaming", "private_dns_mode", "private_dns_specifier"])
@@ -118,7 +123,7 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "capturedAt": captured_at,
         "sdkInt": int(props.get("ro.build.version.sdk") or 31),
         "systemProperties": {k: props.get(k, "") for k in _PROP_KEYS},
-        "existingFiles": (["/system/xbin/su"] if su_present else []),
+        "existingFiles": ((["/system/xbin/su"] if su_present else []) + font_files),
         "readableFiles": readable,
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
         "telephony": {}, "installedPackages": ["android", "com.android.systemui"],
