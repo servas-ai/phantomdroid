@@ -28,3 +28,22 @@ def test_emitter_renders_settings_maps_and_empty():
     assert parsed["timezoneId"] == "America/Los_Angeles"
     assert parsed["localeCountry"] == "US"
     assert parsed["displayWidthPixels"] == 1080 and parsed["displayDensityDpi"] == 420
+
+
+def test_emitter_escapes_multiline_readable_files():
+    import yaml
+    from agents.orchestrator.src.live_matrix import _yaml_dump_snapshot
+    status = "Name:\tcat\nState:\tR (running)\nTracerPid:\t0\n"
+    snap = {
+        "label": "x", "capturedAt": "t", "sdkInt": 31, "systemProperties": {},
+        "existingFiles": [], "readableFiles": {"/proc/self/status": status},
+        "settingsSecure": {}, "settingsGlobal": {}, "settingsSystem": {}, "telephony": {},
+        "installedPackages": [], "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": None, "localeLanguage": None, "localeCountry": None,
+        "displayWidthPixels": None, "displayHeightPixels": None, "displayDensityDpi": None,
+        "gpsLat": None, "gpsLng": None, "gpsAccuracy": None, "gpsProvider": None, "gpsIsMock": None,
+    }
+    parsed = yaml.safe_load(_yaml_dump_snapshot(snap))
+    # newlines round-trip so the TracerPid line survives for the probe
+    assert "TracerPid:\t0" in parsed["readableFiles"]["/proc/self/status"]
+    assert parsed["readableFiles"]["/proc/self/status"].count("\n") == 3

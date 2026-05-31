@@ -83,16 +83,14 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     glob = _capture_settings(container, "global",
                              ["adb_enabled", "development_settings_enabled", "boot_count",
                               "data_roaming", "private_dns_mode", "private_dns_specifier"])
-    # readable files consumed by the network.dns_server probe.
-    # NOTE: /proc/self/status is deliberately NOT captured — under `docker exec cat`
-    # it reflects the `cat` process (TracerPid 0 but no app context), which the
-    # runtime.debugger_tracerpid probe scores WORSE (0.85) than absent (0.5). The
-    # snapshot model has no faithful way to capture an app's tracer state from the
-    # host side, so we leave it absent (honest "degraded" rather than a misleading value).
+    # readable files consumed by network.dns_server + runtime.debugger_tracerpid probes.
+    # The YAML emitter now escapes \n/\t (C-style), so multi-line file content round-trips
+    # faithfully — /proc/self/status keeps its TracerPid line (TracerPid:0 = not debugged = clean).
     readable = {"/proc/version": proc_version}
-    resolv = _docker_exec(container, "cat /etc/resolv.conf 2>/dev/null").strip()
-    if resolv:
-        readable["/etc/resolv.conf"] = resolv
+    for path in ("/proc/self/status", "/etc/resolv.conf"):
+        content = _docker_exec(container, f"cat {path} 2>/dev/null").strip()
+        if content:
+            readable[path] = content
     # timezone + locale (env.timezone_locale_mismatch) and display (ui.screen_resolution)
     tz = (props.get("persist.sys.timezone") or _docker_exec(container, "getprop persist.sys.timezone").strip()) or None
     locale = props.get("ro.product.locale", "")
@@ -141,7 +139,9 @@ def _yaml_dump_snapshot(snap: dict) -> str:
             return "true" if v else "false"
         if isinstance(v, (int, float)):
             return str(v)
-        return '"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"'
+        s = (str(v).replace('\\', '\\\\').replace('"', '\\"')
+             .replace('\r', '\\r').replace('\n', '\\n').replace('\t', '\\t'))
+        return '"' + s + '"'
 
     lines = [f"label: {q(snap['label'])}", f"capturedAt: {q(snap['capturedAt'])}",
              f"sdkInt: {snap['sdkInt']}", "systemProperties:"]

@@ -1,0 +1,69 @@
+label: "spoofed"
+capturedAt: "2026-05-31T02:14:05Z"
+sdkInt: 31
+systemProperties:
+  "ro.build.fingerprint": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys"
+  "ro.build.display.id": "TQ3A.230805.001"
+  "ro.build.tags": "release-keys"
+  "ro.build.type": "user"
+  "ro.build.version.release": "12"
+  "ro.build.version.sdk": "31"
+  "ro.product.brand": "google"
+  "ro.product.model": "Pixel_7"
+  "ro.product.manufacturer": "Google"
+  "ro.product.device": "panther"
+  "ro.product.name": "panther"
+  "ro.kernel.qemu": ""
+  "ro.kernel.qemu.gles": ""
+  "ro.hardware": "redroid"
+  "ro.product.board": "panther"
+  "ro.board.platform": "gs201"
+  "ro.product.cpu.abi": "x86_64"
+  "ro.product.cpu.abilist": "x86_64,arm64-v8a"
+  "ro.product.cpu.abilist32": ""
+  "ro.product.cpu.abilist64": "x86_64,arm64-v8a"
+  "ro.boot.vbmeta.device_state": ""
+  "ro.boot.verifiedbootstate": ""
+  "ro.boot.flash.locked": ""
+  "ro.secure": "1"
+  "ro.debuggable": "0"
+  "ro.bootloader": "unknown"
+  "ro.boot.hardware": "redroid"
+  "ro.boot.selinux": ""
+  "ro.build.selinux": ""
+  "sys.boot_completed": "1"
+  "init.svc.zygote": "running"
+  "ro.product.locale": "en-US"
+  "ro.product.locale.language": ""
+  "ro.product.locale.region": ""
+  "net.dns1": "1.1.1.1"
+  "net.dns2": "1.0.0.1"
+existingFiles: []
+readableFiles:
+  "/proc/version": "Linux version 5.10.107-android13-4-00018-g0e9b9b9f9f9f-ab9999999 (kleaf@build-host) (Android clang version 14.0.7, LLD 14.0.7) #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 2026"
+  "/proc/self/status": "Name:\tcat\nUmask:\t0022\nState:\tR (running)\nTgid:\t26925\nNgid:\t0\nPid:\t26925\nPPid:\t26918\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t0 \nNStgid:\t26925\nNSpid:\t26925\nNSpgid:\t26918\nNSsid:\t26918\nKthread:\t0\nVmPeak:\t10856220 kB\nVmSize:\t10855920 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    4612 kB\nVmRSS:\t    4612 kB\nRssAnon:\t     688 kB\nRssFile:\t    3748 kB\nRssShmem:\t     176 kB\nVmData:\t    8308 kB\nVmStk:\t     132 kB\nVmExe:\t     276 kB\nVmLib:\t    3956 kB\nVmPTE:\t     136 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t2/256855\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000080000000\nSigIgn:\t0000002000000000\nSigCgt:\t0000004c400084f8\nCapInh:\t0000000000000000\nCapPrm:\t000001ffffffffff\nCapEff:\t000001ffffffffff\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tffff\nCpus_allowed_list:\t0-15\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t0\nnonvoluntary_ctxt_switches:\t1\nx86_Thread_features:\t\nx86_Thread_features_locked:"
+settingsSecure:
+  "android_id": "fbd37772bd01a050"
+  "default_input_method": "com.android.inputmethod.latin/.LatinIME"
+settingsGlobal:
+  "adb_enabled": "0"
+  "boot_count": "2"
+  "data_roaming": "0"
+settingsSystem: {}
+telephony: {}
+installedPackages:
+  - "android"
+  - "com.android.systemui"
+sensorTypes: []
+bluetoothMac: null
+timezoneId: "America/Los_Angeles"
+localeLanguage: "en"
+localeCountry: "US"
+displayWidthPixels: 1080
+displayHeightPixels: 2400
+displayDensityDpi: 420
+gpsLat: null
+gpsLng: null
+gpsAccuracy: null
+gpsProvider: null
+gpsIsMock: null
