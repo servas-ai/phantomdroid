@@ -13,3 +13,17 @@ at 720x1280): **5/5 verdict detectors CLEAN, 0 active detections** — using the
 0.09** (see `proof/capstone-hardened-spoofed/`). To visually re-capture verdicts on a 1080x2400 cell, launch
 the cell with `redroid_gpu_mode=guest` replaced or screencap via the app's own export — tracked as a
 capture-tooling nicety, not a spoof gap.
+
+## host-GPU re-capture attempt — definitive closure (2026-05-31)
+To re-capture real-app verdicts at full Pixel-7 resolution, tried `androidboot.redroid_gpu_mode=host`
+with `/dev/dri/card0` passthrough. Result: **SurfaceFlinger restart-loops** ("could not be found, lazy
+start failed", `ctl.interface_start aidl/SurfaceFlinger` errno 0x20) — the host GPU in this VM is not
+ReDroid-compatible, so the cell never reaches boot_completed. The `angle`/`guest` software renderers DO
+boot but `screencap` returns an all-black frame at 1080x2400 (even for the launcher — systemic, not
+app-specific). 
+
+Definitive conclusion: visual real-app re-capture at the full Pixel-7 resolution is blocked by a ReDroid
+guest-GPU screencap limitation in this VM — NOT a spoof failure. The authoritative real-app proof remains
+the 720x1280 gallery (`audit/anti-spoof-80/`, 5/5 verdict detectors CLEAN) using the identical spoof
+technique, plus the capstone's internal-detector CLEAN 0.09. This is a capture-tooling constraint of the
+environment, documented; it requires a GPU-capable host (owner infra) to re-capture visually at 1080x2400.
