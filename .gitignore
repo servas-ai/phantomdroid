@@ -33,3 +33,9 @@ logs/
 # Large detector-app binaries (test inputs, ~260MB; not proof artifacts)
 p21/apks/
 .gradle/
+
+# External cloned build tool (ayasa520/redroid-script) — vendored at build time, SHA-pinned
+# in proof/b1-magisk-build/RESULT.md; carries its own .git + downloaded Magisk binaries.
+experiments/redroid-script/
+# Live-matrix run outputs (regenerable snapshots/reports)
+experiments/live-matrix/

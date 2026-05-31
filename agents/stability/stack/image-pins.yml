@@ -63,6 +63,34 @@ redroid_12_64only:
     agent MUST file a `pin-update` mutation proposal before any compose-up.
 
 # -----------------------------------------------------------------------------
+# L0b — Magisk-rooted ReDroid 12 image (locally built 2026-05-31)
+# -----------------------------------------------------------------------------
+# Built on the project host via ayasa520/redroid-script (boot-imageless Magisk
+# install) FROM the pin-faithful L0a base above. Boots + grants root (uid=0 via
+# /sbin/su) under the hardened NON-privileged recipe in container_lifecycle.py
+# (build_hardened_run_argv). Proof: proof/b1-magisk-build/RESULT.md.
+redroid_12_magisk_rooted:
+  layer: L0b
+  registry: local                       # locally built, not pushed to a registry
+  repository: redroid/redroid
+  tag_label: "12.0.0_magisk"
+  image_id: "dfed3d9df7bd"
+  manifest_digest: "sha256:dfed3d9df7bd5ef3b3d61ac975ebaf42dc2e8d6502a6619e00353d8900bc1c29"
+  base_image_digest: "sha256:e6f799d56b9a9a2bbc6224b5b7a6dc744c9b4d878ac856f27f0c4ec793ef55d3"
+  build_tool: "github.com/ayasa520/redroid-script"
+  build_tool_commit: "881f7f00d6a86af4f8e4947af5d587a144a1806c"
+  build_cmd: "python3 redroid.py -a 12.0.0 -m"
+  magisk_version: "30.6:MAGISK:D (30600)"   # Kitsune/Delta fork (io.github.huskydg.magisk)
+  magisk_apk_md5: "77ef9f3538c0767ea45ee5c946f84bc6"
+  built_at_utc: "2026-05-31T14:39:00Z"
+  cross_ref:
+    proof: "proof/b1-magisk-build/RESULT.md"
+    layers_md: "agents/stability/stack/layers.md::L0b — Root (Magisk)"
+  policy:
+    pin_mode: "digest"
+    privileged: false                   # MUST boot non-privileged (B4 hardened recipe)
+
+# -----------------------------------------------------------------------------
 # L0b / L1 — Magisk + Zygisk + LSPosed + spoof modules
 # -----------------------------------------------------------------------------
 # Each module row carries a pinned_version (the canonical version label used by
