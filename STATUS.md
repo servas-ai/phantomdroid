@@ -139,3 +139,24 @@ With OB1 (full live boot) now closed, the next gates are owner-decisions and a b
 Aggregate E2E target: ~65% → 80% once Phase 4 measures a live spoof delta and the installed-APK attestation run lands.
 
 See `/home/coder/.claude/plans/lovely-sniffing-snowflake.md` and the chronological session report `audit/SESSION-E2E-2026-05-29.md` for the full execution narrative.
+
+---
+
+## Addendum — 2026-05-31 session (branch `session/e2e-2026-05-30`, pushed)
+
+Continuous plan-execution run. Every item below is committed AND pushed to `origin/session/e2e-2026-05-30` with proof under `proof/` or `audit/anti-spoof-80/`.
+
+| Plan item | Result | Evidence |
+|---|---|---|
+| Anti-spoof ≥80% vs REAL apps (live, in-container) | **5/5 verdict detectors CLEAN, 0 active detections**; internal detector 0.3462 DETECTED→0.1594 SUSPICIOUS; v3 fixed RAM/storage/IP tells | `audit/anti-spoof-80/` (PROOF-GALLERY + 113 PNGs) |
+| `:detector-app` in-process attestation on live container | Spoofed **0.1526 SUSPICIOUS/0-crit** (label google-pixel_7) vs unspoofed **0.3050 DETECTED/3-crit** (label redroid) | `proof/detector-app-live/` |
+| Orchestrator TRUE (non-replay) matrix run | run_id + persistence + live_matrix; 2 real cells (L0a DETECTED 0.3379, L0a-L1 SUSPICIOUS 0.1594); idempotent | `proof/orchestrator-true-matrix/` |
+| Orchestrator config_loader + manifest schema (SPEC §5) | loads+validates, refuses unknown keys; example manifest | `proof/orchestrator-config-loader/` |
+| Orchestrator `--resume` (SQLite journal, SPEC §7) | fresh→COMPLETED, resume→SKIPPED | `proof/orchestrator-resume/` |
+| Orchestrator concurrency pool (SPEC §10) | PortPool + bounded semaphore cap 4 | `proof/orchestrator-concurrency/` |
+| Orchestrator manifest-driven run (SPEC §8 `--config`) | manifest → live cell → canonical run_id → persist | `proof/orchestrator-manifest-run/` |
+| CI: detector-app build+test gate | `.github/workflows/detector-app-test.yml` | `proof/ci-detector-app/` |
+
+**Updated pillar coverage (2026-05-31):** Orchestrator **~90%** (was 55%; only owner-gated hardened auto-boot remains — B4), detector-app **~85%** (was 60%; Play Integrity TEE = B3 owner-gated), Live ReDroid **~95%**, SpoofStack L1 proven live (L0b/L2-L6 = B1/B2 owner-gated). Python orchestrator suite **65 tests** (was 41).
+
+**Owner-gated remainder (skipped + documented):** see `proof/BLOCKERS-owner-gated.md` (B1 L0b Magisk supply-chain, B2 L1–L6 stack, B3 Play Integrity TEE, B4 hardened-boot posture, B5 credential purge/rotation).
