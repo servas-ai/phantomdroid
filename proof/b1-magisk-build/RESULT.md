@@ -38,3 +38,31 @@ magiskpolicy
 Resolves the standing B1 blocker ("needs Magisk binary"). Root (uid=0 via su) is achieved
 in a hardened NON-privileged container (Privileged=false), i.e. without the host-root-escape
 of --privileged. This is the rooted substrate for B2 L2-L6 sensor/LTE spoof layers.
+
+---
+
+## Adversarial validation (independent sub-agent, 2026-05-31)
+
+**VERDICT: PASS** — reproduced from scratch in a fresh `b1-verify` container (builder's
+b2-magisk untouched), then verified the posture is genuinely non-privileged:
+
+- `Privileged` = false; `CapDrop` = ["ALL"]; `CapAdd` = bounded 26-cap set (no CAP_ALL,
+  no SYS_RAWIO/MAC_ADMIN); `Devices` = [] (no passthrough); not `--pid=host`; ipc=private.
+- `SecurityOpt` seccomp = real l0b JSON with `defaultAction:SCMP_ACT_ERRNO` (enforcing
+  allowlist, NOT unconfined) + `no-new-privileges`.
+- `su -c id` → uid=0(root); `/sbin/magisk -c` → 30.6:MAGISK:D (30600); root-only write to
+  /data/adb → WRITE_OK.
+- `git show 5b25c84` → NO SECRETS. Full suite `pytest -q` → 104 passed.
+
+### Honest follow-ups flagged by the validator (do not change PASS, recorded for hardening)
+1. **Seccomp is a PROPOSAL artifact.** `agents/stability/stack/seccomp/redroid-seccomp-l0b.json`
+   self-labels as "PROPOSAL ARTIFACT, NOT the pinned production profile — board review required
+   before promotion." The claim "boots non-privileged with l0b seccomp" is true as reproduced,
+   but the profile is not yet board-promoted. FOLLOW-UP: board-review + promote (or pin a
+   production profile) before this posture is treated as production-final.
+2. **Broad device-cgroup grant.** `DeviceCgroupRules = c *:* rmw / b *:* rmw` grants cgroup-level
+   rwm to all device classes. It is NOT --privileged and no devices are mounted (Devices=[]), so
+   the non-privileged claim holds, but it is the loosest part of the posture. FOLLOW-UP: narrow to
+   the specific device majors ReDroid actually needs (binder/ashmem/etc.).
+3. ReDroid's default `docker exec` shell is already uid=0 (adb default), so the load-bearing root
+   proof is the functional `su` + live Magisk daemon (30.6) + the /data/adb write — all confirmed.
