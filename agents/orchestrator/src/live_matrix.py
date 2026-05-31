@@ -65,6 +65,81 @@ def _capture_settings(container: str, namespace: str, keys: list[str]) -> dict:
     return out
 
 
+# getprop keys that carry the live telephony / radio identity surface (set by the
+# L2/L6 resetprop spoof pass). These are READS ONLY — we never write or invent values.
+_TELEPHONY_PROP_KEYS = [
+    "gsm.operator.alpha", "gsm.operator.numeric",
+    "gsm.sim.operator.alpha", "gsm.sim.operator.numeric",
+    "gsm.sim.state", "gsm.network.type",
+    "ril.iccid.sim1", "ro.serialno",
+]
+
+
+def _clean(v: str | None) -> str | None:
+    """Normalise a raw getprop / service-call read: empty or literal 'null' -> None."""
+    if v is None:
+        return None
+    s = v.strip()
+    if not s or s.lower() == "null":
+        return None
+    return s
+
+
+def capture_telephony(container: str) -> dict[str, str | None]:
+    """HONEST live read of the device telephony surface.
+
+    Maps real device reads onto the detector's `TelephonyField` enum names
+    (IMEI, SERIAL, OPERATOR_NAME, MCC_MNC, SIM_SERIAL). Every value is whatever
+    the device actually returns; a field the device does not expose is recorded
+    as ``None`` (YAML ``null``). This function MUST NEVER fabricate a value —
+    in particular ReDroid exposes no IMEI, so ``IMEI`` stays ``None``.
+
+    The map is intentionally always populated (keys present, values possibly
+    ``None``) so the detector's accessor "worked" (matching real-device
+    semantics where TelephonyManager exists but returns null IMEI on Android
+    10+), driving the benign SCORE_IMEI_NULL_BENIGN path rather than a
+    "stripped" tell.
+    """
+    raw = _docker_exec(
+        container, "; ".join(f'echo "{k}|$(getprop {k})"' for k in _TELEPHONY_PROP_KEYS)
+    )
+    props: dict[str, str] = {}
+    for line in raw.splitlines():
+        if "|" in line:
+            k, _, v = line.partition("|")
+            props[k.strip()] = v.strip()
+
+    # IMEI: read it honestly. ReDroid exposes no IMEI, so both the iphonesubinfo
+    # binder accessor and any gsm.* prop return null/empty -> recorded as None.
+    imei = _clean(_docker_exec(
+        container, "service call iphonesubinfo 1 2>/dev/null"
+    ))
+    # `service call` returns a hex parcel dump, never a bare IMEI; treat any
+    # non-digit blob as "no IMEI exposed" (None). Only a literal 15-digit string
+    # would ever be honoured, and the device never produces one.
+    if imei is not None and not imei.isdigit():
+        imei = None
+    if imei is None:
+        imei = _clean(props.get("gsm.imei")) or _clean(_docker_exec(
+            container, "getprop ril.imei"
+        ))
+
+    operator_name = _clean(props.get("gsm.operator.alpha")) or _clean(
+        props.get("gsm.sim.operator.alpha"))
+    mcc_mnc = _clean(props.get("gsm.operator.numeric")) or _clean(
+        props.get("gsm.sim.operator.numeric"))
+    sim_serial = _clean(props.get("ril.iccid.sim1"))
+    serial = _clean(props.get("ro.serialno"))
+
+    return {
+        "IMEI": imei,                 # None on ReDroid (no IMEI) — never invented
+        "SERIAL": serial,             # ro.serialno (Pixel-class on the spoofed cell)
+        "OPERATOR_NAME": operator_name,
+        "MCC_MNC": mcc_mnc,
+        "SIM_SERIAL": sim_serial,     # ICCID (ril.iccid.sim1)
+    }
+
+
 def capture_live_snapshot(container: str, label: str) -> dict:
     """Fresh read-only capture of a booted container's identity surface."""
     raw = _docker_exec(container, "; ".join(f'echo "{k}|$(getprop {k})"' for k in _PROP_KEYS))
@@ -118,6 +193,7 @@ def capture_live_snapshot(container: str, label: str) -> dict:
             dens = int(mdens.split(":")[-1].strip())
         except Exception:
             pass
+    telephony = capture_telephony(container)
     return {
         "label": label,
         "capturedAt": captured_at,
@@ -126,7 +202,7 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "existingFiles": ((["/system/xbin/su"] if su_present else []) + font_files),
         "readableFiles": readable,
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
-        "telephony": {}, "installedPackages": ["android", "com.android.systemui"],
+        "telephony": telephony, "installedPackages": ["android", "com.android.systemui"],
         "sensorTypes": [], "bluetoothMac": None,
         "timezoneId": tz, "localeLanguage": loc_lang, "localeCountry": loc_country,
         "displayWidthPixels": w, "displayHeightPixels": h, "displayDensityDpi": dens,
