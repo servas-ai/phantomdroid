@@ -80,7 +80,12 @@ Magisk-roote ReDroid-12-Image"). With that supply-chain decision made, B1 is now
 | Plan point | Status | Proof |
 |---|---|---|
 | **B1 — L0b Magisk root stack** | ✅ SOLVED — built `redroid/redroid:12.0.0_magisk` (digest `sha256:dfed3d9d…`) via ayasa520/redroid-script @881f7f00 (`python3 redroid.py -a 12.0.0 -m`); Magisk 30.6 Kitsune; LIVE `su -c id` → uid=0(root) in a **Privileged=false** hardened container; `com.topjohnwu.magisk` auto-installed | proof/b1-magisk-build/RESULT.md; pin in image-pins.yml (`redroid_12_magisk_rooted`) |
-| **B2 — L2–L6 sensor/LTE layers** | 🔄 in progress on the rooted substrate (builder sub-agent) | proof/b2-sensor-lte/ |
+| **B2 — L2–L6 sensor/LTE layers** | ✅ SOLVED — L1/L0b/L2(serial+ICCID)/L6(LTE gsm.operator AT&T/310410) applied via root resetprop; detector 0.3294 DETECTED → **0.0850 CLEAN** (0 critical). L5 sensors GENUINELY BLOCKED (no sensor HAL, devInitCheck:-19). L3/L4 out of B2 scope. Validator-gated (caught+fixed an IMEI fabrication; honest 0.0850). | proof/b2-sensor-lte/RESULT.md, BLOCKER-L5.md; launch-l2-l6-sensor-lte-spoof.sh; commit 4e297de |
+
+### Remaining open / blocked after B1+B2
+- **B3 — Play Integrity / hardware attestation:** GENUINE architectural blocker — needs a real hardware TEE (StrongBox/TrustZone), impossible in a software ReDroid container. Documented in proof/BLOCKERS-owner-gated.md.
+- **B5 — credential purge + history rewrite:** owner-gated (destructive force-push to origin/main); ready script at proof/credential-purge-remediation.sh. Owner executes.
+- **B1-validator hardening follow-ups (autonomously actionable):** (1) narrow the broad `c *:* rmw / b *:* rmw` device-cgroup grant to the specific device majors ReDroid needs; (2) board-promote the l0b seccomp PROPOSAL profile to production (governance — not autonomous). Item (1) is the next autonomous work-item.
 
 B1 was the keystone external blocker for the whole L0b/L2–L6 chain; with Martin's go-ahead and the
 hardened non-privileged boot (B4) already solved, the rooted substrate is real and reproducible.
