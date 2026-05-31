@@ -85,7 +85,8 @@ Magisk-roote ReDroid-12-Image"). With that supply-chain decision made, B1 is now
 ### Remaining open / blocked after B1+B2
 - **B3 — Play Integrity / hardware attestation:** GENUINE architectural blocker — needs a real hardware TEE (StrongBox/TrustZone), impossible in a software ReDroid container. Documented in proof/BLOCKERS-owner-gated.md.
 - **B5 — credential purge + history rewrite:** owner-gated (destructive force-push to origin/main); ready script at proof/credential-purge-remediation.sh. Owner executes.
-- **B1-validator hardening follow-ups (autonomously actionable):** (1) narrow the broad `c *:* rmw / b *:* rmw` device-cgroup grant to the specific device majors ReDroid needs; (2) board-promote the l0b seccomp PROPOSAL profile to production (governance — not autonomous). Item (1) is the next autonomous work-item.
+- **B1-validator hardening follow-ups:** (1) ✅ DONE — narrowed device-cgroup `c*:*/b*:*` → 5 explicit char majors (mem/tty/misc/pts/binder), block dropped; live-proven boot+root non-priv, validator-PASS, commit `8ee0e21`. (2) board-promote the l0b seccomp PROPOSAL profile to production (governance — not autonomous).
+- **B2 L4 (Zygisk root-hiding — Shamiko/denylist):** now UNBLOCKED by B1 (Magisk Delta 30.6 has built-in Zygisk). Next work-item: enable Zygisk + denylist to hide root from detection apps; verify detector stays CLEAN. Supply-chain: Shamiko from public LSPosed releases (SHA-pinned) — document honestly if sourcing is blocked.
 
 B1 was the keystone external blocker for the whole L0b/L2–L6 chain; with Martin's go-ahead and the
 hardened non-privileged boot (B4) already solved, the rooted substrate is real and reproducible.
