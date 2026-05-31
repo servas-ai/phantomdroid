@@ -1,0 +1,4 @@
+tests/test_render_heatmap.py::test_cell_color_thresholds PASSED          [ 33%]
+tests/test_render_heatmap.py::test_cell_label PASSED                     [ 66%]
+tests/test_render_heatmap.py::test_render_svg_is_well_formed_and_labelled PASSED [100%]
+============================== 3 passed in 0.02s ===============================
