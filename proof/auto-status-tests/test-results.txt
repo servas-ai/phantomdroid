@@ -1,0 +1,5 @@
+tests/test_auto_status_closeout.py::test_unknown_marker_left_untouched PASSED [ 25%]
+tests/test_auto_status_closeout.py::test_known_marker_wires_to_metric_and_preserves_surroundings PASSED [ 50%]
+tests/test_auto_status_closeout.py::test_idempotent_second_pass_no_change PASSED [ 75%]
+tests/test_auto_status_closeout.py::test_multiple_markers_all_substituted PASSED [100%]
+============================== 4 passed in 0.02s ===============================
