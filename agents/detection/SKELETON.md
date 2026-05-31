@@ -1,5 +1,11 @@
 # DetectorLab Skeleton
 
+> ⚠️ **SUPERSEDED / HISTORICAL (2026-05).** This Round-1 scaffold is kept for provenance only.
+> The real implementation now exists: 86 probes, a working Gradle build (`:detection`,
+> `:detection-cli`, `:detector-app`), 4241 green unit tests (CI-gated). See `README.md` and
+> `shared/probes/inventory.yml`. Everything below describing "only 1 probe / 73 TODO / not a
+> working build" is no longer true — read it as historical context, not current status.
+
 > Pre-implementation scaffold for Track A (DetectorLab Android measurement oracle).
 > No DetectorLab code is yet shipped — this is a structure-only skeleton intended to be lifted into a Gradle Android project once Phase 1 starts.
 

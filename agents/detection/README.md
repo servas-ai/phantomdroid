@@ -43,23 +43,22 @@ src/
 │   ├── ProbeContext.kt    # testable abstraction (with ShellProbeContext for allowlist)
 │   ├── ProbeRunner.kt     # orchestrator with timeout + failure isolation
 │   └── Report.kt          # top-level JSON-Schema binding
-└── probes/                # Individual probe implementations
-    └── buildprop/
-        └── BuildFingerprintProbe.kt  # Probe #1 reference impl
-    # TODO: 74 more probes (root, integrity, identity, sensors, network, etc.)
+└── probes/                # Individual probe implementations (86 probes)
+    ├── buildprop/ root/ integrity/ identity/ sensors/ network/
+    └── emulator/ ui/ env/ runtime/ kernel/ app/
+        # Full inventory (shared/probes/inventory.yml) implemented.
 ```
 
 ## Status
 
-**SCAFFOLD.** Code compiles only conceptually — no Gradle setup yet.
-
-To make this a real Android app:
-1. Convert `src/` into a Gradle Android module (`gradle init --type android-application`)
-2. Pin deps in `gradle/libs.versions.toml`: Kotlin coroutines, kotlinx.serialization, kotlin.test
-3. Wire `ProbeRunner` to a `MainActivity`
-4. Add Android manifest with required permissions
-5. Implement remaining 74 probes per the inventory
-6. CI: APK build + on-real-Pixel-7 score < 0.05 check
+**IMPLEMENTED + CI-gated** (as of 2026-05). The full probe inventory
+(`shared/probes/inventory.yml`) is implemented — **86 probes**, **4241 unit
+tests green** (`./gradlew :detection:test`), regression-gated in CI at ≥3000
+(`.github/workflows/detection-test.yml`). A working Gradle build exists
+(`:detection`, `:detection-cli`, `:detector-app`); the `:detector-app` module
+runs the probes in-process on a live device. The single-probe `SKELETON.md`
+in this directory is a **historical** Round-1 artifact, superseded by the
+current tree.
 
 ## Probe contract (invariants every probe must honor)
 
