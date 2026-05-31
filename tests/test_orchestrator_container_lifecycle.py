@@ -67,13 +67,51 @@ def test_main_preflight_real_L0a_compose_or_synthetic(tmp_path):
 
 def test_build_hardened_run_argv_is_never_privileged():
     from agents.orchestrator.src.container_lifecycle import (
-        build_hardened_run_argv, HARDENED_SECCOMP, DEVICE_CGROUP_RULES,
+        build_hardened_run_argv, HARDENED_SECCOMP, MINIMAL_DEVICE_CGROUP_RULES,
     )
     argv = build_hardened_run_argv("redroid/redroid", "c1", 15599, "/tmp/d")
     assert "--privileged" not in argv
     assert "--cap-drop" in argv and "ALL" in argv
     assert any("seccomp=" in a and "l0b" in a for a in argv)
     assert "apparmor=unconfined" in argv and "no-new-privileges" in argv
-    # device access via cgroup rule, not privileged
-    assert argv.count("--device-cgroup-rule") == len(DEVICE_CGROUP_RULES)
+    # device access via cgroup rule, not privileged — default is now the NARROWED set
+    assert argv.count("--device-cgroup-rule") == len(MINIMAL_DEVICE_CGROUP_RULES)
     assert "127.0.0.1:15599:5555" in argv
+
+
+def test_default_device_cgroup_rules_are_narrowed_not_broad():
+    """The default device-cgroup rules must be the proven NARROWED set, never the broad wildcard.
+
+    Proven live 2026-05-31 (container dcg-narrow, port 5773): boot_completed=1 + su->uid=0
+    with these rules. Narrowing tightens the non-privileged posture an adversarial validator flagged.
+    """
+    from agents.orchestrator.src.container_lifecycle import (
+        build_hardened_run_argv, MINIMAL_DEVICE_CGROUP_RULES, DEVICE_CGROUP_RULES,
+    )
+    argv = build_hardened_run_argv("redroid/redroid", "c1", 15599, "/tmp/d")
+    rules = [argv[i + 1] for i, a in enumerate(argv) if a == "--device-cgroup-rule"]
+    # exactly the narrowed set, in order
+    assert rules == MINIMAL_DEVICE_CGROUP_RULES
+    # the broad blanket wildcards must NOT be the default
+    assert "c *:* rmw" not in rules
+    assert "b *:* rmw" not in rules
+    # narrowed set drops ALL block-device access (no block nodes exist in the container)
+    assert all(r.startswith("c ") for r in rules)
+    # binder major (live-discovered 239) must be granted
+    assert any(r.startswith("c 239:") for r in rules)
+    # broad constant still exists as the documented fallback
+    assert DEVICE_CGROUP_RULES == ["c *:* rmw", "b *:* rmw"]
+
+
+def test_build_hardened_run_argv_accepts_explicit_device_rules():
+    """Caller may override device-cgroup rules (e.g. fall back to broad) and it is honored."""
+    from agents.orchestrator.src.container_lifecycle import (
+        build_hardened_run_argv, DEVICE_CGROUP_RULES,
+    )
+    argv = build_hardened_run_argv(
+        "redroid/redroid", "c1", 15599, "/tmp/d",
+        device_cgroup_rules=DEVICE_CGROUP_RULES,
+    )
+    rules = [argv[i + 1] for i, a in enumerate(argv) if a == "--device-cgroup-rule"]
+    assert rules == DEVICE_CGROUP_RULES
+    assert "--privileged" not in argv

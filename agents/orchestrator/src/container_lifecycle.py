@@ -31,7 +31,30 @@ DEFAULT_SECCOMP = "agents/stability/stack/seccomp/redroid-seccomp.json"
 # kernels (proven 2026-05-31: base redroid-seccomp.json exits the container; l0b boots).
 HARDENED_SECCOMP = "agents/stability/stack/seccomp/redroid-seccomp-l0b.json"
 # Device access WITHOUT --privileged (the missing piece for binderfs-only boot, proven 2026-05-31).
+# BROAD baseline: grants rwm to ALL char + ALL block devices. Proven to boot, but an adversarial
+# validator flagged it as over-broad. Kept as the safe fallback default.
 DEVICE_CGROUP_RULES = ["c *:* rmw", "b *:* rmw"]
+# NARROWED set, empirically derived 2026-05-31 by enumerating EVERY device node the Magisk-rooted
+# ReDroid 12 container actually creates under the broad rules (container `dcg-base`, port 5771):
+#   maj 1   mem        -> /dev/null,zero,full,random,urandom,kmsg
+#   maj 5   tty        -> /dev/tty,/dev/console(ptmx area),/dev/pts/ptmx
+#   maj 10  misc       -> misc subsystem (fuse=10,229 on host; defensive include)
+#   maj 136 pts        -> /dev/console (pseudo-terminal slave) + pts slaves
+#   maj 239 binder     -> /dev/binderfs/{binder,binder-control,hwbinder,vndbinder}
+# NO block-device nodes exist in the container (/data is a bind mount), so NO `b` rule is needed.
+# CAVEAT: 239 is the kernel's DYNAMICALLY-allocated binder major. It is allocated by the host
+# kernel at binderfs init and is stable per host-boot; the container (which self-mounts binderfs
+# on this binderfs-only kernel) reuses the SAME major rather than getting a fresh one — proven by
+# observing maj 239 both on host /dev/binderfs and inside the container. If the host kernel ever
+# reallocates binder to a different major, this rule must be regenerated. Proven live 2026-05-31
+# (container `dcg-narrow`, port 5773): boot_completed=1 AND `su -c id` -> uid=0 with this set.
+MINIMAL_DEVICE_CGROUP_RULES = [
+    "c 1:* rmw",    # mem: null, zero, full, random, urandom, kmsg
+    "c 5:* rmw",    # tty, console, ptmx
+    "c 10:* rmw",   # misc (fuse etc.)
+    "c 136:* rmw",  # pts slaves
+    "c 239:* rmw",  # binder (dynamically-allocated major, discovered live)
+]
 # Cap set that actually boots ReDroid non-privileged (proven 2026-05-31: the narrow 15-cap
 # DEFAULT_CAP_ADD leaves zygote in a restart loop; this broader-but-bounded set boots fully).
 # Still excludes the dangerous caps (SYS_RAWIO, SYS_PACCT, MAC_ADMIN/OVERRIDE, etc.) → not privileged.
@@ -102,6 +125,7 @@ def build_hardened_run_argv(
     image: str, name: str, host_port: int, data_dir: str,
     seccomp: str = HARDENED_SECCOMP, cap_add: list[str] | None = None,
     cmd: list[str] | None = None,
+    device_cgroup_rules: list[str] | None = None,
 ) -> list[str]:
     """Proven NON-privileged hardened `docker run` argv (binderfs-only kernel, 2026-05-31).
 
@@ -116,7 +140,8 @@ def build_hardened_run_argv(
     argv = ["docker", "run", "-itd", "--name", name, "--cap-drop", "ALL"]
     for c in (cap_add if cap_add is not None else HARDENED_CAP_ADD):
         argv += ["--cap-add", c]
-    for rule in DEVICE_CGROUP_RULES:
+    for rule in (device_cgroup_rules if device_cgroup_rules is not None
+                 else MINIMAL_DEVICE_CGROUP_RULES):
         argv += ["--device-cgroup-rule", rule]
     argv += [
         "--security-opt", f"seccomp={seccomp_abs}",
