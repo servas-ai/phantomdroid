@@ -102,6 +102,23 @@ docker exec "$NAME" su -c "
   \$RP ro.build.display.id TQ3A.230805.001
   \$RP ro.build.tags release-keys
   \$RP ro.build.type user
+  # --- L1 build-VERSION coherence (decompose the fingerprint above):
+  #   AOSP fp = BRAND/PRODUCT/DEVICE:VERSION.RELEASE/ID/VERSION.INCREMENTAL:TYPE/TAGS
+  #   google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys
+  #   => RELEASE=13, ID=TQ3A.230805.001, INCREMENTAL=10316531.
+  # redroid leaves these at incoherent values (release=12, id=SP1A..., incremental=eng.*,
+  # security_patch=2021-10-05) which Momo/MHPC fingerprint-consistency checks flag as a tell:
+  # the claimed build (TQ3A.230805.001 = a 2023-08-05 patch level) must match incremental +
+  # security_patch. Set them byte-coherent with the panther TQ3A.230805.001 fingerprint.
+  # NO invented values: incremental == the fp's own build-number; security_patch == the date
+  # encoded in the build-id (230805 = 2023-08-05).
+  \$RP ro.build.id TQ3A.230805.001
+  \$RP ro.build.version.release 13
+  \$RP ro.build.version.incremental 10316531
+  \$RP ro.build.version.security_patch 2023-08-05
+  \$RP ro.vendor.build.security_patch 2023-08-05
+  \$RP ro.system.build.version.incremental 10316531
+  \$RP ro.vendor.build.version.incremental 10316531
   \$RP ro.bootloader 'slider-1.2-9512283'
   \$RP ro.boot.bootloader 'slider-1.2-9512283'
   \$RP ro.boot.hardware redroid

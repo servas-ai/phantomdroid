@@ -18,7 +18,7 @@
 
 | Layer | Surface | Technique (exact, from launcher) | Live evidence | Achieved? |
 |-------|---------|----------------------------------|---------------|-----------|
-| **L1** | build props (Pixel 7 `panther` / A13) | `resetprop` on `ro.product.{brand,manufacturer,model,name,device,board}`, `ro.board.platform=gs201`, `ro.hardware=gs201`, `ro.build.fingerprint=google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys`, `ro.build.{display.id,tags,type}`, `ro.bootloader`/`ro.boot.bootloader=slider-1.2-9512283`, `ro.product.locale=en-US` | `before`→`mid` snapshots; `buildprop.*` probes 1.00→0.00 | **YES** |
+| **L1** | build props (Pixel 7 `panther` / A13) | `resetprop` on `ro.product.{brand,manufacturer,model,name,device,board}`, `ro.board.platform=gs201`, `ro.hardware=gs201`, `ro.build.fingerprint=google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys`, `ro.build.{display.id,tags,type}`, `ro.bootloader`/`ro.boot.bootloader=slider-1.2-9512283`, `ro.product.locale=en-US`. **Build-VERSION coherence (2026-06-01):** `ro.build.id=TQ3A.230805.001`, `ro.build.version.release=13`, `ro.build.version.incremental=10316531`, `ro.{,system.,vendor.}build.version.incremental=10316531`, `ro.{,vendor.}build.version.security_patch=2023-08-05` — all decomposed FROM the fingerprint (incremental = fp build-number; release = the `:13/` field; security_patch = the date encoded in build-id `230805`). | `before`→`mid` snapshots; `buildprop.*` probes 1.00→0.00. Version-coherence verified on-device (`bv-build`) but NOT scored by any current panel probe — see §6. | **YES** |
 | **L0b** | verified-boot / debuggable lock surface | `resetprop ro.debuggable 0`, `ro.boot.vbmeta.device_state green`, `ro.boot.verifiedbootstate green`, `ro.boot.flash.locked 1`, `ro.oem_unlock_supported 0`, `ro.warranty_bit 0`, `ro.boot.warranty_bit 0` (root unlocks `ro.debuggable=0`) | `mid`→`mid2` progression | **YES** |
 | **L2** | identity: device serial + telephony | `resetprop ro.serialno`/`ro.boot.serialno = 2A111FDH2002KQ` (Pixel-class form, non-stock); `gsm.sim.state READY`; `ril.iccid.sim1 = 8901410329988776652` (89-prefix, 19-digit, Luhn-valid, not in `KNOWN_EMULATOR_ICCIDS`). **No IMEI is set** — ReDroid exposes none, and none is invented. | `after-augmented-snapshot.yml` `telephony.{SERIAL,SIM_SERIAL,OPERATOR_NAME,MCC_MNC}` (with `IMEI: null`); probes `identity.sim_iccid` 0.70→0.00, `identity.imei_serial` 0.70→**0.50** (IMEI-null + valid serial = benign) | **YES** (scored via telephony-aware capture — see §4) |
 | **L6** | LTE / radio operator + SIM | `resetprop gsm.sim.operator.{numeric=310410,alpha=AT&T,iso-country=us}`, `gsm.operator.*` (same), `gsm.network.type LTE`, `gsm.current.phone-type 1`, `persist.radio.multisim.config ss` — AT&T 310/410, NOT the AVD-canonical T-Mobile 310/260 the `CarrierMccMnc` probe flags | `after-snapshot.yml`/`after-augmented`; `identity.carrier_mccmnc = 0.00` | **YES** |
@@ -257,6 +257,76 @@ Root + `resetprop` cannot synthesize a sensor — `SensorManager.getSensorList()
 - **GENUINELY BLOCKED:** L5 sensors (no sensor HAL — architectural; see `BLOCKER-L5.md`).
 - **ARCHITECTURAL CEILING (cannot be spoofed on ReDroid):** `emulator.cpu_abi` (x86_64), Bluetooth/Wi-Fi/GPS MACs, sensor family.
 - **OUT OF B2 SCOPE:** L3 attestation (keybox — `L3-DEFAULT.md`), L4 runtime hiding (Zygisk/Shamiko/HMA).
+
+## 6. Build-VERSION coherence fix (2026-06-01) — REAL spoof, NOT measured by our panel
+
+**What was wrong (the b02f646 known-gap, now CLOSED).** The L1 spoof set the Pixel-7 fingerprint
+`google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys` but left the build-VERSION props at
+redroid's incoherent values:
+
+- `ro.build.version.incremental = eng.frank.20240527.145941` — does **not** equal the fingerprint's embedded
+  build-number `10316531`.
+- `ro.build.version.security_patch = 2021-10-05` — wildly wrong for a build claiming patch level
+  `TQ3A.230805.001` (Aug 2023).
+- `ro.build.version.release = 12` and `ro.build.id` (redroid `SP1A…`) — diverged from the fingerprint's
+  `:13/` and `TQ3A.230805.001` fields.
+
+This incoherence (incremental ≠ fp-buildnumber; security_patch ≠ the build's actual patch date; release/id ≠
+the fingerprint fields) is a **real Momo/MHPC fingerprint-consistency tell**: a thorough detector decomposes the
+fingerprint and cross-checks each VERSION field against it.
+
+**The fix (launcher L1 resetprop block).** No invented values — every value is **decomposed from the
+fingerprint already in the launcher** (AOSP fp format = `BRAND/PRODUCT/DEVICE:VERSION.RELEASE/ID/VERSION.INCREMENTAL:TYPE/TAGS`):
+
+```
+ro.build.id                          TQ3A.230805.001     # = fp ID field
+ro.build.version.release             13                  # = fp :13/ field
+ro.build.version.incremental         10316531            # = fp build-number (the number after the ID)
+ro.system.build.version.incremental  10316531
+ro.vendor.build.version.incremental  10316531
+ro.build.version.security_patch      2023-08-05          # = date encoded in build-id 230805 (panther A13)
+ro.vendor.build.security_patch       2023-08-05
+```
+
+**On-device verification (`bv-build`, hardened NON-privileged, Privileged=false, root uid=0):**
+
+```
+ro.build.fingerprint               google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys
+ro.build.id                        TQ3A.230805.001
+ro.build.version.release           13
+ro.build.version.incremental       10316531   ← == fp build-number  COHERENT
+ro.system.build.version.incremental 10316531
+ro.vendor.build.version.incremental 10316531
+ro.build.version.security_patch    2023-08-05 ← panther A13 patch  COHERENT
+ro.vendor.build.security_patch     2023-08-05
+```
+
+All three coherence assertions pass on-device (incremental == fp build-number, security_patch == 2023-08-05,
+release == the fp `:13/` field).
+
+**HONESTY — this is NOT measured by our panel.** A grep of `agents/detection/src/probes/` for
+`security_patch` / `ro.build.version.incremental` / version-consistency finds **no probe that scores
+build-version coherence**. The only `ro.build.version.*` read by any probe is `ro.build.version.sdk` (used by
+`LocationMockRaspProbe` and `TikTokArgusSigningProbe` purely for SDK-int gating, not coherence). The capture
+pipeline `live_matrix.py` likewise reads neither `incremental` nor `security_patch`. The one cross-partition
+probe (`buildprop.fingerprint_cross_partition`) explicitly compares **only the first 3 fingerprint segments**
+(brand/product/device) and documents that build-id and version-incremental are **EXPECTED to differ** — so it
+does not catch this tell either.
+
+**Measured result: B2 aggregate UNCHANGED.** Re-measured on the same HONEST 82-probe panel
+(`live_matrix.py --cell bv-build:L1+L0b+L2+L6:…` → `detection-cli run --snapshot`):
+**weightedScore = 0.15406, SUSPICIOUS, 2 critical** — identical (to 3 decimals) to the prior 0.1541. The 2
+criticals are the same two GENUINE root signals: `root.su_detection = 1.0` and `integrity.play_integrity = 0.95`.
+`buildprop.fingerprint_cross_partition` stays `0.0`. Boot + root both verified (`sys.boot_completed=1`,
+`su -c id` → uid=0, `magisk -V` → 30600).
+
+**Why ship it anyway.** The value is **real-world detection-resistance** (Momo and similar fingerprint-
+consistency detectors DO cross-check `security_patch` and `incremental` against the claimed build), not a score
+change in our current lab panel. Claiming a score drop here would be dishonest — there is none, because the gap
+is genuinely unmeasured by the 82-panel. This closes the b02f646 known-gap on the **device** while leaving an
+honest, documented **measurement** gap (no version-coherence probe) for a future probe to fill.
+
+---
 
 ## Artifact index
 
