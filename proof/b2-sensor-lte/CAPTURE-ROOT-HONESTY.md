@@ -181,3 +181,51 @@ state. This document is the honest correction.
 `RESULT.md` headline and §2/§6 corrected to the honest `0.1403 SUSPICIOUS` number. The
 earlier-committed `before`/`mid*` snapshots are historical (pre-fix capture) and left as-is;
 they predate the root surface and are not relied on for the headline.
+
+---
+
+## 7. ADDENDUM (2026-06-01) — the mount-namespace / UDS lower-bound, now closed
+
+The `0.1403` in §1–§6 was itself a **LOWER BOUND**. The su-path fix (§1–§2) corrected
+`su_detection`, but the capture still recorded a **conservative no-observation NULL** for the
+four dispositive mount-namespace / Unix-domain-socket root probes, because of TWO gaps:
+
+1. **Capture gap.** `live_matrix.capture_live_snapshot` never read `/proc/self/mountinfo`,
+   `/proc/1/mountinfo` or `/proc/net/unix`, so the snapshot carried no `mountInfo` /
+   `procNetUnixSockets` fields. **Fix:** new `capture_mount_and_uds()` reads all three via
+   `su -c cat` (root needed for `/proc/1/mountinfo` on the hardened container); a failed read
+   stays NULL — never fabricated. The YAML emitter now emits both fields.
+2. **Scorer gap.** The detection-cli `ProbeRegistry` (a 65-probe subset of the canonical
+   84-probe `FullProbeRunnerSpoofTest.allProbes()`) did **not** include the four probes, and
+   `SnapshotLoader.SnapshotDto` did not deserialize the two fields — so even a snapshot that
+   carried them would have been silently dropped. **Fix:** registered
+   `MountNsMismatchProbe`, `OverlayFsPresentProbe`, `SystemRwMountProbe`, `MagiskUdsProbe`
+   (`EXPECTED_COUNT` 65→69) and added the two fields to the DTO + `toDomain()`.
+
+### Live ground truth (container `mnt-build`, post-spoof, full confidence 0.95)
+
+```
+/proc/net/unix    -> /sbin/.magisk/device/socket  (x2)  => root.magisk_uds        = 0.95
+/ is overlay (overlay2 rootfs)                          => root.overlayfs_present = 0.85
+/proc/self == /proc/1 mountinfo (byte-identical),
+  no .magisk-PATH substring asymmetry                   => root.mount_ns_mismatch = 0.00 (digest_match)
+/ mounted ro, no standalone /system rw entry            => root.system_rw_mount   = 0.00 (root_ro_sar)
+```
+
+`mount_ns_mismatch` and `system_rw_mount` are **legitimately clean** here: the probe runs
+outside an app process (no zygote mount-namespace isolation → `self`/`1` match), and the
+Magisk mount is a bare `tmpfs magisk` on `/sbin` (no `.magisk`-PATH substring, so no
+fingerprint asymmetry); `/` is read-only. These are honest 0.0s, not under-measurement.
+
+### Controlled effect of the fuller capture (same snapshot, same 69-probe panel)
+
+| capture | weightedScore |
+|---------|---------------|
+| conservative-null (mount-ns/UDS stripped — the OLD behaviour) | **0.1175** |
+| honest fuller capture (this addendum) | **0.1279** |
+
+Δ = **+0.0104**. The honest figure is **HIGHER** — measuring the mount-ns/UDS surface adds
+two real root signals (`magisk_uds 0.95`, `overlayfs 0.85`) that the conservative null hid.
+**The B2 headline is updated to `0.1279 SUSPICIOUS`; `0.1403` is superseded as a lower bound.**
+`after-*` / `after-augmented-*` artifacts regenerated with the fuller capture (now contain
+`mountInfo` + `procNetUnixSockets` and the four probe results).

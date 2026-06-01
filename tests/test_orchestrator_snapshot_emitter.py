@@ -161,3 +161,90 @@ def test_capture_telephony_never_invents_imei_from_garbage(monkeypatch):
     tel = live_matrix.capture_telephony("b2-test")
     assert tel["IMEI"] is None
     assert tel["OPERATOR_NAME"] is None and tel["MCC_MNC"] is None
+
+
+def test_capture_mount_and_uds_populates_self_and_init_when_device_provides(monkeypatch):
+    """MOUNT-NS HONESTY invariant: when the device exposes /proc/self/mountinfo
+    AND /proc/1/mountinfo (read via su -c), the capture MUST populate
+    mountInfo["self"] and mountInfo["1"] with the real content — not the
+    conservative NULL the prior capture emitted (which made the dispositive
+    Momo/RootBeer mount-ns probes score a no-observation 0.0 lower bound).
+    /proc/net/unix socket NAMES (field 8) are harvested for MagiskUdsProbe."""
+    import yaml
+    from agents.orchestrator.src import live_matrix
+
+    self_mountinfo = (
+        "1 0 253:0 / / rw,relatime - overlay overlay rw\n"
+        "2 1 0:42 / /system ro,relatime - ext4 /dev/block/system ro\n"
+    )
+    init_mountinfo = (
+        "1 0 253:0 / / rw,relatime - overlay overlay rw\n"
+        "99 1 0:50 / /sbin/.magisk rw - tmpfs magisk rw\n"
+    )
+    proc_net_unix = (
+        "Num       RefCount Protocol Flags    Type St Inode Path\n"
+        "0000: 00000002 00000000 00010000 0001 01 12345 @magisk\n"
+        "0000: 00000002 00000000 00010000 0001 01 12346 /dev/socket/installd\n"
+        "0000: 00000002 00000000 00010000 0001 01 12347\n"  # unnamed: no field 8
+    )
+
+    def fake_exec(container, shell_cmd):
+        if "/proc/self/mountinfo" in shell_cmd:
+            return self_mountinfo
+        if "/proc/1/mountinfo" in shell_cmd:
+            return init_mountinfo
+        if "/proc/net/unix" in shell_cmd:
+            return proc_net_unix
+        return ""
+
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    mount_info, sockets = live_matrix.capture_mount_and_uds("b2-test")
+
+    # Both PIDs populated with the REAL device content — not NULL.
+    assert mount_info["self"] is not None
+    assert mount_info["1"] is not None
+    assert "/system" in mount_info["self"]
+    # The Magisk mount-bind in init's namespace is preserved verbatim so
+    # MountNsMismatchProbe sees the asymmetry (Momo #1 signal).
+    assert "/sbin/.magisk" in mount_info["1"]
+    assert "/sbin/.magisk" not in mount_info["self"]
+
+    # Named/abstract sockets harvested; the unnamed socket (no field 8) skipped.
+    assert "@magisk" in sockets
+    assert "/dev/socket/installd" in sockets
+    assert len(sockets) == 2  # header + unnamed line excluded
+
+    # The YAML emitter round-trips mountInfo (map) and procNetUnixSockets (list)
+    # into the exact field shape the detection-cli SnapshotDto consumes.
+    snap = {
+        "label": "x", "capturedAt": "t", "sdkInt": 31, "systemProperties": {},
+        "existingFiles": [], "readableFiles": {},
+        "settingsSecure": {}, "settingsGlobal": {}, "settingsSystem": {},
+        "telephony": {}, "installedPackages": [],
+        "mountInfo": mount_info, "procNetUnixSockets": sockets,
+        "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": None, "localeLanguage": None, "localeCountry": None,
+        "displayWidthPixels": None, "displayHeightPixels": None, "displayDensityDpi": None,
+        "gpsLat": None, "gpsLng": None, "gpsAccuracy": None, "gpsProvider": None, "gpsIsMock": None,
+    }
+    parsed = yaml.safe_load(_yaml_dump_snapshot(snap))
+    assert "/sbin/.magisk" in parsed["mountInfo"]["1"]
+    assert "/sbin/.magisk" not in parsed["mountInfo"]["self"]
+    assert "@magisk" in parsed["procNetUnixSockets"]
+
+
+def test_capture_mount_and_uds_records_null_when_unreadable(monkeypatch):
+    """ANTI-FABRICATION invariant: when a mountinfo read fails (denied / empty),
+    the capture records NULL (no observation) — it MUST NOT invent content.
+    The conservative null is the honest answer and keeps the mount-ns probes on
+    their no-observation 0.0 path rather than a fabricated detection."""
+    from agents.orchestrator.src import live_matrix
+
+    def fake_exec(container, shell_cmd):
+        return ""  # every read denied/empty
+
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    mount_info, sockets = live_matrix.capture_mount_and_uds("b2-test")
+    assert mount_info["self"] is None
+    assert mount_info["1"] is None
+    assert sockets == []

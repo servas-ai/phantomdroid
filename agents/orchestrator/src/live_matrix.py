@@ -221,6 +221,60 @@ def capture_root_surface(container: str) -> tuple[list[str], list[str]]:
     return present_files, present_packages
 
 
+def capture_mount_and_uds(
+    container: str,
+) -> tuple[dict[str, str | None], list[str]]:
+    """HONEST live read of the mount-namespace + UDS root-detection surface.
+
+    Captures the dispositive mount-namespace probes' inputs that the prior
+    capture left as a conservative NULL (no-observation):
+
+      * ``mountInfo["self"]`` / ``mountInfo["1"]`` — full ``/proc/<pid>/mountinfo``
+        content read via ``su -c cat`` (root needed to read ``/proc/1/mountinfo``
+        on a hardened container). Consumed by MountNsMismatchProbe (Momo #1),
+        OverlayFsPresentProbe and SystemRwMountProbe.
+      * ``procNetUnixSockets`` — the socket-name column (field 8) of
+        ``/proc/net/unix``. Consumed by MagiskUdsProbe.
+
+    Anti-fabrication: every read is whatever the device actually returns. If a
+    read fails (permission denied / file absent / empty), the corresponding
+    ``mountInfo`` key is recorded as ``None`` (YAML ``null`` => the probe sees
+    "no observation" and scores the conservative 0.0). UDS sockets that cannot
+    be read yield an empty list. Nothing is invented.
+    """
+    mount_info: dict[str, str | None] = {}
+    for pid in ("self", "1"):
+        # `su -c` so /proc/1/mountinfo is readable on a hardened (non-self)
+        # container; fall back to a bare cat if su is unavailable. 2>/dev/null
+        # so a denied read produces empty -> recorded as None, never fabricated.
+        raw = _docker_exec(
+            container, f"su -c 'cat /proc/{pid}/mountinfo' 2>/dev/null"
+        )
+        if not raw.strip():
+            raw = _docker_exec(container, f"cat /proc/{pid}/mountinfo 2>/dev/null")
+        content = raw.rstrip("\n")
+        # Empty/whitespace-only => unreadable -> NULL (no observation), honest.
+        mount_info[pid] = content if content.strip() else None
+
+    # /proc/net/unix: socket name is the last whitespace-delimited field when
+    # present (named/abstract sockets); unnamed sockets have no trailing field
+    # and are skipped. Header line (starts with "Num") is skipped.
+    uds_raw = _docker_exec(container, "su -c 'cat /proc/net/unix' 2>/dev/null")
+    if not uds_raw.strip():
+        uds_raw = _docker_exec(container, "cat /proc/net/unix 2>/dev/null")
+    sockets: list[str] = []
+    for ln in uds_raw.splitlines():
+        line = ln.rstrip()
+        if not line or line.lstrip().startswith("Num"):
+            continue
+        parts = line.split()
+        # Standard /proc/net/unix has 7 fixed columns; an 8th (the path/name)
+        # is present only for named/abstract sockets. Only those carry a name.
+        if len(parts) >= 8:
+            sockets.append(parts[-1])
+    return mount_info, sockets
+
+
 def capture_live_snapshot(container: str, label: str) -> dict:
     """Fresh read-only capture of a booted container's identity surface."""
     raw = _docker_exec(container, "; ".join(f'echo "{k}|$(getprop {k})"' for k in _PROP_KEYS))
@@ -238,6 +292,11 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     # SuDetectionProbe.kt. Records what is actually present so root is never
     # under-reported (the false su_detection=0.0 bug).
     root_files, superuser_packages = capture_root_surface(container)
+    # HONEST mount-namespace + UDS surface: /proc/self|1/mountinfo and
+    # /proc/net/unix — the dispositive Momo/RootBeer root probes' inputs that
+    # the prior capture left as a conservative NULL. Reads via su -c; a failed
+    # read stays NULL (no observation), never fabricated.
+    mount_info, proc_net_unix_sockets = capture_mount_and_uds(container)
     # font files present (ui.system_fonts probe fileExists fallback: NotoColorEmoji + Roboto = real set)
     font_files = [ln.strip() for ln in
                   _docker_exec(container, "ls /system/fonts/*.ttf 2>/dev/null").splitlines() if ln.strip()]
@@ -289,6 +348,8 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
         "telephony": telephony,
         "installedPackages": (["android", "com.android.systemui"] + superuser_packages),
+        "mountInfo": mount_info,
+        "procNetUnixSockets": proc_net_unix_sockets,
         "sensorTypes": [], "bluetoothMac": None,
         "timezoneId": tz, "localeLanguage": loc_lang, "localeCountry": loc_country,
         "displayWidthPixels": w, "displayHeightPixels": h, "displayDensityDpi": dens,
@@ -331,6 +392,24 @@ def _yaml_dump_snapshot(snap: dict) -> str:
     lines.append("installedPackages:")
     for p in snap["installedPackages"]:
         lines.append(f"  - {q(p)}")
+    # mountInfo: Map<String, String?> — per-PID /proc/<pid>/mountinfo content.
+    # A null value means the read failed (no observation) — emitted as YAML null
+    # so the scorer's queryMountInfo(pid) returns null, NOT a fabricated string.
+    mi = snap.get("mountInfo") or {}
+    if not mi:
+        lines.append("mountInfo: {}")
+    else:
+        lines.append("mountInfo:")
+        for k, v in mi.items():
+            lines.append(f'  {q(k)}: {q(v) if v is not None else "null"}')
+    # procNetUnixSockets: List<String> — socket names from /proc/net/unix.
+    socks = snap.get("procNetUnixSockets") or []
+    if not socks:
+        lines.append("procNetUnixSockets: []")
+    else:
+        lines.append("procNetUnixSockets:")
+        for s in socks:
+            lines.append(f"  - {q(s)}")
     lines.append("sensorTypes: []")
     lines.append("bluetoothMac: null")
     for key in ("timezoneId", "localeLanguage", "localeCountry"):

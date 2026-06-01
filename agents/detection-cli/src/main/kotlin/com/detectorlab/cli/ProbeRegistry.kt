@@ -1,13 +1,17 @@
 // agents/detection-cli/src/main/kotlin/com/detectorlab/cli/ProbeRegistry.kt
 //
-// Explicit instantiation of the full 65-probe production inventory.
-// Mirrors `FullProbeRunnerSpoofTest.allProbes()` (the canonical reference
-// registry) verbatim — if a new probe is added to the detection module,
-// THIS list and the test list must be updated together. The
-// `assertEquals(65, probes.size, ...)` sanity check in the test catches any
-// drift on the test side; the CLI's `validate` subcommand exercises this
-// instantiation path at startup so missing/renamed probes surface as a
-// loud build failure rather than a silent coverage drop.
+// Explicit instantiation of the CLI production inventory (69 probes).
+// Mirrors the root section of `FullProbeRunnerSpoofTest.allProbes()` — the four
+// mount-namespace / UDS root probes (MountNsMismatch / OverlayFsPresent /
+// SystemRwMount / MagiskUds) were added 2026-06-01 so the dispositive Momo /
+// RootBeer root signals captured by `live_matrix.capture_mount_and_uds`
+// (/proc/{self,1}/mountinfo + /proc/net/unix) are actually SCORED rather than
+// silently dropped. If a new probe is added to the detection module, THIS list
+// and the test list must be updated together. The `assertEquals(EXPECTED_COUNT,
+// probes.size, ...)` sanity check in the test catches any drift on the test
+// side; the CLI's `validate` subcommand exercises this instantiation path at
+// startup so missing/renamed probes surface as a loud build failure rather than
+// a silent coverage drop.
 //
 // The only non-default-arg constructor is `BluetoothMacProbe`, which takes
 // a `bluetoothAdapterMacSupplier: () -> String?` that we wire through the
@@ -64,8 +68,12 @@ import com.detectorlab.probes.network.DnsServerProbe
 import com.detectorlab.probes.network.HttpProxyProbe
 import com.detectorlab.probes.network.NetworkTypeProbe
 import com.detectorlab.probes.network.VpnProxyProbe
+import com.detectorlab.probes.root.MagiskUdsProbe
+import com.detectorlab.probes.root.MountNsMismatchProbe
+import com.detectorlab.probes.root.OverlayFsPresentProbe
 import com.detectorlab.probes.root.SeLinuxProbe
 import com.detectorlab.probes.root.SuDetectionProbe
+import com.detectorlab.probes.root.SystemRwMountProbe
 import com.detectorlab.probes.runtime.AutomationToolsProbe
 import com.detectorlab.probes.runtime.DebuggerTracerPidProbe
 import com.detectorlab.probes.runtime.InstalledAppsProbe
@@ -85,12 +93,13 @@ import com.detectorlab.probes.ui.ScreenResolutionProbe
 import com.detectorlab.probes.ui.SystemFontsProbe
 
 /**
- * The complete production probe inventory (65 probes). Keep in lockstep with
- * `FullProbeRunnerSpoofTest.allProbes()` in the :detection test source set.
+ * The CLI production probe inventory (69 probes). Keep the root section in
+ * lockstep with `FullProbeRunnerSpoofTest.allProbes()` in the :detection test
+ * source set (which carries the full 84-probe canonical panel).
  */
 object ProbeRegistry {
 
-    const val EXPECTED_COUNT: Int = 65
+    const val EXPECTED_COUNT: Int = 69
 
     fun allProbes(ctx: ProbeContext): List<Probe> = listOf(
         // app (2)
@@ -149,9 +158,13 @@ object ProbeRegistry {
         HttpProxyProbe(),
         NetworkTypeProbe(),
         VpnProxyProbe(),
-        // root (2)
+        // root (6)
         SeLinuxProbe(),
         SuDetectionProbe(),
+        MountNsMismatchProbe(),
+        OverlayFsPresentProbe(),
+        SystemRwMountProbe(),
+        MagiskUdsProbe(),
         // runtime (7)
         AutomationToolsProbe(),
         DebuggerTracerPidProbe(),

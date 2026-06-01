@@ -1,10 +1,10 @@
 {
   "schemaVersion": "1.0",
-  "deviceLabel": "b2-honest-recapture",
-  "timestamp": "2026-06-01T06:27:50.187049718Z",
+  "deviceLabel": "b2-mnt-build-2026-06-01",
+  "timestamp": "2026-06-01T06:48:14.877115183Z",
   "appVersion": "0.1.0",
   "aggregate": {
-    "weightedScore": 0.14029411764705885,
+    "weightedScore": 0.12787356321839083,
     "criticalFailures": 1,
     "category": "SUSPICIOUS"
   },
@@ -29,7 +29,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 10,
+      "runtimeMs": 6,
       "failed": true,
       "failureReason": "skipped: TikTok not installed (checked: com.zhiliaoapp.musically, com.ss.android.ugc.tiktok)"
     },
@@ -77,7 +77,7 @@
         }
       ],
       "method": "Read ro.product.board + ro.board.platform + ro.hardware + ro.hardware.chipname + ro.board.manufacturer; detect goldfish/ranchu/vbox86/redroid emulator markers; cross-check board codename vs claimed model",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -289,7 +289,7 @@
         }
       ],
       "method": "Read Build.SUPPORTED_ABIS + ro.product.cpu.abilist; detect x86 primary on ARM-claimed model, dual-arch Houdini bridge, and minimal emulator-stripped ABI lists",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -380,7 +380,7 @@
         }
       ],
       "method": "Read /proc/version and parse for emulator kernel-name markers, x86 arch leak, localhost build host, GCC compiler leak",
-      "runtimeMs": 2,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -428,7 +428,7 @@
         }
       ],
       "method": "Read ro.kernel.qemu / ro.kernel.qemu.gles + check /dev/qemu_*, /dev/goldfish_*, /dev/socket/qemud/baseband_genyd device nodes; detect canonical AVD marker + QEMU/Goldfish-specific kernel surface",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -633,7 +633,7 @@
         }
       ],
       "method": "Read BluetoothAdapter + PackageManager.FEATURE_BLUETOOTH/BLUETOOTH_LE; detect missing-adapter on phone-class (BT is near-universal on Android), feature-vs-adapter contradictions, and invalid state values.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -686,7 +686,7 @@
         }
       ],
       "method": "Read ro.boot.* / ro.oem_unlock_supported / ro.secure / ro.debuggable / ro.boot.warranty_bit properties and compare against expected production-locked values",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -916,7 +916,7 @@
         }
       ],
       "method": "Read Locale.getDefault() + ro.product.locale.* properties; detect empty-country/language defaults, invalid ISO codes, and runtime-vs-build locale divergence. No live IP geolocation.",
-      "runtimeMs": 8,
+      "runtimeMs": 7,
       "failed": false,
       "failureReason": null
     },
@@ -1081,12 +1081,12 @@
       "evidence": [
         {
           "key": "wall_clock_ms",
-          "value": 1780295270145,
+          "value": 1780296494815,
           "expected": null
         },
         {
           "key": "elapsed_realtime_ms",
-          "value": 1780295270145,
+          "value": 1780296494815,
           "expected": null
         },
         {
@@ -1222,32 +1222,32 @@
       "id": "identity.android_id",
       "rank": 11,
       "category": "identity",
-      "score": 0.85,
+      "score": 0.0,
       "confidence": 0.95,
       "evidence": [
         {
           "key": "android_id",
-          "value": "7274912a83eac23",
+          "value": "2dd47bee5297e43b",
           "expected": "<unique 16-hex>"
         },
         {
           "key": "android_id.length",
-          "value": "15",
+          "value": "16",
           "expected": "16"
         },
         {
           "key": "android_id.pattern",
-          "value": "non_hex",
+          "value": "normal",
           "expected": "normal"
         },
         {
           "key": "android_id.entropy_bits_per_char",
-          "value": "0.000",
+          "value": "3.078",
           "expected": ">=3.0"
         }
       ],
       "method": "Read Settings.Secure.ANDROID_ID and check against known factory defaults, sequential patterns, and Shannon entropy threshold",
-      "runtimeMs": 12,
+      "runtimeMs": 7,
       "failed": false,
       "failureReason": null
     },
@@ -1295,7 +1295,7 @@
         }
       ],
       "method": "Read BluetoothAdapter.address + /sys/class/bluetooth/hci0/address; validate OUI prefix against emulator-vendor allowlist; check locally-administered bit. Cross-reference rank-15 WifiMac OUI table.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1373,7 +1373,7 @@
         }
       ],
       "method": "Read TelephonyManager.networkOperator + networkOperatorName + line1Number + subscriberId; detect known emulator-default carrier names, MCC/MNC values, AOSP-block phone numbers (strazzere/anti-emulator 16-entry list), and AOSP canonical IMSI 310260000000000. Power-13 Gap #6.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1421,7 +1421,7 @@
         }
       ],
       "method": "Read AdvertisingIdInfo (Google Play Services), validate UUID format, check opt-out consistency, and detect known-emulator-stub UUIDs",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1727,7 +1727,7 @@
         }
       ],
       "method": "package-name-scan-for-tamper-frameworks",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1845,7 +1845,7 @@
         }
       ],
       "method": "Read net.dns1-4 properties + ConnectivityManager link DNS + Settings.Global private DNS; detect emulator DNS subnets (10.0.2.x, 192.168.42.x) and isolated public-DNS-only configs. No live DNS lookups.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1941,7 +1941,7 @@
         }
       ],
       "method": "Read ConnectivityManager.activeNetwork transport + TelephonyManager.dataNetworkType + simState; classify WiFi-only-no-SIM and TRANSPORT_USB as emulator signals. No live network requests.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2012,7 +2012,7 @@
         }
       ],
       "method": "Read /sys/fs/selinux/enforce + ro.boot.selinux + ro.build.selinux + optional getcon context, score Permissive/inconsistent as root indicator",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2130,6 +2130,168 @@
       "failureReason": null
     },
     {
+      "id": "root.mount_ns_mismatch",
+      "rank": 87,
+      "category": "root",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "mount_ns.self_readable",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "mount_ns.init_readable",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "mount_ns.digests_match",
+          "value": "true",
+          "expected": null
+        },
+        {
+          "key": "mount_ns.magisk_in_self",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "mount_ns.magisk_in_init",
+          "value": "none",
+          "expected": "none"
+        },
+        {
+          "key": "mount_ns.pattern",
+          "value": "digest_match",
+          "expected": "digest_match"
+        }
+      ],
+      "method": "Compare /proc/self/mountinfo vs /proc/1/mountinfo for Magisk-fingerprint substring asymmetry (HuskyDG #1 Momo signal — Power-13 Gap #3).",
+      "runtimeMs": 1,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "root.overlayfs_present",
+      "rank": 89,
+      "category": "root",
+      "score": 0.85,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "overlayfs.mountinfo_readable",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "overlayfs.system_fs_type",
+          "value": "<no entry>",
+          "expected": "ext4|f2fs|squashfs (NOT overlay)"
+        },
+        {
+          "key": "overlayfs.root_fs_type",
+          "value": "overlay",
+          "expected": "ext4|f2fs|squashfs (NOT overlay)"
+        },
+        {
+          "key": "overlayfs.overlay_on_system",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "overlayfs.overlay_on_root",
+          "value": "true",
+          "expected": "false"
+        },
+        {
+          "key": "overlayfs.pattern",
+          "value": "overlay_on_root_sar",
+          "expected": "clean"
+        }
+      ],
+      "method": "Parse /proc/self/mountinfo for `overlay` filesystem type mounted at /system or at / (system-as-root). Magisk-on-Android 11+ tell — Momo target surface (Power-13 Gap #12).",
+      "runtimeMs": 16,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "root.system_rw_mount",
+      "rank": 88,
+      "category": "root",
+      "score": 0.0,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "system_rw_mount.mountinfo_readable",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "system_rw_mount.system_entry_found",
+          "value": "false",
+          "expected": null
+        },
+        {
+          "key": "system_rw_mount.system_rw",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "system_rw_mount.root_entry_found",
+          "value": "true",
+          "expected": null
+        },
+        {
+          "key": "system_rw_mount.root_rw",
+          "value": "false",
+          "expected": "false"
+        },
+        {
+          "key": "system_rw_mount.pattern",
+          "value": "root_ro_sar",
+          "expected": null
+        }
+      ],
+      "method": "Parse /proc/self/mountinfo for /system partition rw status (or / partition rw status on Android 10+ system-as-root devices) — RootBeer checkForRWPaths() (Power-13 Gap #10).",
+      "runtimeMs": 8,
+      "failed": false,
+      "failureReason": null
+    },
+    {
+      "id": "root.magisk_uds",
+      "rank": 90,
+      "category": "root",
+      "score": 0.95,
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "key": "magisk_uds.socket_list_observed",
+          "value": "true",
+          "expected": "true"
+        },
+        {
+          "key": "magisk_uds.socket_count",
+          "value": "56",
+          "expected": null
+        },
+        {
+          "key": "magisk_uds.magisk_socket_hits",
+          "value": "/sbin/.magisk/device/socket,/sbin/.magisk/device/socket",
+          "expected": "none"
+        },
+        {
+          "key": "magisk_uds.pattern",
+          "value": "magisk_uds_present",
+          "expected": "clean"
+        }
+      ],
+      "method": "Enumerate /proc/net/unix socket names; match against Magisk-fingerprint substrings (@MAGISK / magisk / /.magisk / /sbin/.magisk / /dev/.magisk). RootBeerFresh + Momo target surface (Power-13 Gap #1).",
+      "runtimeMs": 0,
+      "failed": false,
+      "failureReason": null
+    },
+    {
       "id": "runtime.automation_tools",
       "rank": 69,
       "category": "runtime",
@@ -2226,7 +2388,7 @@
         }
       ],
       "method": "Read /proc/self/status and parse TracerPid field; non-zero value indicates ptrace-attached debugger (freeRASP T2 / MASTG-RESILIENCE-2)",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2493,7 +2655,7 @@
         }
       ],
       "method": "Enumerate SensorManager sensors and check for emulator vendor/name keywords, stub default values, missing-sensor patterns, and (optional) live-sample variance",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },

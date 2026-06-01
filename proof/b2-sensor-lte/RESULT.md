@@ -1,7 +1,7 @@
 # B2 — L2/L6 identity + LTE-radio spoof on the Magisk-rooted ReDroid 12 image (RESULT)
 
 **Status:** L1 / L0b / L2 / L6 spoof layers **ACHIEVED on-device**. L5 (sensors) **GENUINELY BLOCKED** (no sensor HAL). L3 / L4 out of B2 scope.
-**Headline detector score (CORRECTED 2026-06-01):** **0.1403 — SUSPICIOUS** (down from 0.3294 DETECTED), with **`root.su_detection = 1.0`** (1 critical failure). The build/identity/radio surface is clean, but **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` are present and NOT durably hideable — L4 fresh-fork blocker). The previously-stated **0.0850 CLEAN headline was an OVERCLAIM** caused by a capture bug that probed only `/system/xbin/su` (one of N su paths) and recorded `su_detection=0.0`. See **`CAPTURE-ROOT-HONESTY.md`** for the bug, the fix, and the corrected numbers. The 0.0850-CLEAN artifacts are SUPERSEDED.
+**Headline detector score (RE-MEASURED 2026-06-01, fuller mount-ns/UDS capture):** **0.1279 — SUSPICIOUS** on the now-69-probe panel, with **`root.su_detection = 1.0`** (1 critical failure) PLUS two newly-measured root signals firing at full confidence: **`root.magisk_uds = 0.95`** (`/sbin/.magisk/device/socket` in `/proc/net/unix`) and **`root.overlayfs_present = 0.85`** (overlayfs on `/`). The prior **0.1403** was a **LOWER BOUND**: the capture did not record `/proc/self|1/mountinfo` or `/proc/net/unix`, and the dispositive Momo/RootBeer mount-ns probes were (a) not in the detection-cli panel and (b) had no data, so they scored a conservative no-observation null. With the fuller honest capture, a controlled same-snapshot / same-panel comparison shows the aggregate **rises +0.0104 (0.1175 → 0.1279)** — measuring more honestly makes root MORE detectable, not less. The build/identity/radio surface is still clean; **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` + magisk UDS + overlayfs are present and NOT durably hideable — L4 fresh-fork blocker). The earlier **0.0850 CLEAN headline was an OVERCLAIM** (capture probed only `/system/xbin/su` → `su_detection=0.0`); see **`CAPTURE-ROOT-HONESTY.md`**. The 0.0850-CLEAN and 0.1403-lower-bound artifacts are SUPERSEDED.
 **Posture:** hardened, NON-privileged (B4 recipe via `container_lifecycle.build_hardened_run_argv`), Magisk-rooted (`redroid/redroid:12.0.0_magisk`, B1).
 **Launcher:** `agents/stability/stack/launch-l2-l6-sensor-lte-spoof.sh`
 **Container under test:** `b2-build-work` (also relaunched as `b2-l2l6-*` / `b2-fix` for the snapshot pass).
@@ -34,19 +34,51 @@ Supporting "post-boot overlay" hardening also applied by the launcher (not core 
 | `mid` | 0.2159 | SUSPICIOUS | + L1 build props |
 | `mid2` | 0.1715 | SUSPICIOUS | + L0b verified-boot / debuggable lock |
 | `mid3` | 0.1062 | SUSPICIOUS | + display/proc overlays |
-| `after` (CORRECTED) | **0.1403** | **SUSPICIOUS** | + L2/L6 props on-device; **honest root capture probes all su/Magisk paths → `su_detection=1.0`** |
-| `after-augmented` (CORRECTED) | **0.1403** | **SUSPICIOUS** | same device state, telephony-aware + honest root capture (su present, IMEI honestly null) |
+| `after` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | + L2/L6 props; honest su/Magisk-path capture (`su_detection=1.0`) **+ mount-ns/UDS capture → `magisk_uds=0.95`, `overlayfs_present=0.85` now MEASURED at full confidence** |
+| `after-augmented` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | same device state, telephony-aware + full root-surface capture incl. `/proc/{self,1}/mountinfo` + `/proc/net/unix` |
+| ~~`after-augmented` (CORRECTED, 65-probe lower bound)~~ | ~~0.1403~~ | ~~SUSPICIOUS~~ | **LOWER BOUND** — mount-ns/UDS probes absent from panel + no capture data; see §3a |
 | ~~`after-augmented` (old, SUPERSEDED)~~ | ~~0.0850~~ | ~~CLEAN~~ | **OVERCLAIM** — capture under-reported root (`su_detection=0.0`); see `CAPTURE-ROOT-HONESTY.md` |
 
-Net (CORRECTED): **0.3294 DETECTED → 0.1403 SUSPICIOUS** with **1 critical (`root.su_detection`) remaining**. `buildprop.*`, `ui.screen_resolution` cleared; **root NOT cleared** (Magisk `su`/`/data/adb/magisk` present, not durably hideable — see `CAPTURE-ROOT-HONESTY.md` and `../b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md`).
+**Controlled "fuller capture raises the score" comparison (same container `mnt-build`, same snapshot, same 69-probe panel):**
+
+| Capture | weightedScore | mount-ns/UDS probes |
+|---------|---------------|---------------------|
+| conservative-null (mount-ns/UDS stripped, the old behaviour) | **0.1175** | all 4 score no-observation null (conf 0.30–0.50) |
+| honest fuller capture (this work) | **0.1279** | `magisk_uds=0.95`, `overlayfs_present=0.85` fire at conf 0.95; `mount_ns_mismatch=0.0` (digest_match), `system_rw_mount=0.0` (root_ro_sar) |
+
+Δ = **+0.0104** — honest measurement makes root MORE detectable. The two probes that score 0.0 do so legitimately (self/init mountinfo are byte-identical here because the probe runs outside an app process, so there is no zygote namespace isolation and no `.magisk`-path substring asymmetry; `/` is mounted `ro`).
+
+Net (RE-MEASURED): **0.3294 DETECTED → 0.1279 SUSPICIOUS** with **1 critical (`root.su_detection`) remaining** and the root surface now scored across **all four** mount-ns/UDS probes. `buildprop.*`, `ui.screen_resolution` cleared; **root NOT cleared** (Magisk `su`/`/data/adb/magisk`/UDS/overlayfs present, not durably hideable — see `CAPTURE-ROOT-HONESTY.md` and `../b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md`).
 
 ---
 
-## 3. What still scores (the irreducible residue at 0.1403)
+## 3a. Mount-namespace / UDS root probes — now MEASURED (were a hidden lower bound)
+
+The prior 0.1403 figure under-measured root for two compounding reasons, both fixed in this pass:
+
+1. **Capture gap:** `live_matrix.capture_live_snapshot` never read `/proc/self/mountinfo`, `/proc/1/mountinfo`, or `/proc/net/unix`, so the snapshot had no `mountInfo` / `procNetUnixSockets` fields. (Fixed: new `capture_mount_and_uds()` reads them via `su -c cat`; a failed read stays NULL — never fabricated.)
+2. **Scorer gap:** the detection-cli `ProbeRegistry` (65-probe subset) did not include the four mount-ns/UDS probes that the canonical 84-probe inventory (`FullProbeRunnerSpoofTest.allProbes()`) does, AND `SnapshotLoader.SnapshotDto` did not deserialize the two fields. (Fixed: registered the 4 probes → `EXPECTED_COUNT` 65→69; added `mountInfo` + `procNetUnixSockets` to the DTO + `toDomain()`.)
+
+Measured on the live rooted `mnt-build` container (full confidence 0.95 = real observation, not the prior conservative null):
+
+| probe | score | pattern | what the device actually showed |
+|-------|-------|---------|---------------------------------|
+| `root.magisk_uds` | **0.95** | `magisk_uds_present` | `/sbin/.magisk/device/socket` present in `/proc/net/unix` (2 entries) — dispositive Magisk daemon socket |
+| `root.overlayfs_present` | **0.85** | `overlay_on_root_sar` | `/` is `overlay` (Docker overlay2 rootfs / system-as-root) |
+| `root.mount_ns_mismatch` | **0.00** | `digest_match` | `/proc/self` and `/proc/1` mountinfo are byte-identical (probe ran outside an app process → no zygote isolation; the `magisk` tmpfs mount carries no `.magisk`-PATH substring, so no fingerprint asymmetry). Honest clean. |
+| `root.system_rw_mount` | **0.00** | `root_ro_sar` | `/` mounted `ro`; no standalone `/system` rw entry. Honest clean. |
+
+So two of the four mount-ns/UDS probes fire as additional dispositive root signals; the other two are legitimately clean on a system-as-root container scanned outside an app process. The honest aggregate is therefore **0.1279**, not 0.1403 — the figure moved UP, which is the correct result.
+
+---
+
+## 3. What still scores (the irreducible residue at 0.1279)
 
 | probe | score | why it remains |
 |-------|-------|----------------|
 | `root.su_detection` | **1.00** (critical) | **Root is present and NOT durably hideable.** Magisk `su` (`/sbin/su`), `/sbin/.magisk`, and `/data/adb/magisk` are present in the rooted image. Per-app hiding requires fork-time Zygisk injection, which does not work on this system-as-root x86_64 image (`../b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md`). This is the honest cost of running the **rooted** (B1) image: CLEAN-without-root vs rooted-but-detectable is the real tradeoff. See `CAPTURE-ROOT-HONESTY.md`. |
+| `root.magisk_uds` | **0.95** | **Magisk daemon UDS leak.** `/sbin/.magisk/device/socket` appears in `/proc/net/unix` — dispositive Magisk presence, now measured (was conservative null). |
+| `root.overlayfs_present` | **0.85** | **overlayfs on `/`.** Container rootfs is Docker overlay2 / system-as-root overlay — the Momo-on-A11+ tell, now measured (was conservative null). |
 | `emulator.cpu_abi` | **1.00** | **x86_64 ABI ceiling.** ReDroid runs x86_64; a Pixel 7 is arm64. This is architectural and cannot be spoofed by props — it is the hard ceiling for this image class. |
 | `identity.bluetooth_mac` | 0.85 | no Bluetooth adapter in ReDroid (capture reports null MAC) |
 | `sensors.{light,magnetometer,proximity}` | 0.85 ea. | MISSING_ON_PHONE — phone-class model with no sensor HAL (see §5 / `BLOCKER-L5.md`) |

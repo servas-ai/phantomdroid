@@ -47,6 +47,12 @@ internal data class SnapshotDto(
     val settingsSystem: Map<String, String?> = emptyMap(),
     val installedPackages: Set<String> = emptySet(),
     val telephony: Map<String, String?> = emptyMap(),
+    // Per-PID /proc/<pid>/mountinfo content. Consumed by the mount-namespace
+    // root probes (MountNsMismatch / OverlayFsPresent / SystemRwMount). A null
+    // value = no observation (read failed) — the probe scores conservative 0.0.
+    val mountInfo: Map<String, String?> = emptyMap(),
+    // Socket names from /proc/net/unix. Consumed by MagiskUdsProbe.
+    val procNetUnixSockets: List<String> = emptyList(),
     val sensorTypes: Set<Int> = emptySet(),
     val bluetoothMac: String? = null,
     val timezoneId: String? = null,
@@ -77,6 +83,8 @@ internal data class SnapshotDto(
         settingsSystem = settingsSystem,
         installedPackages = installedPackages,
         telephony = telephony,
+        mountInfo = mountInfo,
+        procNetUnixSockets = procNetUnixSockets,
         sensorTypes = sensorTypes,
         bluetoothMac = bluetoothMac,
         timezoneId = timezoneId,
