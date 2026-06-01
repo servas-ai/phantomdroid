@@ -39,3 +39,6 @@ p21/apks/
 experiments/redroid-script/
 # Live-matrix run outputs (regenerable snapshots/reports)
 experiments/live-matrix/
+# L4 Shamiko module raw zip — SHA-pinned in image-pins.yml; never commit the raw artifact.
+redroid-cache/
+**/Shamiko-*-release.zip
