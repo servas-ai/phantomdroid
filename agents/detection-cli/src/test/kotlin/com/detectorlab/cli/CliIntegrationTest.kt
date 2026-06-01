@@ -56,7 +56,8 @@ class CliIntegrationTest {
         val probes = ProbeRegistry.allProbes(ctx)
         assertEquals(
             ProbeRegistry.EXPECTED_COUNT, probes.size,
-            "ProbeRegistry must match the 69-probe production inventory",
+            "ProbeRegistry must match the 83-probe snapshot inventory " +
+                "(canonical 84-probe panel MINUS the live-only KeystoreAttestationProbe)",
         )
 
         val runner = ProbeRunner(

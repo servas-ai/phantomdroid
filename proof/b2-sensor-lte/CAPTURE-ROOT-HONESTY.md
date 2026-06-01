@@ -229,3 +229,32 @@ two real root signals (`magisk_uds 0.95`, `overlayfs 0.85`) that the conservativ
 **The B2 headline is updated to `0.1279 SUSPICIOUS`; `0.1403` is superseded as a lower bound.**
 `after-*` / `after-augmented-*` artifacts regenerated with the fuller capture (now contain
 `mountInfo` + `procNetUnixSockets` and the four probe results).
+
+### Addendum (2026-06-01) — 84-probe parity, then 83-probe HONEST headline (keystore absence-noise excluded)
+
+The `0.1279` figure was scored on the **69-probe** detection-cli panel, itself a
+subset of the canonical **84-probe** inventory. The remaining 15 canonical probes
+were registered (`EXPECTED_COUNT` 69 → 84; see
+`../detection-cli-panel-parity/RESULT.md`). An intermediate re-measure on the full
+84-panel gave **0.1853 — DETECTED, 3 critical**.
+
+**That 0.1853/DETECTED figure is now itself SUPERSEDED.** An adversarial validator
+found its 3rd critical, `integrity.keystore_attestation = 0.70`, is
+**absence-noise**: the probe's only snapshot-reachable non-zero branch penalizes
+the mere ABSENCE of `ro.hardware.keystore`/`/dev/keymaster` — fields that the real
+clean-device fixtures (Pixel7Clean, SamsungS22Clean) also don't record — so it
+fires **0.70 identically on a clean Pixel (falsely flagging it CRITICAL), a clean
+Samsung, and the container**. Hardware-backed key attestation can only be honestly
+assessed via a **live TEE challenge-response**, so the probe is genuinely
+live-only and was **excluded from the snapshot panel** (`EXPECTED_COUNT` 84 → 83);
+it remains in the canonical/live panel. Re-measuring B2 on the **83-probe**
+snapshot panel gives **0.1697 — SUSPICIOUS, 2 GENUINE critical failures**
+(`root.su_detection=1.0`, `integrity.play_integrity=0.95`). **The B2 headline is
+updated to `0.1697 SUSPICIOUS`; `0.1279`, `0.1403`, `0.0850`, and the intermediate
+`0.1853 DETECTED` are all superseded.** The category drops DETECTED → SUSPICIOUS
+only because criticals fall from 3 to 2 (below the `critFailures ≥ 3` DETECTED
+threshold) once the noise critical is removed; the rooted container stays clearly
+detectable on its REAL signals. Several remaining firing probes are amplified by
+live_matrix capture-gaps (their inputs aren't read yet) — tracked as follow-ups in
+the parity RESULT; the genuine root signal (`su_detection`, `magisk_uds`,
+`overlayfs`) is unaffected.

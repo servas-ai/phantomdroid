@@ -7,9 +7,10 @@
 //   1. Each of the 8 snapshots resolves to a valid Report through the CLI
 //      replay path (production 4 via MainSnapshotRegistry, plus 4 test-only
 //      via TestSnapshotRegistry).
-//   2. RedroidSpoofed aggregate.weightedScore == 0.0000 (CRITICAL invariant —
-//      the Iter-1 spoof against the 65-probe panel produces zero residual
-//      weighted score).
+//   2. RedroidSpoofed aggregate.weightedScore stays in the CLEAN band (< 0.10)
+//      with the ONLY residual being integrity.install_source's irreducible
+//      0.05 clean floor (CRITICAL invariant — the Iter-1 spoof against the
+//      83-probe snapshot panel produces no probe bleed-through beyond that floor).
 //   3. RedroidSpoofed aggregate.anyDetected == false → exit code 0 (clean).
 //   4. RedroidV12 aggregate.anyDetected == true → exit code 1 (detected).
 //   5. Pixel7Clean → exit code 0 (clean).
@@ -125,7 +126,7 @@ class ReplaySnapshotCliTest {
         // Pixel7Clean is a real-device baseline. The 6-detector composite
         // OR-union MUST return false here, mirroring
         // MasterCompositeDetectorReplayTest's "Pixel 7 clean — composite NOT
-        // fired" assertion. The 65-probe weightedScore carries residual
+        // fired" assertion. The 83-probe weightedScore carries residual
         // false-positives (~0.12) but that aggregate is NOT the input to
         // the CLI's exit-code gate; the composite IS.
         assertFalse(
@@ -179,25 +180,44 @@ class ReplaySnapshotCliTest {
     }
 
     @Test
-    fun `replay-snapshot RedroidSpoofed produces weightedScore exactly 0_0000 (CRITICAL invariant)`() {
+    fun `replay-snapshot RedroidSpoofed stays in CLEAN band with only install_source 0_05 floor (CRITICAL invariant)`() {
         val outcome = runReplaySnapshot(TestSnapshotRegistry, "RedroidSpoofed")
         assertJsonShape(outcome.json)
         assertEquals("RedroidSpoofed", outcome.snapshotName)
 
         // ─── THE LOAD-BEARING POWER-18 D1 INVARIANT ────────────────────────
-        // After 4-decimal rounding, the Iter-1 spoof-stack against the
-        // 65-probe panel must produce weightedScore == 0.0000. Any non-zero
-        // residual would mean the spoof-stack regressed and a probe is
-        // bleeding through.
+        // The Iter-1 spoof-stack against the full 83-probe snapshot panel must keep the
+        // aggregate firmly in the CLEAN band (weighted < 0.10) with the ONLY
+        // residual being `integrity.install_source`'s structurally-irreducible
+        // 0.05 clean FLOOR. That probe (IntegrityInstallSourceProbe, freeRASP
+        // T5) has NO input that scores 0.00 — even a legitimate
+        // `com.android.vending` install scores 0.05 by design (the install
+        // source is forgeable, so a 0.05 floor is the cleanest achievable
+        // verdict). Its weighted contribution rounds to 2.0E-4, far below the
+        // 0.10 CLEAN threshold. Any OTHER probe scoring > 0.0 would mean the
+        // spoof-stack regressed and a probe is bleeding through — that is the
+        // bit this invariant actually guards. (This probe was added to the CLI
+        // panel 2026-06-01 for full canonical parity; the prior exactly-0.0000
+        // invariant predated it.)
         val parsed = Json.parseToJsonElement(outcome.json) as JsonObject
         val agg = parsed["aggregate"] as JsonObject
         val weightedScoreInJson = (agg["weightedScore"] as JsonPrimitive).doubleOrNull
         assertNotNull(weightedScoreInJson)
-        assertEquals(
-            0.0, weightedScoreInJson,
-            "RedroidSpoofed JSON aggregate.weightedScore must be 0.0000 (Power-18 D1 " +
-                "CRITICAL invariant). Got $weightedScoreInJson. " +
+        assertTrue(
+            weightedScoreInJson < 0.10,
+            "RedroidSpoofed JSON aggregate.weightedScore must stay in the CLEAN " +
+                "band (< 0.10, Power-18 D1 invariant). Got $weightedScoreInJson. " +
                 "Residuals: ${outcome.report.probes.filter { it.score > 0.0 }.joinToString { "${it.id}=${it.score}" }}",
+        )
+        // The ONLY probe permitted to score > 0.0 is the install-source 0.05
+        // floor; anything else is a spoof bleed-through regression.
+        val nonFloorResiduals = outcome.report.probes
+            .filter { it.score > 0.0 && it.id != "integrity.install_source" }
+        assertTrue(
+            nonFloorResiduals.isEmpty(),
+            "Only integrity.install_source's 0.05 clean floor may score > 0.0 on " +
+                "the spoofed snapshot; got bleed-through residuals: " +
+                nonFloorResiduals.joinToString { "${it.id}=${it.score}" },
         )
         // ───────────────────────────────────────────────────────────────────
 
@@ -245,7 +265,7 @@ class ReplaySnapshotCliTest {
     // pins this expectation: emulator fixtures MUST fire emulator-rule.
     //
     // The CLI's exit-code contract is therefore re-anchored on the composite
-    // OR-union (Option A from the Team-Lead message), NOT on the 65-probe
+    // OR-union (Option A from the Team-Lead message), NOT on the 83-probe
     // weightedScore aggregate. The aggregate weightedScore still appears in
     // the JSON output for diagnostic value but is no longer the gate.
     //
@@ -319,7 +339,7 @@ class ReplaySnapshotCliTest {
         val probes = parsed["probes"] as JsonArray
         assertEquals(
             ProbeRegistry.EXPECTED_COUNT, probes.size,
-            "probes array length must match ProbeRegistry.EXPECTED_COUNT (65) — " +
+            "probes array length must match ProbeRegistry.EXPECTED_COUNT (83) — " +
                 "the JSON is the schema-locked surface, not a sample.",
         )
 
@@ -355,7 +375,7 @@ class ReplaySnapshotCliTest {
         assertEquals(
             ProbeRegistry.EXPECTED_COUNT,
             agg["totalProbes"]!!.jsonPrimitive.intOrNull,
-            "aggregate.totalProbes must equal ProbeRegistry.EXPECTED_COUNT (65)",
+            "aggregate.totalProbes must equal ProbeRegistry.EXPECTED_COUNT (83)",
         )
     }
 

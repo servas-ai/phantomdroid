@@ -1,7 +1,7 @@
 # B2 — L2/L6 identity + LTE-radio spoof on the Magisk-rooted ReDroid 12 image (RESULT)
 
 **Status:** L1 / L0b / L2 / L6 spoof layers **ACHIEVED on-device**. L5 (sensors) **GENUINELY BLOCKED** (no sensor HAL). L3 / L4 out of B2 scope.
-**Headline detector score (RE-MEASURED 2026-06-01, fuller mount-ns/UDS capture):** **0.1279 — SUSPICIOUS** on the now-69-probe panel, with **`root.su_detection = 1.0`** (1 critical failure) PLUS two newly-measured root signals firing at full confidence: **`root.magisk_uds = 0.95`** (`/sbin/.magisk/device/socket` in `/proc/net/unix`) and **`root.overlayfs_present = 0.85`** (overlayfs on `/`). The prior **0.1403** was a **LOWER BOUND**: the capture did not record `/proc/self|1/mountinfo` or `/proc/net/unix`, and the dispositive Momo/RootBeer mount-ns probes were (a) not in the detection-cli panel and (b) had no data, so they scored a conservative no-observation null. With the fuller honest capture, a controlled same-snapshot / same-panel comparison shows the aggregate **rises +0.0104 (0.1175 → 0.1279)** — measuring more honestly makes root MORE detectable, not less. The build/identity/radio surface is still clean; **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` + magisk UDS + overlayfs are present and NOT durably hideable — L4 fresh-fork blocker). The earlier **0.0850 CLEAN headline was an OVERCLAIM** (capture probed only `/system/xbin/su` → `su_detection=0.0`); see **`CAPTURE-ROOT-HONESTY.md`**. The 0.0850-CLEAN and 0.1403-lower-bound artifacts are SUPERSEDED.
+**Headline detector score (RE-MEASURED 2026-06-01, HONEST 83-probe snapshot panel):** **0.1697 — SUSPICIOUS, 2 critical failures** on the **83-probe** snapshot panel (= canonical 84-panel MINUS the one genuinely-live-only `KeystoreAttestationProbe`; see `../detection-cli-panel-parity/RESULT.md`). The 2 critical failures are both validator-confirmed REAL signal: **`root.su_detection = 1.0`** (rank 3, Magisk `su`) and **`integrity.play_integrity = 0.95`** (rank 2, rooted no-GMS container fails the live-verdict inference). Full-confidence root signals also firing: **`root.magisk_uds = 0.95`** (`/sbin/.magisk/device/socket` in `/proc/net/unix`) and **`root.overlayfs_present = 0.85`** (overlayfs on `/`). The build/identity/radio surface is still clean; **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` + magisk UDS + overlayfs present, not durably hideable — L4 fresh-fork blocker). NOTE: several of the firing probes (`play_integrity`, `touch_pressure`, `install_source`, `fingerprint_cross_partition`) fire partly because `live_matrix.py` does not yet capture their inputs (capture-gaps tracked in `../detection-cli-panel-parity/RESULT.md`) — the verdict is conservative-in-the-detection-direction and the genuine root signal is unaffected. The earlier **0.0850 CLEAN headline was an OVERCLAIM**; see **`CAPTURE-ROOT-HONESTY.md`**. **The 0.1853-DETECTED / 84-panel figure is itself now SUPERSEDED:** its 3rd critical was `integrity.keystore_attestation = 0.70`, which an adversarial validator confirmed is **absence-noise** — it scores that SAME 0.70 on a genuinely-clean Pixel (flagging it CRITICAL), so it is non-discriminating and was excluded from the snapshot panel. The honest aggregate with only the 2 GENUINE criticals is **0.1697 SUSPICIOUS**. (Superseded figures: 0.0850-CLEAN, 0.1403-lower-bound, 0.1279-69-probe, and 0.1853-84-probe → all replaced by **0.1697 (83-panel)**.)
 **Posture:** hardened, NON-privileged (B4 recipe via `container_lifecycle.build_hardened_run_argv`), Magisk-rooted (`redroid/redroid:12.0.0_magisk`, B1).
 **Launcher:** `agents/stability/stack/launch-l2-l6-sensor-lte-spoof.sh`
 **Container under test:** `b2-build-work` (also relaunched as `b2-l2l6-*` / `b2-fix` for the snapshot pass).
@@ -36,6 +36,8 @@ Supporting "post-boot overlay" hardening also applied by the launcher (not core 
 | `mid3` | 0.1062 | SUSPICIOUS | + display/proc overlays |
 | `after` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | + L2/L6 props; honest su/Magisk-path capture (`su_detection=1.0`) **+ mount-ns/UDS capture → `magisk_uds=0.95`, `overlayfs_present=0.85` now MEASURED at full confidence** |
 | `after-augmented` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | same device state, telephony-aware + full root-surface capture incl. `/proc/{self,1}/mountinfo` + `/proc/net/unix` |
+| ~~`parity-build`-fresh (84-probe panel, SUPERSEDED)~~ | ~~0.1853~~ | ~~DETECTED~~ | **SUPERSEDED** — its 3rd critical `keystore_attestation=0.70` is absence-noise (same 0.70 on a clean Pixel); excluded → see row below |
+| **`parity-build`-fresh (RE-MEASURED 2026-06-01, HONEST 83-probe snapshot panel)** | **0.1697** | **SUSPICIOUS** | **same device state, fresh live boot+capture, 83-probe panel (canonical 84 MINUS live-only `keystore_attestation`) — 2 GENUINE critical (`su_detection=1.0`, `play_integrity=0.95`). See `../detection-cli-panel-parity/RESULT.md`.** |
 | ~~`after-augmented` (CORRECTED, 65-probe lower bound)~~ | ~~0.1403~~ | ~~SUSPICIOUS~~ | **LOWER BOUND** — mount-ns/UDS probes absent from panel + no capture data; see §3a |
 | ~~`after-augmented` (old, SUPERSEDED)~~ | ~~0.0850~~ | ~~CLEAN~~ | **OVERCLAIM** — capture under-reported root (`su_detection=0.0`); see `CAPTURE-ROOT-HONESTY.md` |
 
@@ -69,6 +71,34 @@ Measured on the live rooted `mnt-build` container (full confidence 0.95 = real o
 | `root.system_rw_mount` | **0.00** | `root_ro_sar` | `/` mounted `ro`; no standalone `/system` rw entry. Honest clean. |
 
 So two of the four mount-ns/UDS probes fire as additional dispositive root signals; the other two are legitimately clean on a system-as-root container scanned outside an app process. The honest aggregate is therefore **0.1279**, not 0.1403 — the figure moved UP, which is the correct result.
+
+### 3a-bis. Further 69 → 84 → 83 panel parity (2026-06-01) — honest 0.1697 SUSPICIOUS
+
+The 0.1279 figure above was still a **subset-panel** number: the detection-cli
+`ProbeRegistry` (69 probes after the mount-ns/UDS fix) was missing 15 more
+canonical probes that `FullProbeRunnerSpoofTest.allProbes()` (84) carries. Those
+15 were registered (`EXPECTED_COUNT` 69 → 84) and the DTO extended to deserialize
+their fields; see **`../detection-cli-panel-parity/RESULT.md`** for the full
+A/B/C classification.
+
+An intermediate re-measure on the full 84-panel gave 0.1853 — DETECTED, 3
+critical. **That 0.1853/DETECTED figure is SUPERSEDED.** An adversarial validator
+found that one of its 3 criticals, `integrity.keystore_attestation = 0.70`, is
+**absence-noise**: the probe's only snapshot-reachable non-zero branch is a 0.70
+penalty for missing `ro.hardware.keystore`/`/dev/keymaster`, fields that real
+clean-device fixtures (Pixel7Clean, SamsungS22Clean) also don't record — so it
+scores 0.70 **identically** on a clean Pixel (falsely flagging it CRITICAL), a
+clean Samsung, and the container. Hardware key attestation needs a **live TEE
+challenge-response**, so this probe is genuinely live-only and was **excluded
+from the snapshot panel** (`EXPECTED_COUNT` 84 → 83; it remains in the
+canonical/live panel). Re-measuring B2 on the **83-probe** snapshot panel gives
+**0.1697 — SUSPICIOUS, 2 GENUINE critical** (`root.su_detection=1.0`,
+`integrity.play_integrity=0.95`). The aggregate still sits well above the prior
+0.1279 subset figure and the rooted container stays clearly detectable on its
+REAL signals; only the non-discriminating keystore noise was removed. Several of
+the remaining firing probes are amplified by live_matrix capture-gaps (their
+inputs aren't read yet); those gaps are tracked as follow-ups in the parity
+RESULT and do not affect the genuine root signal.
 
 ---
 

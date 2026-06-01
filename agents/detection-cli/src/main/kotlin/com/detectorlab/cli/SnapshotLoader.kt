@@ -70,6 +70,26 @@ internal data class SnapshotDto(
     val gpsAccuracy: Float? = null,
     val gpsProvider: String? = null,
     val gpsIsMock: Boolean? = null,
+    // Native-hook surfaces consumed by FridaMemoryMapsProbe (rank 9.0),
+    // NativePrologueHashProbe (rank 9.7), PrologueGotHooksProbe (rank 9.8).
+    // A missing key stays empty/default = "no native-side measurement
+    // recorded" — the probe scores 0.0 (absent != clean signal). Never
+    // fabricated; a real capture must populate these via a native harness.
+    val procSelfMapsLibs: Set<String> = emptySet(),
+    val runtimeThreadNames: Set<String> = emptySet(),
+    val openTcpPorts: Set<Int> = emptySet(),
+    val prologueHashDeltas: Map<String, Boolean> = emptyMap(),
+    val trampolinePatternCount: Int = 0,
+    val gotPltAnomalies: Map<String, String> = emptyMap(),
+    val rwxpMemorySegments: List<String> = emptyList(),
+    // Power-13 root/runtime surfaces consumed by InitSvcEnumerationProbe
+    // (rank 3.7) and MagiskModuleDirProbe (rank 3.9). Missing key → empty
+    // map = "no observation captured"; the probe scores conservative 0.0.
+    val initSvcProps: Map<String, String> = emptyMap(),
+    val dirEntries: Map<String, List<String>> = emptyMap(),
+    // Installer package name consumed by IntegrityInstallSourceProbe
+    // (rank 10.5, freeRASP T5). null = "installer unknown / sideload" branch.
+    val installSourcePackage: String? = null,
 ) {
     fun toDomain(): DeviceSnapshot = DeviceSnapshot(
         label = label,
@@ -102,6 +122,16 @@ internal data class SnapshotDto(
         gpsAccuracy = gpsAccuracy,
         gpsProvider = gpsProvider,
         gpsIsMock = gpsIsMock,
+        procSelfMapsLibs = procSelfMapsLibs,
+        runtimeThreadNames = runtimeThreadNames,
+        openTcpPorts = openTcpPorts,
+        prologueHashDeltas = prologueHashDeltas,
+        trampolinePatternCount = trampolinePatternCount,
+        gotPltAnomalies = gotPltAnomalies,
+        rwxpMemorySegments = rwxpMemorySegments,
+        initSvcProps = initSvcProps,
+        dirEntries = dirEntries,
+        installSourcePackage = installSourcePackage,
     )
 }
 
