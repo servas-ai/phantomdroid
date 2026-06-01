@@ -3,6 +3,19 @@
 All notable changes to `shared/probes/inventory.yml` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1] - 2026-05-16
+
+### Added
+
+- **rank 9.5 `kernel.cpuinfo_bogomips_implementer`** (CLO-20). Reads `/proc/cpuinfo`
+  and cross-references `getauxval(AT_HWCAP)` for arch-trap signal (x86 host
+  capability bits leaking through ARM-claimed device). Emits `bogomips`,
+  `cpu_implementer`, `hwcap`, `arch`. Baselines pinned for Pixel 8 / 9 / 9 Pro
+  in `assets/baselines/cpuinfo/*.json`. Implementation: commit `3f19a9d`
+  (`agents/detection/src/probes/kernel/CpuInfoProbe.kt`).
+
+Inventory total now 72 probes (60 baseline + 11 A17 + 1 CLO-20).
+
 ## [2.0] - 2026-05-16
 
 ### Schema

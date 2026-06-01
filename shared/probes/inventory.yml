@@ -1,6 +1,7 @@
-# Probe-Inventar — 71 Detection-Punkte (60 baseline + 11 A17 RASP additions)
+# Probe-Inventar — 72 Detection-Punkte (60 baseline + 11 A17 RASP additions + 1 CLO-20 kernel/cpuinfo)
 # Quelle: Recherche-Synthese GPT-5.2 / Claude Opus 4.6 / Grok 4.1
 # A17 additions (N1-N11): docs/validation-round-3/A17-rasp-defensive-probe-mining.md
+# CLO-20: kernel.cpuinfo_bogomips_implementer (rank 9.5) — agents/detection/src/probes/kernel/CpuInfoProbe.kt
 # Format: rank, id, category, severity, android_layer, description, mitigation_layer,
 #         optional: rasp_analog (none = no analog in freeRASP/RootBeer/MASTG)
 # CHANGELOG: shared/probes/CHANGELOG.md
@@ -605,6 +606,14 @@ probes:
     android_layer: application
     description: "/proc/self/maps for 'frida-agent', 'gum', 'frida-gadget', 'linjector'; thread names 'gum-js-loop', 'gmain', 'gdbus'; ports 27042/27043. freeRASP T6; MASTG MSTG-RESILIENCE-4 / MASTG-KNOW-0034"
     mitigation_layer: L4
+
+  - rank: 9.5
+    id: kernel.cpuinfo_bogomips_implementer
+    category: kernel
+    severity: high
+    android_layer: kernel
+    description: "/proc/cpuinfo BogoMIPS + cpu-implementer (Hard ceiling #9). Cross-references getauxval(AT_HWCAP) for arch-trap (x86 host capability bits leaking through ARM-claimed device). Baselines pinned per Pixel 8/9/9 Pro in assets/baselines/cpuinfo/*.json. CLO-20."
+    mitigation_layer: L0a
 
   - rank: 9.7
     id: runtime.native_prologue_hash

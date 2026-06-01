@@ -1,0 +1,56 @@
+# Worker adapter — Gemini (Google Gemini CLI, long-context analyzer/verifier)
+#
+# Authoritative: CTO, CLO-108, 2026-05-16
+# Contract: BuildCommit v1.0 — .paperclip/contracts/buildcommit.schema.json
+#
+# NOTE: Gemini is primarily a *verifier* and *long-context analyzer*, not a
+# primary code author in this org. The Code Verifier agent (326ebd9e) is the
+# canonical post-merge verdict author per AGENTS.md. This adapter exists so
+# the orchestrator can dispatch verification tasks via the same worker contract
+# as code-writers, keeping the dual-loop triad uniform.
+schema_version: "1.0"
+
+adapter: gemini
+kind: external_cli
+
+capabilities:
+  - code-review            # static review of a candidate commit
+  - schema-validation      # ajv-style validation of contract payloads
+  - long-context-analysis  # 2M-token window: full-repo audits, doc cross-check
+  - docs                   # author/edit markdown docs and decision records
+
+tier_max: 2
+
+picks_when:
+  # Gemini picks up verifier work (post-commit review) OR docs work; it does
+  # NOT pick primary code-author tasks. The orchestrator must route those to
+  # cline/aider/claude-subagent.
+  role: [verifier, reviewer, docs-writer]
+  task_kind: [code-review, schema-validation, docs]
+  complexity_max: 2
+
+invoke:
+  # The CLI streams a JSON verdict to stdout when --json is set. The harness
+  # parses that into a BuildCommit-shaped payload (verifiers emit a BuildCommit
+  # whose `acceptance_cmd_result` reflects the review verdict, with a
+  # zero-file `files_changed: []` rejected — verifiers reference the SHA they
+  # reviewed in `addresses_finding_id` and list the reviewed files there).
+  cmd: >-
+    gemini
+    --model {{gemini_model}}
+    --json
+    --prompt-file {{task_file}}
+    --output {{out_contract}}
+  timeout_seconds: 900
+  env_passthrough:
+    - GEMINI_API_KEY
+    - GOOGLE_API_KEY
+    - GEMINI_MODEL
+
+out_contract: .paperclip/work/gemini/{{session_id}}/buildcommit.json
+
+exits_with:
+  0: "verdict written (APPROVE or REJECT — see acceptance_cmd_result.passed)"
+  1: "verifier model error (quota, network, schema parse fail)"
+  2: "contract violation"
+  124: "timeout (long-context analysis exceeded budget)"

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sha": "45ab9dee7b973b99a6d9aa9adde8a3cc738421c6",
+  "addresses_finding_id": "CLO-113",
+  "layer": "shared",
+  "files_changed": [
+    "agents/detection/src/probes/env/TimeSpoofingProbe.kt",
+    "agents/detection/src/test/kotlin/com/example/detectorlab/probes/env/TimeSpoofingProbeTest.kt"
+  ],
+  "acceptance_cmd_result": {
+    "cmd": "gradle :detection:test --tests TimeSpoofingProbeTest",
+    "exit_code": 0,
+    "passed": true,
+    "duration_ms": 4321,
+    "log_excerpt": "TimeSpoofingProbeTest > D1 fires when bootEpoch anchor diverges PASSED\nTimeSpoofingProbeTest > clean device returns score=0.0 PASSED\nBUILD SUCCESSFUL in 4s"
+  },
+  "worker": {
+    "adapter": "claude-subagent",
+    "version": "1.0",
+    "session_id": "demo-clo113-2026-05-16",
+    "tier": 2
+  }
+}

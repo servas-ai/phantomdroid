@@ -1,0 +1,58 @@
+# Worker adapter — Cline (VS Code agentic coding extension, CLI mode)
+#
+# Authoritative: CTO, CLO-108, 2026-05-16
+# Contract: BuildCommit v1.0 — .paperclip/contracts/buildcommit.schema.json
+schema_version: "1.0"
+
+adapter: cline
+kind: external_cli
+
+# Static description of what this worker is good at. Used by the orchestrator's
+# HTN decomposer (CLO-112) to score worker fitness vs. task shape.
+capabilities:
+  - code-write           # author new source files
+  - refactor             # multi-file edits within one module
+  - test-write           # unit tests adjacent to implementation
+  - bug-fix              # localized defect remediation
+
+# Complexity ceiling. The orchestrator MUST NOT route a Tier > tier_max task
+# to this worker. Tiers are defined in BEST-STACK.md §VII (1 = trivial, 5 =
+# architecture-level).
+tier_max: 3
+
+# Predicate evaluated against the issue body. AND-semantics across keys.
+# All values are OR-lists.
+picks_when:
+  layer: [L0a, L0b, L1, shared, test]
+  task_kind: [code-write, refactor, test-write, bug-fix]
+  complexity_max: 3
+  # Workspace must be a clone of a SpoofStack repo; cline operates against
+  # local files only.
+  needs_local_workspace: true
+
+# Invocation template. Variables in {{double-braces}} are expanded by the
+# harness. The command MUST write a BuildCommit payload to out_contract on
+# success and exit 0 (BuildCommit written), 1 (task failed), or 2 (contract
+# violation: cline produced output but it does not match the schema).
+invoke:
+  cmd: >-
+    cline run
+    --task-file {{task_file}}
+    --workspace {{repo_root}}
+    --session-id {{session_id}}
+    --out {{out_contract}}
+  timeout_seconds: 1800
+  env_passthrough:
+    - ANTHROPIC_API_KEY
+    - OPENAI_API_KEY
+
+# Where the worker writes its typed BuildCommit. Harness validates with ajv
+# (or jsonschema) before transitioning the issue to in_review.
+out_contract: .paperclip/work/cline/{{session_id}}/buildcommit.json
+
+# Exit-code contract. Any code not listed here is treated as "task failed".
+exits_with:
+  0: "BuildCommit written; ready for verifier"
+  1: "task failed (no commit, no contract output)"
+  2: "contract violation (output present but does not validate)"
+  124: "timeout (harness SIGTERM after timeout_seconds)"
