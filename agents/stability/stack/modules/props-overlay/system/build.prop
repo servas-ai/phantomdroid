@@ -1,0 +1,11 @@
+# Pixel-7 (panther / Tensor-G2 / Android 14) build.prop overlay
+# Source: reference profile pinned in agents/orchestrator/EXPERIMENTS.md
+# (panther:14/UQ1A.240205.004) and agents/stability/stack/layers.md.
+# Magisk auto-mirrors this file over /system/build.prop at late_start.
+# service.sh additionally re-applies each prop via `resetprop --persist`
+# so the values survive process-level getprop calls that bypass build.prop.
+ro.product.brand=google
+ro.product.manufacturer=Google
+ro.product.model=Pixel 7
+ro.build.id=UQ1A.240205.004
+ro.build.fingerprint=google/panther/panther:14/UQ1A.240205.004/11224170:user/release-keys
