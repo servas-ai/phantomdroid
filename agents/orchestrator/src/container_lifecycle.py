@@ -13,11 +13,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
 
 EXIT_PRIVILEGED_REFUSED = 78  # SPEC §8 exit codes
+
+# Repo root resolved from this module's location: src -> orchestrator -> agents -> <root>.
+# Robust regardless of CWD (the relative DEFAULT_SECCOMP/HARDENED_SECCOMP paths are
+# resolved against CWD by docker, but the *pin verification* must not depend on CWD).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+# Pin manifest that carries the production seccomp sha256 (image-pins-v1).
+IMAGE_PINS = "agents/stability/stack/image-pins.yml"
 
 # Minimal cap set for ReDroid under cap_drop:[ALL] (SPEC §4 mandates SYS_ADMIN;
 # the rest are the documented narrow L0a profile needed for the Android init stack).
@@ -68,6 +77,106 @@ HARDENED_CAP_ADD = [
 
 class PrivilegedRefused(RuntimeError):
     """SPEC §7: an authored compose declaring `privileged: true` is refused (exit 78)."""
+
+
+class SeccompPinDriftError(RuntimeError):
+    """The production seccomp profile's sha256 != the pin in image-pins.yml.
+
+    Mirrors the exit-78 / refuse-privileged posture: an unenforced pin cannot catch
+    tampering or an unapproved BPF edit, so a drift here MUST hard-block the boot.
+    """
+
+
+def _read_pinned_seccomp_sha256(pins_path: Path) -> str:
+    """Return seccomp_l0b_production.file_sha256 from image-pins.yml.
+
+    Uses PyYAML when importable (the module already relies on yaml in main()).
+    Falls back to a robust single-line parse if yaml is unavailable, so the
+    safety-bearing pin check never silently degrades to "pass".
+    """
+    if not pins_path.is_file():
+        raise SeccompPinDriftError(
+            f"refuse to boot: pin manifest not found at {pins_path}; "
+            "cannot verify production seccomp profile against its pin"
+        )
+    text = pins_path.read_text()
+    try:
+        import yaml  # available; main() already imports it
+        pins = yaml.safe_load(text) or {}
+        block = pins.get("seccomp_l0b_production")
+        if not isinstance(block, dict) or "file_sha256" not in block:
+            raise SeccompPinDriftError(
+                "refuse to boot: 'seccomp_l0b_production.file_sha256' missing from "
+                f"{pins_path}; the production seccomp profile is not pinned — "
+                "file a pin-update mutation"
+            )
+        sha = str(block["file_sha256"]).strip()
+    except ImportError:
+        # Robust fallback: find the file_sha256 inside the seccomp_l0b_production block.
+        block_re = re.search(
+            r"^seccomp_l0b_production:\s*$.*?^(?=\S)",
+            text, re.MULTILINE | re.DOTALL,
+        )
+        scope = block_re.group(0) if block_re else text
+        m = re.search(r"^\s*file_sha256:\s*\"?([0-9a-fA-F]{64})\"?", scope, re.MULTILINE)
+        if not m:
+            raise SeccompPinDriftError(
+                "refuse to boot: 'seccomp_l0b_production.file_sha256' missing from "
+                f"{pins_path}; the production seccomp profile is not pinned — "
+                "file a pin-update mutation"
+            )
+        sha = m.group(1)
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", sha):
+        raise SeccompPinDriftError(
+            f"refuse to boot: pinned seccomp sha256 in {pins_path} is not a valid "
+            f"64-hex digest: {sha!r}"
+        )
+    return sha.lower()
+
+
+def verify_hardened_seccomp_pin(
+    pins_path: str | None = None,
+    seccomp_path: str = HARDENED_SECCOMP,
+) -> None:
+    """Verify the on-disk production seccomp profile matches its pinned sha256.
+
+    The pin (`seccomp_l0b_production.file_sha256` in image-pins.yml) is the
+    authoritative tamper-detector for the PINNED PRODUCTION BPF profile wired as
+    HARDENED_SECCOMP. This makes the declarative `seccomp-l0b-sha256-match` check
+    actually enforced in code: it is called at the boot chokepoint so a drifted
+    profile refuses to boot (mirroring SPEC §7 exit-78 / refuse-privileged).
+
+    Args:
+        pins_path: image-pins.yml path. Default: resolved relative to the repo root.
+        seccomp_path: seccomp profile to hash. Default: HARDENED_SECCOMP.
+
+    Raises:
+        SeccompPinDriftError: pin missing, profile missing, or sha256 mismatch.
+    Returns:
+        None on a clean match.
+    """
+    pins = Path(pins_path) if pins_path is not None else (_REPO_ROOT / IMAGE_PINS)
+    if not pins.is_absolute():
+        pins = (_REPO_ROOT / pins) if not pins.exists() else pins
+
+    profile = Path(seccomp_path)
+    if not profile.is_absolute() and not profile.exists():
+        profile = _REPO_ROOT / seccomp_path
+    if not profile.is_file():
+        raise SeccompPinDriftError(
+            f"refuse to boot: production seccomp profile not found at {profile}; "
+            "cannot verify it against its pin — file a pin-update mutation"
+        )
+
+    pinned = _read_pinned_seccomp_sha256(pins)
+    actual = hashlib.sha256(profile.read_bytes()).hexdigest()
+    if actual != pinned:
+        raise SeccompPinDriftError(
+            "refuse to boot: production seccomp profile drifted from pin; "
+            "file a pin-update mutation "
+            f"(profile={profile}, expected sha256={pinned}, actual sha256={actual})"
+        )
+    return None
 
 
 def _services(compose: dict) -> dict:
@@ -162,6 +271,9 @@ def up(compose_path: str, project: str, *, dry_run: bool = True) -> list[str]:
     (live hardened boot is B4-gated). dry_run=False shells to `docker compose`."""
     argv = ["docker", "compose", "-p", project, "-f", compose_path, "up", "-d"]
     if not dry_run:
+        # Boot chokepoint: enforce the production seccomp pin before any real boot.
+        # A drifted/tampered profile raises SeccompPinDriftError and aborts the boot.
+        verify_hardened_seccomp_pin()
         subprocess.run(argv, check=True, timeout=180)
     return argv
 
@@ -178,15 +290,32 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     import yaml  # available; compose files are nested YAML
     p = argparse.ArgumentParser(prog="container_lifecycle")
-    p.add_argument("--preflight", required=True, help="compose YAML to preflight")
+    p.add_argument("--preflight", help="compose YAML to preflight")
+    p.add_argument(
+        "--verify-seccomp-pin", action="store_true",
+        help="verify the production seccomp profile matches its image-pins.yml sha256 "
+             "(exit 78 on drift); intended to gate a real boot",
+    )
     args = p.parse_args(argv)
-    compose = yaml.safe_load(Path(args.preflight).read_text())
-    try:
-        preflight(compose)
-    except PrivilegedRefused as exc:
-        print(f"REFUSED: {exc}")
-        return EXIT_PRIVILEGED_REFUSED
-    print(f"OK: {args.preflight} declares no privileged:true")
+
+    if args.verify_seccomp_pin:
+        try:
+            verify_hardened_seccomp_pin()
+        except SeccompPinDriftError as exc:
+            print(f"REFUSED: {exc}")
+            return EXIT_PRIVILEGED_REFUSED
+        print("OK: production seccomp profile matches image-pins.yml pin")
+
+    if args.preflight:
+        compose = yaml.safe_load(Path(args.preflight).read_text())
+        try:
+            preflight(compose)
+        except PrivilegedRefused as exc:
+            print(f"REFUSED: {exc}")
+            return EXIT_PRIVILEGED_REFUSED
+        print(f"OK: {args.preflight} declares no privileged:true")
+    elif not args.verify_seccomp_pin:
+        p.error("one of --preflight or --verify-seccomp-pin is required")
     return 0
 
 

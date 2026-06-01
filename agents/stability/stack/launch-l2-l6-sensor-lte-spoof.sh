@@ -56,8 +56,12 @@ mkdir -p "$DATA"
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 python3 -c "
 import sys; sys.path.insert(0, '$ORCH')
-from container_lifecycle import build_hardened_run_argv
+from container_lifecycle import build_hardened_run_argv, verify_hardened_seccomp_pin
 import subprocess
+# Boot chokepoint: enforce the PINNED PRODUCTION seccomp profile against its
+# image-pins.yml sha256 BEFORE the real boot. A drifted/tampered profile raises
+# SeccompPinDriftError and refuses to boot (mirrors SPEC §7 exit-78 posture).
+verify_hardened_seccomp_pin()
 argv = build_hardened_run_argv('$IMG', '$NAME', $PORT, '$DATA')
 assert '--privileged' not in argv, 'hardened launcher must never be privileged'
 raise SystemExit(subprocess.run(argv).returncode)

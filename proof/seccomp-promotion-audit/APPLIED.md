@@ -221,3 +221,58 @@ POST-EDIT (pinned production profile):   d317a7a335f8f7cb3c557342959eb7d36875016
 - Python suite stays green (lifecycle test asserts the seccomp PATH contains `l0b`, not BPF content).
 - **NOT committed** — adversarial validator gates the commit and will independently boot-re-test the
   production-labelled profile.
+
+---
+
+## 7. ENFORCEMENT — the pin is now CODE-ENFORCED, not declarative-only (2026-06-01)
+
+§6 promoted the profile and declared the `seccomp-l0b-sha256-match` verification check in
+`image-pins.yml`, but **nothing in code actually verified it** — the hardened-boot path
+(`build_hardened_run_argv` / `HARDENED_SECCOMP`) used the profile WITHOUT checking its sha256. An
+unenforced pin cannot catch tampering or an unapproved BPF edit. This section records wiring the
+enforcement.
+
+### Mechanism
+New function in `agents/orchestrator/src/container_lifecycle.py`:
+
+```
+verify_hardened_seccomp_pin(pins_path: str | None = None,
+                            seccomp_path: str = HARDENED_SECCOMP) -> None
+```
+
+- Resolves `image-pins.yml` and the profile relative to the repo root
+  (`_REPO_ROOT = Path(__file__).resolve().parents[3]`), independent of CWD.
+- Reads `seccomp_l0b_production.file_sha256` via PyYAML (the module already imports `yaml` in
+  `main()`); a robust single-line regex fallback parses the pin if `yaml` is unimportable, so the
+  safety check never silently degrades to "pass".
+- Computes `sha256` of the profile bytes and compares to the pin.
+- On match → returns `None`. On **mismatch / missing pin key / missing profile** → raises
+  `SeccompPinDriftError` with a message stating expected-vs-actual and
+  *"refuse to boot: production seccomp profile drifted from pin; file a pin-update mutation"* —
+  mirroring the SPEC §7 exit-78 refuse-privileged posture. (`main(["--verify-seccomp-pin"])` maps
+  the drift to **exit 78**.)
+
+`build_hardened_run_argv` stays a **pure argv builder** (no file I/O added; its argv output and pure
+tests are unchanged). The verification is added at the BOOT CHOKEPOINTS where the argv is actually
+executed:
+
+| Chokepoint | Where | Effect |
+|---|---|---|
+| **L0b launch script** (the real hardened boot) | `agents/stability/stack/launch-l2-l6-sensor-lte-spoof.sh` — calls `verify_hardened_seccomp_pin()` immediately before `subprocess.run(argv)` | A drifted profile raises and aborts before `docker run` |
+| **`up(... dry_run=False)`** (compose boot helper) | `container_lifecycle.up()` calls it before `docker compose up` | Real compose boots are gated too |
+| **CLI** | `container_lifecycle --verify-seccomp-pin` (exit 78 on drift) | Preflight/CI hook to assert the pin |
+
+### Tests (added to `tests/test_orchestrator_container_lifecycle.py`)
+- `test_verify_seccomp_pin_passes_against_real_pinned_profile` — current profile sha == `d317a7a3…ada66a`.
+- `test_verify_seccomp_pin_raises_on_tampered_profile` — tampered bytes → `SeccompPinDriftError`
+  (asserts the expected sha + "pin-update mutation" appear in the message).
+- `test_verify_seccomp_pin_raises_when_pin_key_missing` — pins file without the key → raises.
+- `test_verify_seccomp_pin_raises_when_profile_missing` — missing profile → raises (no silent pass).
+- `test_main_verify_seccomp_pin_flag_ok` — the `--verify-seccomp-pin` CLI returns 0 on a clean match.
+
+### Validation
+- `python3 -m pytest -q` → **116 passed** (was 111; +5). The pure argv / device-cgroup tests are
+  unchanged and green; `build_hardened_run_argv` argv output is untouched.
+- The seccomp profile bytes and the pinned sha (`d317a7a3…ada66a`) are **unchanged** — this adds
+  verification only.
+- **NOT committed** — adversarial validator gates the commit.

@@ -9,7 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agents.orchestrator.src.container_lifecycle import (  # noqa: E402
     preflight, harden_service, harden_compose, is_hardened,
     PrivilegedRefused, EXIT_PRIVILEGED_REFUSED, up, down, main,
+    verify_hardened_seccomp_pin, SeccompPinDriftError, HARDENED_SECCOMP,
+    _REPO_ROOT, IMAGE_PINS,
 )
+
+# Pinned production seccomp sha256 (image-pins.yml::seccomp_l0b_production.file_sha256).
+_PINNED_SECCOMP_SHA256 = "d317a7a335f8f7cb3c557342959eb7d36875016c7581bf5433977bf527ada66a"
 
 _PRIV = {"services": {"redroid": {"image": "redroid/redroid", "privileged": True}}}
 _PLAIN = {"services": {"redroid": {"image": "redroid/redroid"}}}
@@ -115,3 +120,53 @@ def test_build_hardened_run_argv_accepts_explicit_device_rules():
     rules = [argv[i + 1] for i, a in enumerate(argv) if a == "--device-cgroup-rule"]
     assert rules == DEVICE_CGROUP_RULES
     assert "--privileged" not in argv
+
+
+# --------------------------------------------------------------------------
+# Seccomp PRODUCTION pin enforcement (image-pins.yml::seccomp_l0b_production)
+# The pin is the tamper-detector for the PINNED PRODUCTION BPF profile; these
+# tests prove it is code-enforced (no longer declarative-only).
+# --------------------------------------------------------------------------
+
+def test_verify_seccomp_pin_passes_against_real_pinned_profile():
+    """The on-disk HARDENED_SECCOMP profile matches its image-pins.yml sha256."""
+    # default resolution (repo-root relative) returns None on a clean match
+    assert verify_hardened_seccomp_pin() is None
+    # the pinned sha matches the real profile bytes
+    import hashlib
+    profile = _REPO_ROOT / HARDENED_SECCOMP
+    assert hashlib.sha256(profile.read_bytes()).hexdigest() == _PINNED_SECCOMP_SHA256
+
+
+def test_verify_seccomp_pin_raises_on_tampered_profile(tmp_path):
+    """A profile whose bytes differ from the pin must refuse to boot."""
+    tampered = tmp_path / "redroid-seccomp-l0b.json"
+    tampered.write_text('{"defaultAction": "SCMP_ACT_ALLOW", "tampered": true}\n')
+    with pytest.raises(SeccompPinDriftError) as exc:
+        verify_hardened_seccomp_pin(seccomp_path=str(tampered))
+    msg = str(exc.value)
+    assert "drifted from pin" in msg
+    assert "pin-update mutation" in msg
+    assert _PINNED_SECCOMP_SHA256 in msg  # expected sha is surfaced
+
+
+def test_verify_seccomp_pin_raises_when_pin_key_missing(tmp_path):
+    """A pins manifest without seccomp_l0b_production.file_sha256 must not pass."""
+    pins = tmp_path / "image-pins.yml"
+    pins.write_text('schema_version: "1"\nredroid_12_64only:\n  layer: L0a\n')
+    real_profile = str(_REPO_ROOT / HARDENED_SECCOMP)
+    with pytest.raises(SeccompPinDriftError) as exc:
+        verify_hardened_seccomp_pin(pins_path=str(pins), seccomp_path=real_profile)
+    assert "file_sha256" in str(exc.value)
+
+
+def test_verify_seccomp_pin_raises_when_profile_missing(tmp_path):
+    """A missing profile file must refuse, not silently pass."""
+    with pytest.raises(SeccompPinDriftError) as exc:
+        verify_hardened_seccomp_pin(seccomp_path=str(tmp_path / "nope.json"))
+    assert "not found" in str(exc.value)
+
+
+def test_main_verify_seccomp_pin_flag_ok():
+    """`--verify-seccomp-pin` returns 0 when the real profile matches the pin."""
+    assert main(["--verify-seccomp-pin"]) == 0
