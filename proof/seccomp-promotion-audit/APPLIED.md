@@ -276,3 +276,68 @@ executed:
 - The seccomp profile bytes and the pinned sha (`d317a7a3…ada66a`) are **unchanged** — this adds
   verification only.
 - **NOT committed** — adversarial validator gates the commit.
+
+---
+
+## 8. STALE PIN RESYNC + `local-module-file-sha256-match` NOW CODE-ENFORCED (2026-06-01)
+
+§6/§7 enforced the **seccomp** pin. The sibling `local-module-file-sha256-match` verification
+(declared in `image-pins.yml` `verification.required_before_compose_up`) was in the SAME
+unenforced state: declared (`"for each modules[].file_sha256: sha256sum {file} == pinned hash"`,
+on_failure `"exit 78 + comment cpuinfo-overlay tampering"`) but **never implemented** in the
+stability-stack preflight (`agents/stability/stack/container_lifecycle.py` had no `hashlib`). This
+section records (a) a stale-pin finding + resync and (b) wiring the enforcement.
+
+### Stale-pin finding (drift, NOT tampering)
+Two `cpuinfo_overlay` `file_sha256` pins were **stale**, both since commit `676d6c1`
+(`fix(cpuinfo-overlay): correct Tensor-G2 profile, persistent Serial (CLO-114)`):
+
+| file | OLD pin (e0aae49 original) | AUTHORITATIVE (HEAD == 676d6c1) |
+|---|---|---|
+| `system/etc/cpuinfo.spoofed` | `6e4ee85c…898d8d` | `cc98425f…1e6c98` |
+| `service.sh` | `65ab9ff7…b860fec` | `ec758a31…822e6e6` |
+
+Independently verified this is a **legitimate correctness fix, not tampering**:
+- `git log` on each file shows exactly two commits: `e0aae49` (add) → `676d6c1` (fix).
+- The `676d6c1` diff replaces an implausible profile (`BogoMIPS 2.00`, wrong CPU part codes
+  `4×0xd42`+`4×0xd05`) with the **real Pixel-7 Pro Tensor-G2 (2,2,4) topology** —
+  `2×0xd44` X1, `2×0xd41` A78, `4×0xd05` A55, `BogoMIPS 38.40`, `ssbs` feature added — and makes
+  the `service.sh` Serial **persistent** (derived once from the container UUID, written to
+  `cpuinfo-overlay.serial`, read thereafter) instead of rotating per boot. Both are coherent
+  anti-detection correctness changes documented in the commit body (CLO-114).
+- Working tree is **clean** at these files; `git show HEAD:<file> | sha256sum` == the new pins.
+
+Conclusion: the **files are authoritative**, the **pins were stale** (a missed pin-update). Resynced
+both pins to the HEAD hashes with an inline comment in `image-pins.yml` recording the old values and
+the 676d6c1/CLO-114 provenance. The `cpuinfo.spoofed` / `service.sh` bytes were **NOT modified**.
+
+### Enforcement mechanism
+New code in `agents/stability/stack/container_lifecycle.py` (`import hashlib` added):
+- `_verify_local_module_file_hashes(image_pins, repo_root, report)` — iterates every
+  `modules[]` entry with a `file_sha256` map, resolves the module's `local:<path>` source to a dir,
+  and for each pinned file computes `sha256` and compares to the pin.
+- Runs inside `preflight()` (`repo_root = image_pins_path.parents[3]`, CWD-independent).
+- Records results in a new `PreflightReport.module_file_sha256` map (`MATCH`/`MISMATCH`/`MISSING`).
+  Any non-`MATCH` is appended as a `PreflightFinding(rule="local-module-file-sha256-match")`, which
+  flips `report.ok` → `False` and drives the **exit-78 hard-block** (same path as the forbidden-key /
+  image-digest checks). `cmd_up`'s failure block prints a per-file
+  `[local-module-file-sha256-<status>]` line.
+- **Robust, never silent-pass:** a missing file → `MISSING` finding; an unresolvable / non-`local:`
+  source on a module that declares pins → finding. Only an exact byte match passes.
+- Existing preflight behavior (privileged refusal, cap_drop/seccomp/no-new-privileges, image-digest)
+  is unchanged.
+
+### Tests (added to `tests/test_container_lifecycle.py`)
+- `test_module_file_sha256_passes_against_resynced_pins` — the in-tree resynced pins report all 4
+  cpuinfo-overlay files `MATCH`, 0 findings (explicitly asserts `service.sh` + `cpuinfo.spoofed`).
+- `test_module_file_sha256_fails_on_tampered_file` — temp-copy of the module with appended bytes →
+  `MISMATCH`, `report.ok` False, mismatch finding present.
+- `test_module_file_sha256_fails_on_missing_file` — pinned file removed → `MISSING`, `report.ok`
+  False, missing finding present (no silent pass).
+
+### Validation
+- `python3 -m pytest -q` → **119 passed** (was 116; +3).
+- `image-pins.yml` parses as valid YAML; preflight against `compose/L1-props.yml` → PASS.
+- The `cpuinfo.spoofed` and `service.sh` files are **byte-unchanged** (authoritative); only their
+  stale pins were resynced and the enforcement code + tests were added.
+- **NOT committed** — adversarial validator gates the commit.

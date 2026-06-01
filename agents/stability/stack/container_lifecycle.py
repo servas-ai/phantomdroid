@@ -38,6 +38,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -90,6 +91,7 @@ class PreflightReport:
     seccomp_present: dict[str, bool] = field(default_factory=dict)
     no_new_priv_present: dict[str, bool] = field(default_factory=dict)
     digest_resolved: dict[str, str] = field(default_factory=dict)  # service -> "amd64"|"arm64"|"unpinned"
+    module_file_sha256: dict[str, str] = field(default_factory=dict)  # "<mod>:<file>" -> "MATCH"|"MISMATCH"|"MISSING"
 
     @property
     def ok(self) -> bool:
@@ -216,6 +218,102 @@ def _load_image_pins(path: Path) -> dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
+# local-module-file-sha256-match  (verification id in image-pins.yml)
+# -----------------------------------------------------------------------------
+# For every modules[] entry that carries a file_sha256 map, resolve each file
+# relative to the module's local source root and confirm sha256(file) == pinned
+# hash. A mismatch, a missing file, or an unresolvable source is recorded as a
+# PreflightFinding — which flips report.ok to False and drives the exit-78
+# hard-block (mirrors how the image-digest / forbidden-key checks fail).
+_LOCAL_SOURCE_PREFIX = "local:"
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _module_source_root(entry: dict[str, Any], repo_root: Path) -> Path | None:
+    """Resolve a modules[] entry's local source dir, or None if not local."""
+    source = str(entry.get("source", "")).strip()
+    if not source.startswith(_LOCAL_SOURCE_PREFIX):
+        return None
+    rel = source[len(_LOCAL_SOURCE_PREFIX):].strip()
+    if not rel:
+        return None
+    return (repo_root / rel).resolve()
+
+
+def _verify_local_module_file_hashes(
+    image_pins: dict[str, Any],
+    repo_root: Path,
+    report: PreflightReport,
+) -> None:
+    modules = image_pins.get("modules")
+    if not isinstance(modules, list):
+        return
+    pins_label = "image-pins.yml::modules[].file_sha256"
+    for entry in modules:
+        if not isinstance(entry, dict):
+            continue
+        file_hashes = entry.get("file_sha256")
+        if not isinstance(file_hashes, dict) or not file_hashes:
+            continue
+        mod_id = str(entry.get("id", "<unknown>"))
+        root = _module_source_root(entry, repo_root)
+        if root is None:
+            report.findings.append(
+                PreflightFinding(
+                    file=pins_label,
+                    line_no=0,
+                    line=(
+                        f"module '{mod_id}' declares file_sha256 pins but has no "
+                        f"resolvable local: source — cannot fingerprint files"
+                    ),
+                    rule="local-module-file-sha256-match",
+                )
+            )
+            continue
+        for rel_path, pinned in file_hashes.items():
+            target = (root / str(rel_path)).resolve()
+            pinned_hash = str(pinned).strip().lower()
+            if not target.exists() or not target.is_file():
+                report.findings.append(
+                    PreflightFinding(
+                        file=str(target),
+                        line_no=0,
+                        line=(
+                            f"module '{mod_id}' pinned file missing: {rel_path} "
+                            f"(expected sha256 {pinned_hash})"
+                        ),
+                        rule="local-module-file-sha256-match",
+                    )
+                )
+                report.module_file_sha256[f"{mod_id}:{rel_path}"] = "MISSING"
+                continue
+            actual = _sha256_file(target).lower()
+            if actual != pinned_hash:
+                report.findings.append(
+                    PreflightFinding(
+                        file=str(target),
+                        line_no=0,
+                        line=(
+                            f"module '{mod_id}' file {rel_path} sha256 mismatch — "
+                            f"pinned {pinned_hash}, got {actual} "
+                            f"(cpuinfo-overlay tampering or stale pin)"
+                        ),
+                        rule="local-module-file-sha256-match",
+                    )
+                )
+                report.module_file_sha256[f"{mod_id}:{rel_path}"] = "MISMATCH"
+            else:
+                report.module_file_sha256[f"{mod_id}:{rel_path}"] = "MATCH"
+
+
+# -----------------------------------------------------------------------------
 # Top-level preflight
 # -----------------------------------------------------------------------------
 def preflight(
@@ -226,6 +324,13 @@ def preflight(
 ) -> PreflightReport:
     image_pins = _load_image_pins(image_pins_path)
     report = PreflightReport()
+
+    # local: module sources in image-pins.yml are repo-root-relative
+    # (e.g. "local:agents/stability/stack/modules/cpuinfo-overlay"). The pins
+    # file lives at <repo>/agents/stability/stack/image-pins.yml, so the repo
+    # root is three parents up.
+    repo_root = image_pins_path.resolve().parents[3]
+    _verify_local_module_file_hashes(image_pins, repo_root, report)
 
     for cf in compose_files:
         if not cf.exists():
@@ -345,6 +450,12 @@ def cmd_up(args: argparse.Namespace) -> int:
                 )
             if report.digest_resolved.get(svc) == "unpinned":
                 print(f"  service={svc} [image-digest-not-in-image-pins.yml]", file=sys.stderr)
+        for key, status in report.module_file_sha256.items():
+            if status != "MATCH":
+                print(
+                    f"  module-file={key} [local-module-file-sha256-{status.lower()}]",
+                    file=sys.stderr,
+                )
         return EXIT_PRECONDITION_FAIL
 
     print("\n[preflight:PASS] refuse-privileged-compose 6/6 checks green.")

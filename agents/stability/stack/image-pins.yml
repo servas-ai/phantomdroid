@@ -210,8 +210,15 @@ modules:
     pinned_commit_resolved_at_utc: "2026-05-16T07:00:00Z"
     file_sha256:
       "module.prop": "8493f07fea3352f8310e168f2496ae2dfe6be8d9e92d5853d2d4ca388a9695ba"
-      "service.sh": "65ab9ff79347b819dcb1c34cc9473c1213ea71c9ff438fe9b3a41f185b860fec"
-      "system/etc/cpuinfo.spoofed": "6e4ee85c010f3e3670988310f627ade538e525b102bf37a9f224f663fc898d8d"
+      # RESYNCED 2026-06-01: service.sh + cpuinfo.spoofed pins were STALE since
+      # 676d6c1 ("fix(cpuinfo-overlay): correct Tensor-G2 profile, persistent
+      # Serial (CLO-114)"). That commit legitimately rewrote both files (real
+      # Pixel-7 Pro Tensor-G2 topology + BogoMIPS 38.40; persistent Serial from
+      # container UUID) but the pins were never updated — drift from a missed
+      # pin-update, NOT tampering. Authoritative HEAD hashes (== 676d6c1) below.
+      # Old: service.sh=65ab9ff7…  cpuinfo.spoofed=6e4ee85c… (e0aae49 originals).
+      "service.sh": "ec758a312c395aac255e2332c3fe792c32a3a6d9c231a50cc2d3fd6694b822e6"
+      "system/etc/cpuinfo.spoofed": "cc98425fff593dfd8ee48f206164eb7419cf9a8a973831721cd4aa81171e6c98"
       "META-INF/com/google/android/update-binary": "cc036c9381d4a24caee52a3f6a458f4996b11652954d249e355991cb1f9ba448"
     cross_ref:
       compose_l1_props: "agents/stability/stack/compose/L1-props.yml::modules[cpuinfo-overlay]"
