@@ -1,0 +1,154 @@
+{
+  "imported": {
+    "04ba9d55c3f4c30d8438c8ccc324dfe5": {
+      "num": "01",
+      "title": "Probe `runtime.frida_memory_maps` (A17 N2)",
+      "issue_id": "9d0ce225-4b26-4d6a-8c44-6eb4a22d0aa2",
+      "ts": "2026-05-15T23:57:49Z"
+    },
+    "3ec9cbf91c4f3bfb739e290fd599c202": {
+      "num": "02",
+      "title": "Probe `env.time_spoofing` (A17 N4)",
+      "issue_id": "34ea53c8-4c63-4f92-80a1-26d28ff42bab",
+      "ts": "2026-05-15T23:57:50Z"
+    },
+    "ed6eab2a8965ab3c7d9cac3e35e80177": {
+      "num": "03",
+      "title": "Probe `env.location_mock` (A17 N5, augments inventory #39)",
+      "issue_id": "e07f0da1-adf3-4da7-8bc2-9c51ba551e96",
+      "ts": "2026-05-15T23:57:51Z"
+    },
+    "8f42c2b7416297df750a29f68fa87fe3": {
+      "num": "04",
+      "title": "Probe `env.wifi_security_type` (A17 N6)",
+      "issue_id": "06a04e6a-699d-4342-b031-0f275c8b5bc1",
+      "ts": "2026-05-15T23:57:51Z"
+    },
+    "8e4143854f4a67a9459dddc6b22f7c1c": {
+      "num": "05",
+      "title": "Probe `env.screen_lock` (A17 N7)",
+      "issue_id": "e2c24f8d-3128-4b63-ad0c-0175fac0bc98",
+      "ts": "2026-05-15T23:57:52Z"
+    },
+    "d9ba1a4864d5f66f9a4ad5e5ff80d7d8": {
+      "num": "06",
+      "title": "Probe `runtime.multi_instance` (A17 N8)",
+      "issue_id": "e165a7f1-cf0d-43c0-a83f-504020c8de4d",
+      "ts": "2026-05-15T23:57:53Z"
+    },
+    "570debf91ca1d293c904d0b79afa94f2": {
+      "num": "07",
+      "title": "Probe `runtime.automation_tools` (A17 N9)",
+      "issue_id": "1d087af3-a5ac-42ab-9f2e-6ac9ba5c4829",
+      "ts": "2026-05-15T23:57:53Z"
+    },
+    "02952678caf12bb11ba563dc667ced97": {
+      "num": "08",
+      "title": "Probe `runtime.screen_recording` (A17 N10)",
+      "issue_id": "9f76d1e4-6e95-446d-894c-e10686269b63",
+      "ts": "2026-05-15T23:57:54Z"
+    },
+    "be4fa091772d14b77a7850aad0da04f4": {
+      "num": "09",
+      "title": "Integrate `droidrun` v0.4+ as a probe-driver harness",
+      "issue_id": "3856fb41-b71f-442a-9491-87049fc8e152",
+      "ts": "2026-05-15T23:57:55Z"
+    },
+    "c28bdbef96b5a92602bf6bd56523291f": {
+      "num": "10",
+      "title": "Bootstrap Magisk v30.7 + NeoZygisk v2.3 + Vector v2.0 inside ReDroid 12.0.0-64only-240527",
+      "issue_id": "c2e0326d-144b-4e05-916c-a1ed92b53204",
+      "ts": "2026-05-15T23:57:55Z"
+    },
+    "7e0e85654eb59d924e8c80f170a09c95": {
+      "num": "11",
+      "title": "Wire TEESimulator v3.2 as default L3-integrity backend (strategic successor to TrickyStore)",
+      "issue_id": "76de8651-8260-44a1-b0a8-c89e68c5e5cf",
+      "ts": "2026-05-15T23:57:56Z"
+    },
+    "c7e6614a117d2f2e8ddb632e19ca5365": {
+      "num": "12",
+      "title": "TrickyStore 1.4.1 property-spoof fallback path",
+      "issue_id": "2cec6877-11b4-4036-8582-dde5a5e7c0c0",
+      "ts": "2026-05-15T23:57:56Z"
+    },
+    "0d4453cfccfc22f75614dd08e29d617e": {
+      "num": "13",
+      "title": "Baseline-matrix cell sweep (Pixel 8 / 9 / 9 Pro x Android 14 / 15 / 16)",
+      "issue_id": "4c6836a0-04f3-474f-a437-0b43945747c8",
+      "ts": "2026-05-15T23:57:57Z"
+    },
+    "c7c015b1b1b32cf50a7e7202b44787f7": {
+      "num": "14",
+      "title": "ARM64 forward-compat shim (x86_64-host -> ARM64-guest translation trap)",
+      "issue_id": "c27c5bf3-b8a0-487d-b3a6-e5848a8e12d6",
+      "ts": "2026-05-15T23:57:58Z"
+    },
+    "978d86177224c699872aa780cdd8bc01": {
+      "num": "15",
+      "title": "Weekly heatmap dry-run + renderer wiring",
+      "issue_id": "fba0aef0-40b5-411e-b5b2-1af84071f114",
+      "ts": "2026-05-15T23:57:58Z"
+    },
+    "4dc35f41c93d9e6abdc86697298c539d": {
+      "num": "16",
+      "title": "freeRASP v18.0.4 KernelSU-bypass verification",
+      "issue_id": "60397c8c-a144-4531-b900-a73fb2c02eda",
+      "ts": "2026-05-15T23:57:59Z"
+    },
+    "5f8ef99520dc3a6429815cfafcb7af97": {
+      "num": "17",
+      "title": "Probe `app.scrambler_getstring_signature` (W4-verified Meta IG signed-body)",
+      "issue_id": "3d355f55-799b-4a35-8961-3a10610e6375",
+      "ts": "2026-05-15T23:58:00Z"
+    },
+    "55712fca0bd8a9fbd98a2a15795af920": {
+      "num": "18",
+      "title": "Probe `app.ig_family_device_id_header`",
+      "issue_id": "a931911f-2679-40c0-a8c3-89d95e1036ad",
+      "ts": "2026-05-15T23:58:00Z"
+    },
+    "aac697f7a6d8c83b34a3bfcc67bac956": {
+      "num": "19",
+      "title": "Probe `app.tiktok_argus_signing`",
+      "issue_id": "36def246-d0bc-426d-abfc-646dbb249b41",
+      "ts": "2026-05-15T23:58:01Z"
+    },
+    "f007e533c0a6000f0045dc804e989d74": {
+      "num": "20",
+      "title": "Probe `kernel.cpuinfo_bogomips_implementer`",
+      "issue_id": "aff5f1a5-5683-4365-ae20-cb3f8ee487bb",
+      "ts": "2026-05-15T23:58:02Z"
+    },
+    "28227600f1d00a9b6520c6f648b3d98c": {
+      "num": "META-21",
+      "title": "Probe-schema-v2 (JSON-Schema validation)",
+      "issue_id": "2197ed01-3e2a-4f59-b4d4-df22629409b3",
+      "ts": "2026-05-15T23:58:02Z"
+    },
+    "eed40919dcae91c80697257c738ae30f": {
+      "num": "META-22",
+      "title": "Inventory.yml expansion to 71 probes",
+      "issue_id": "a59a7cba-53c1-4829-af93-0565e52b7827",
+      "ts": "2026-05-15T23:58:03Z"
+    },
+    "11ba2880afce44010b38c6e04ef89680": {
+      "num": "META-23",
+      "title": "Heatmap renderer",
+      "issue_id": "462db7cc-5a32-4050-90f8-225e13197aa8",
+      "ts": "2026-05-15T23:58:04Z"
+    },
+    "74888ef97fb4767623def78fd4750903": {
+      "num": "META-24",
+      "title": "Finding-aggregator (per-cell + cross-cell)",
+      "issue_id": "1d99c58b-76e2-4eaf-a2f6-41195b3ef245",
+      "ts": "2026-05-15T23:58:04Z"
+    },
+    "e33a0ab49be6ce573723029c9b0689f2": {
+      "num": "META-25",
+      "title": "Weekly-report template + auto-fill",
+      "issue_id": "cba227c1-5ae7-414e-a334-2d72f68fc000",
+      "ts": "2026-05-15T23:58:05Z"
+    }
+  }
+}
