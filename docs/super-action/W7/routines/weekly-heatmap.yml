@@ -1,0 +1,61 @@
+# Routine: weekly-heatmap
+#
+# Purpose: Every Monday at 08:00 Berlin, re-render the SVG heatmap
+#          from results/aggregate/all-configs.csv and open a PR for
+#          the human board to review/merge.
+#          Step 10 auto-fills the weekly-report template and commits it.
+# Concurrency: skip_if_active.
+
+apiVersion: paperclip/v2026.5
+kind: Routine
+metadata:
+  id: weekly-heatmap
+  description: "Monday 08:00 Europe/Berlin — rebuild heatmap.svg, open a PR, and commit weekly-report.md."
+
+spec:
+  agent: orchestrator
+  trigger:
+    kind: schedule
+    cron: "0 8 * * MON"
+    timezone: "Europe/Berlin"
+  concurrency_policy: skip_if_active
+  catch_up_policy: skip_missed
+  max_runtime_sec: 1200
+  mode: planning
+  prompt_inline: |
+    weekly-heatmap tick (Monday 08:00 Berlin).
+
+    Steps:
+      1) `runner aggregate --all`  — re-aggregate every config from journal.sqlite.
+      2) `runner heatmap --from results/aggregate/all-configs.csv --out results/artifacts/heatmap.svg`
+      3) `git checkout -b heatmap/{YYYY-WW}`
+      4) `git add results/aggregate/all-configs.csv results/artifacts/heatmap.svg`
+      5) `git commit -m "weekly heatmap rebuild — {YYYY-WW}"`
+         - Skill `refuse-secrets` runs gitleaks pre-commit; abort on findings.
+      6) `git push origin heatmap/{YYYY-WW}`
+         - Skill `refuse-secrets` checks pre-push hook; abort on uncommitted.
+      7) Open a PR via `gh pr create --base main --head heatmap/{YYYY-WW} --title "Weekly heatmap {YYYY-WW}" --body-file digests/weekly-{YYYY-WW}.md`
+      8) Post the PR URL to Slack via plugin.
+      9) DO NOT MERGE — wait for human board approval.
+      10) AUTO-FILL WEEKLY REPORT:
+          a) Determine next week number N+1 from {YYYY-WW}.
+          b) Run `scripts/fill-weekly-report.sh {YYYY-WW} {PR_URL}` which:
+             - Reads `results/aggregate/all-configs.csv` to extract cells_run, regressions,
+               new_ceilings_hit, and the kpi_table.
+             - Reads current ceiling statuses from `docs/super-action/W7/skills/ceiling-status.yml`
+               (or falls back to "open" if the file is absent).
+             - Renders `docs/super-action/W7/skills/weekly-report.template.md` with real values.
+             - Writes output to `docs/super-action/W{N+1}/weekly-report.md` (creates dir if absent).
+          c) `git add docs/super-action/W{N+1}/weekly-report.md`
+          d) `git commit -m "auto: weekly-report W{N+1} from heatmap {YYYY-WW}"`
+             - Skill `refuse-secrets` gates gitleaks.
+          e) `git push origin heatmap/{YYYY-WW}`
+
+    Hard rules:
+      - Never `git push --force`. Never push to `main` directly.
+      - Always create a fresh branch named `heatmap/{YYYY-WW}`.
+      - If gitleaks blocks the commit, set the routine status=blocked and
+        notify Slack via paperclip-plugin-slack.
+      - Step 10 must run AFTER step 7 so the PR URL is available for the report.
+      - If `fill-weekly-report.sh` fails, log the error and continue — do NOT
+        abort the routine; the heatmap PR is the primary deliverable.
