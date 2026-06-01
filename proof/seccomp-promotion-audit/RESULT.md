@@ -1,5 +1,7 @@
 # Seccomp Promotion-Readiness Security Audit — `redroid-seccomp-l0b.json`
 
+> **STATUS: PROMOTED 2026-06-01.** This audit's §5 arg-filter recommendations were APPLIED (commit bded617) and adversarially boot+root+negative-test re-validated (see `APPLIED.md`); the profile is now the board-approved PINNED PRODUCTION L0b seccomp profile (sha256 `d317a7a3…ada66a`, pinned in `agents/stability/stack/image-pins.yml` key `seccomp_l0b_production`). The "PROPOSAL ARTIFACT / board review required" descriptions below are the historical audit-time state and are retained verbatim for provenance.
+
 **Audit type:** STATIC (no container boot; profile NOT modified). Boot evidence already
 exists in `audit/phase6-hardened-boot-2026-05-30.md`.
 **Auditor:** BUILDER sub-agent (B1-validator follow-up #2)

@@ -178,3 +178,46 @@ Everything the audit recommended narrowing (`personality`, `setns`) **was** narr
   data dirs (`/home/coder/redroid-data/sec-*`) deleted. `b2-magisk` untouched.
 - `git diff` secret/canary scan: 0 matches.
 - **NOT committed** — adversarial validator gates the commit.
+
+---
+
+## 6. PROMOTION to PINNED PRODUCTION (2026-06-01, board-approved)
+
+Following the arg-filter application (§1–§5 above) and its adversarial boot+root+negative-test
+validation, the board approved promoting `redroid-seccomp-l0b.json` from PROPOSAL to the **PINNED
+PRODUCTION** hardened seccomp profile for the L0b Magisk-rooted cell.
+
+**This promotion is a metadata + integrity-pin governance change only.** No BPF rule was modified —
+`defaultAction`, `defaultErrnoRet`, `archMap`, and every `syscalls[].action/names/args` are
+byte-identical to the arg-filtered profile from commit bded617. Verified: the functional fingerprint
+(over those fields only) is unchanged at `debfd521df856e1c9e31c6d113cb8c41482705fc3ac77e06dbb176c82bef3010`
+before and after the relabel.
+
+### What changed
+- **Profile metadata (relabel only):** `_comment_purpose`, `_comment_compliance` rewritten to declare
+  the board-approved pinned-production status and drop the contradictory "PROPOSAL / NOT production /
+  board review required" assertions (technical hardening description preserved). `_proposal_provenance`
+  renamed → `_promotion_provenance`, and a new `_promoted` field records the promotion decision.
+- **Integrity pin:** new top-level key `seccomp_l0b_production` in
+  `agents/stability/stack/image-pins.yml` (layer L0b, status production-pinned,
+  `promoted_at_utc: 2026-06-01`) + a `seccomp-l0b-sha256-match` preflight verification check mirroring
+  `local-module-file-sha256-match`.
+- **Audit cross-ref:** `RESULT.md` gained a one-line `STATUS: PROMOTED 2026-06-01` banner; its
+  historical "PROPOSAL ARTIFACT" text is retained for provenance.
+
+### Final pinned sha256
+The relabel changes the file bytes, so the pinned hash is the **post-edit** value:
+
+```
+PRE-EDIT  (HEAD, arg-filtered proposal): 53913f105ba505d1faeeed86189b26adeae8ec05da128d43a0fb36dd8d5197ac
+POST-EDIT (pinned production profile):   d317a7a335f8f7cb3c557342959eb7d36875016c7581bf5433977bf527ada66a
+```
+
+`d317a7a3…ada66a` is the value pinned in `image-pins.yml` and enforced by `seccomp-l0b-sha256-match`.
+
+### Validation
+- Functional fingerprint byte-identical before/after (only `_comment`/metadata differ). JSON VALID.
+- `image-pins.yml` parses as valid YAML; the new pin + check are present.
+- Python suite stays green (lifecycle test asserts the seccomp PATH contains `l0b`, not BPF content).
+- **NOT committed** — adversarial validator gates the commit and will independently boot-re-test the
+  production-labelled profile.

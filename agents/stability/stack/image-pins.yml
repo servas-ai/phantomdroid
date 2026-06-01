@@ -91,6 +91,34 @@ redroid_12_magisk_rooted:
     privileged: false                   # MUST boot non-privileged (B4 hardened recipe)
 
 # -----------------------------------------------------------------------------
+# L0b — Hardened seccomp BPF profile (PINNED PRODUCTION, promoted 2026-06-01)
+# -----------------------------------------------------------------------------
+# Board-approved production seccomp profile for the Magisk-rooted ReDroid 12 L0b
+# cell. Wired as HARDENED_SECCOMP in container_lifecycle.py (the hardened-boot
+# path) + the L0b launch scripts. Promoted from proposal after the
+# seccomp-promotion-audit + arg-filter application + adversarial boot/root/
+# negative-test validation. Pinned by file_sha256 (local-file-sha256 pattern,
+# mirrors modules[].file_sha256) and enforced by the 'seccomp-l0b-sha256-match'
+# preflight check below. Any byte change (incl. a BPF-rule edit) flips the hash
+# and hard-blocks the lifecycle until re-pinned via a pin-update mutation.
+seccomp_l0b_production:
+  layer: L0b
+  status: production-pinned
+  file: "agents/stability/stack/seccomp/redroid-seccomp-l0b.json"
+  file_sha256: "d317a7a335f8f7cb3c557342959eb7d36875016c7581bf5433977bf527ada66a"
+  promoted_at_utc: "2026-06-01"
+  promoted_after: "audit + arg-filters (bded617) + adversarial boot/root/negative-test validation"
+  consumed_by: "agents/orchestrator/src/container_lifecycle.py::HARDENED_SECCOMP"
+  cross_ref:
+    proof_applied: "proof/seccomp-promotion-audit/APPLIED.md"
+    proof_result: "proof/seccomp-promotion-audit/RESULT.md"
+    audit_commit: "bded617"
+    layers_md: "agents/stability/stack/layers.md::L0b — Root (Magisk)"
+  policy:
+    pin_mode: "sha256"
+    on_drift: "exit 78 + file pin-update mutation (NEVER silent boot with a mutated seccomp profile)"
+
+# -----------------------------------------------------------------------------
 # L0b / L1 — Magisk + Zygisk + LSPosed + spoof modules
 # -----------------------------------------------------------------------------
 # Each module row carries a pinned_version (the canonical version label used by
@@ -263,6 +291,9 @@ verification:
     - id: "local-module-file-sha256-match"
       check: "for each modules[].file_sha256: sha256sum {file} == pinned hash"
       on_failure: "exit 78 + comment cpuinfo-overlay tampering"
+    - id: "seccomp-l0b-sha256-match"
+      check: "sha256sum {seccomp_l0b_production.file} == seccomp_l0b_production.file_sha256"
+      on_failure: "exit 78 + file pin-update mutation (seccomp profile tampering / unapproved BPF change)"
   reporter:
     - "container_lifecycle.py --dry-run prints each verification id with PASS/FAIL"
     - "reports/stability/{run_id}.json records {verification: [...]} block"
