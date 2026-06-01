@@ -41,7 +41,7 @@ class DetectionCli : CliktCommand(
 
 class RunCommand : CliktCommand(
     name = "run",
-    help = "Run all 83 snapshot probes against a snapshot and emit a JSON report.",
+    help = "Run all 82 snapshot probes against a snapshot and emit a JSON report.",
 ) {
     private val snapshot: File by option(
         "--snapshot", "-s",

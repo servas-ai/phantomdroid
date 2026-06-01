@@ -258,3 +258,44 @@ detectable on its REAL signals. Several remaining firing probes are amplified by
 live_matrix capture-gaps (their inputs aren't read yet) — tracked as follow-ups in
 the parity RESULT; the genuine root signal (`su_detection`, `magisk_uds`,
 `overlayfs`) is unaffected.
+
+### Addendum (2026-06-01, later) — capture-gaps CLOSED; 82-probe HONEST headline `0.1764 SUSPICIOUS`
+
+The `0.1697`/83-panel figure above still rested on **absence-noise** in four
+non-critical bucket-B probes (`install_source=0.85`, `network.ip_asn=0.5`,
+`fingerprint_cross_partition=0.85`-vendor_absent, and `touch_pressure` scored
+from uncaptured props) — the SAME class as the excluded keystore probe. This is
+now CLOSED. `live_matrix.py` was extended to capture every CAPTURABLE input
+(vendor fingerprint, touch/audio HAL props + `/dev/input/event*` + `/dev/snd`,
+GMS package+props, usb config + redroid/qemud props, `/data/adb/modules`
+listing, `init.svc.*` map), and the one UN-CAPTURABLE probe —
+`IntegrityInstallSourceProbe`, whose only signal is the detector app's OWN
+`getInstallSourceInfo()` (an APPLICATION-layer fact a `docker exec` capture is
+not inside the app to observe) — was EXCLUDED like keystore (`EXPECTED_COUNT`
+83 → 82).
+
+The decisive honesty fix: the prop capture now parses the FULL `getprop`
+bracket-dump so a GENUINELY-UNSET prop is OMITTED (→ `getSystemProperty` null)
+rather than recorded as a fabricated `""`. This both closes the gaps AND
+prevents NEW false-presence noise — it revealed that `network.ip_asn` (0.5) and
+`audio_fingerprint` were pure absence artifacts (real `persist.sys.usb.config`
+is `adb`, not empty; `ro.hardware.audio` is genuinely unset → null → clean), so
+they correctly drop to 0.0.
+
+Fresh ONE-container boot (`an-build`, hardened non-privileged, root uid=0),
+captured with the extended pipeline, scored on the 82-panel: **0.1764 —
+SUSPICIOUS, 2 GENUINE critical** (`root.su_detection=1.0`,
+`integrity.play_integrity=0.95`). Every nonzero probe now scores its REAL
+captured state — notably `buildprop.fingerprint_cross_partition=1.0` is now a
+GENUINE divergent-vendor-fingerprint MHPC tell (captured
+`ro.vendor.build.fingerprint=redroid/...` diverges from the spoofed Pixel system
+fp), and `root.magisk_module_dir=0.95` + `runtime.init_svc_enumeration=0.5` are
+genuine root signals that were previously UNDER-reported at 0.0. **The B2
+headline is updated to `0.1764 SUSPICIOUS`; `0.1697`, `0.1853`, `0.1279`,
+`0.1403`, and `0.0850` are all superseded.** The aggregate rose 0.1697 → 0.1764
+because closing the gaps added genuine root signal and a real fingerprint
+divergence that outweigh removing the install_source/network.ip_asn
+absence-noise. Snapshot+report: `an-build-honest-{snapshot.yml,report.json}`;
+full A/B/C/D resolution: `../detection-cli-panel-parity/RESULT.md` + this
+file's sibling `RESULT.md` §3a-ter. The capture-gaps are now CLOSED — no probe
+contributes a nonzero score to B2 from absence-of-capture.

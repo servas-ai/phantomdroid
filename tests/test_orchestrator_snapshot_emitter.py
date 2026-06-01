@@ -248,3 +248,189 @@ def test_capture_mount_and_uds_records_null_when_unreadable(monkeypatch):
     assert mount_info["self"] is None
     assert mount_info["1"] is None
     assert sockets == []
+
+
+# ── Bucket-B capture-gap closures (2026-06-01) ──────────────────────────────
+# These tests pin the HONESTY contract for the four bucket-A probe inputs that
+# live_matrix now captures (vendor fingerprint + the touch/audio/network props,
+# the /data/adb/modules dir listing, and the init.svc.* map) and the emitter
+# fields that carry them. The load-bearing invariant: a GENUINELY-UNSET
+# property is OMITTED from systemProperties (-> getSystemProperty null), NEVER
+# fabricated as an empty string — otherwise probes that treat a non-null empty
+# string as "the key exists" (NetworkIpAsn qemud, Audio HAL) fire from absence.
+
+
+def test_parse_getprop_dump_distinguishes_unset_from_set_empty():
+    """A key ABSENT from the getprop dump must NOT appear in the parsed map
+    (-> null/unset), while a key set to the empty string `[k]: []` IS recorded
+    with value "". This is the distinction that prevents fabricated presence."""
+    from agents.orchestrator.src.live_matrix import _parse_getprop_dump
+
+    dump = (
+        "[persist.sys.usb.config]: [adb]\n"
+        "[ro.vendor.build.fingerprint]: [redroid/redroid_x86_64_only:12/x]\n"
+        "[ro.audio.silent.in]: []\n"          # SET to empty string
+        "[init.svc.zygote]: [running]\n"
+        "[init.svc.magiskd]: [running]\n"
+    )
+    parsed = _parse_getprop_dump(dump)
+    assert parsed["persist.sys.usb.config"] == "adb"
+    assert parsed["ro.vendor.build.fingerprint"] == "redroid/redroid_x86_64_only:12/x"
+    # set-empty is recorded as "" (present, value empty)
+    assert "ro.audio.silent.in" in parsed and parsed["ro.audio.silent.in"] == ""
+    # genuinely-unset keys are simply not in the dump -> absent from the map
+    assert "ro.kernel.android.qemud" not in parsed
+    assert "ro.hardware.touchscreen" not in parsed
+    assert parsed["init.svc.zygote"] == "running"
+
+
+def test_capture_live_snapshot_omits_unset_props_no_fabrication(monkeypatch):
+    """ANTI-FABRICATION: an unset prop (absent from the getprop dump) must be
+    OMITTED from systemProperties so getSystemProperty returns null, NOT a
+    fabricated "". A set-but-empty prop IS kept. This is what keeps
+    NetworkIpAsnProbe (qemudExists = prop != null) and AudioFingerprintProbe
+    (noHalNoDevice = hal != null && hal.isEmpty()) off their absence branches."""
+    from agents.orchestrator.src import live_matrix
+
+    # Minimal honest dump: ro.boot.hardware=redroid is the only emulator tell;
+    # qemud / touchscreen / audio HAL are genuinely UNSET (not in the dump).
+    dump = (
+        "[sys.boot_completed]: [1]\n"
+        "[ro.build.version.sdk]: [31]\n"
+        "[ro.boot.hardware]: [redroid]\n"
+        "[persist.sys.usb.config]: [adb]\n"
+        "[ro.vendor.build.fingerprint]: [redroid/redroid_x86_64_only:12/x]\n"
+        "[ro.audio.silent.in]: []\n"
+    )
+
+    def fake_exec(container, shell_cmd):
+        if shell_cmd == "getprop":
+            return dump
+        # everything else (files, settings, wm, etc.) is empty/no-observation
+        return ""
+
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    # capture_telephony is exercised separately; stub it to keep this focused.
+    monkeypatch.setattr(live_matrix, "capture_telephony", lambda c: {
+        "IMEI": None, "SERIAL": None, "OPERATOR_NAME": None,
+        "MCC_MNC": None, "SIM_SERIAL": None,
+    })
+    snap = live_matrix.capture_live_snapshot("b2-test", "honest")
+    sp = snap["systemProperties"]
+    # genuinely-unset -> OMITTED (null), never fabricated ""
+    assert "ro.kernel.android.qemud" not in sp
+    assert "ro.hardware.touchscreen" not in sp
+    assert "ro.hardware.audio" not in sp
+    # genuinely-set -> present with real value
+    assert sp["ro.boot.hardware"] == "redroid"
+    assert sp["persist.sys.usb.config"] == "adb"
+    assert sp["ro.vendor.build.fingerprint"].startswith("redroid/")
+    # set-but-empty -> present with ""
+    assert "ro.audio.silent.in" in sp and sp["ro.audio.silent.in"] == ""
+
+
+def test_capture_dir_entries_modules_present_empty_vs_absent(monkeypatch):
+    """queryDirEntries contract: a present-but-empty /data/adb/modules yields
+    [] (dir_empty, Magisk installed); an absent/unreadable dir yields the KEY
+    OMITTED (queryDirEntries -> null, no_observation 0.0). Never fabricated."""
+    from agents.orchestrator.src import live_matrix
+
+    # present + empty
+    def fake_present_empty(container, shell_cmd):
+        return "__DIR_OK__\n"
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_present_empty)
+    de = live_matrix.capture_dir_entries("b2")
+    assert de == {"/data/adb/modules": []}
+
+    # present + modules
+    def fake_present_modules(container, shell_cmd):
+        return "__DIR_OK__\nzygisk_lsposed\nsafetynet-fix\n"
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_present_modules)
+    de = live_matrix.capture_dir_entries("b2")
+    assert de["/data/adb/modules"] == ["zygisk_lsposed", "safetynet-fix"]
+
+    # absent / unreadable -> key omitted (null observation)
+    def fake_absent(container, shell_cmd):
+        return ""
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_absent)
+    de = live_matrix.capture_dir_entries("b2")
+    assert de == {}
+
+
+def test_capture_init_svc_props_maps_service_states(monkeypatch):
+    from agents.orchestrator.src import live_matrix
+
+    def fake_exec(container, shell_cmd):
+        return (
+            "[init.svc.zygote]: [running]\n"
+            "[init.svc.adbd]: [running]\n"
+            "[ro.build.type]: [user]\n"          # non-init.svc -> excluded
+            "[init.svc.magiskd]: [stopped]\n"
+        )
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    isp = live_matrix.capture_init_svc_props("b2")
+    assert isp == {
+        "init.svc.zygote": "running",
+        "init.svc.adbd": "running",
+        "init.svc.magiskd": "stopped",
+    }
+    assert "ro.build.type" not in isp
+
+
+def test_capture_probe_filesystem_records_only_present_paths(monkeypatch):
+    """fileExists inputs: only paths that ACTUALLY exist are recorded; an
+    absent path is omitted (probe sees fileExists == false). No fabrication."""
+    from agents.orchestrator.src import live_matrix
+
+    def fake_exec(container, shell_cmd):
+        # device exposes touch event0 + the ALSA node, but no KernelSU/APatch
+        return "/dev/input/event0\n/dev/snd/controlC0\n"
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    files = live_matrix.capture_probe_filesystem("b2")
+    assert "/dev/input/event0" in files
+    assert "/dev/snd/controlC0" in files
+    assert "/data/adb/ksu" not in files
+    assert "/data/adb/ap" not in files
+
+
+def test_emitter_renders_dir_entries_and_init_svc_props():
+    import yaml
+    from agents.orchestrator.src.live_matrix import _yaml_dump_snapshot
+    snap = {
+        "label": "x", "capturedAt": "t", "sdkInt": 31,
+        "systemProperties": {"ro.boot.hardware": "redroid"},
+        "existingFiles": ["/dev/input/event0"], "readableFiles": {},
+        "settingsSecure": {}, "settingsGlobal": {}, "settingsSystem": {},
+        "telephony": {}, "installedPackages": [],
+        "dirEntries": {"/data/adb/modules": []},
+        "initSvcProps": {"init.svc.zygote": "running", "init.svc.magiskd": "stopped"},
+        "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": None, "localeLanguage": None, "localeCountry": None,
+        "displayWidthPixels": None, "displayHeightPixels": None, "displayDensityDpi": None,
+        "gpsLat": None, "gpsLng": None, "gpsAccuracy": None, "gpsProvider": None, "gpsIsMock": None,
+    }
+    parsed = yaml.safe_load(_yaml_dump_snapshot(snap))
+    # present-but-empty modules dir round-trips as []
+    assert parsed["dirEntries"]["/data/adb/modules"] == []
+    assert parsed["initSvcProps"]["init.svc.zygote"] == "running"
+    assert parsed["initSvcProps"]["init.svc.magiskd"] == "stopped"
+
+
+def test_emitter_dir_entries_with_modules_round_trips():
+    import yaml
+    from agents.orchestrator.src.live_matrix import _yaml_dump_snapshot
+    snap = {
+        "label": "x", "capturedAt": "t", "sdkInt": 31, "systemProperties": {},
+        "existingFiles": [], "readableFiles": {},
+        "settingsSecure": {}, "settingsGlobal": {}, "settingsSystem": {},
+        "telephony": {}, "installedPackages": [],
+        "dirEntries": {"/data/adb/modules": ["zygisk_lsposed", "safetynet-fix"]},
+        "initSvcProps": {},
+        "sensorTypes": [], "bluetoothMac": None,
+        "timezoneId": None, "localeLanguage": None, "localeCountry": None,
+        "displayWidthPixels": None, "displayHeightPixels": None, "displayDensityDpi": None,
+        "gpsLat": None, "gpsLng": None, "gpsAccuracy": None, "gpsProvider": None, "gpsIsMock": None,
+    }
+    parsed = yaml.safe_load(_yaml_dump_snapshot(snap))
+    assert parsed["dirEntries"]["/data/adb/modules"] == ["zygisk_lsposed", "safetynet-fix"]
+    assert parsed["initSvcProps"] == {}

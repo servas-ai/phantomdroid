@@ -1,7 +1,9 @@
 # B2 — L2/L6 identity + LTE-radio spoof on the Magisk-rooted ReDroid 12 image (RESULT)
 
 **Status:** L1 / L0b / L2 / L6 spoof layers **ACHIEVED on-device**. L5 (sensors) **GENUINELY BLOCKED** (no sensor HAL). L3 / L4 out of B2 scope.
-**Headline detector score (RE-MEASURED 2026-06-01, HONEST 83-probe snapshot panel):** **0.1697 — SUSPICIOUS, 2 critical failures** on the **83-probe** snapshot panel (= canonical 84-panel MINUS the one genuinely-live-only `KeystoreAttestationProbe`; see `../detection-cli-panel-parity/RESULT.md`). The 2 critical failures are both validator-confirmed REAL signal: **`root.su_detection = 1.0`** (rank 3, Magisk `su`) and **`integrity.play_integrity = 0.95`** (rank 2, rooted no-GMS container fails the live-verdict inference). Full-confidence root signals also firing: **`root.magisk_uds = 0.95`** (`/sbin/.magisk/device/socket` in `/proc/net/unix`) and **`root.overlayfs_present = 0.85`** (overlayfs on `/`). The build/identity/radio surface is still clean; **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` + magisk UDS + overlayfs present, not durably hideable — L4 fresh-fork blocker). NOTE: several of the firing probes (`play_integrity`, `touch_pressure`, `install_source`, `fingerprint_cross_partition`) fire partly because `live_matrix.py` does not yet capture their inputs (capture-gaps tracked in `../detection-cli-panel-parity/RESULT.md`) — the verdict is conservative-in-the-detection-direction and the genuine root signal is unaffected. The earlier **0.0850 CLEAN headline was an OVERCLAIM**; see **`CAPTURE-ROOT-HONESTY.md`**. **The 0.1853-DETECTED / 84-panel figure is itself now SUPERSEDED:** its 3rd critical was `integrity.keystore_attestation = 0.70`, which an adversarial validator confirmed is **absence-noise** — it scores that SAME 0.70 on a genuinely-clean Pixel (flagging it CRITICAL), so it is non-discriminating and was excluded from the snapshot panel. The honest aggregate with only the 2 GENUINE criticals is **0.1697 SUSPICIOUS**. (Superseded figures: 0.0850-CLEAN, 0.1403-lower-bound, 0.1279-69-probe, and 0.1853-84-probe → all replaced by **0.1697 (83-panel)**.)
+**Headline detector score (RE-MEASURED 2026-06-01, HONEST 82-probe snapshot panel — CAPTURE-GAPS CLOSED):** **0.1764 — SUSPICIOUS, 2 critical failures** on the **82-probe** snapshot panel (= canonical 84-panel MINUS the two probes that cannot be honestly assessed from a read-only `docker exec` snapshot: live-only `KeystoreAttestationProbe` AND un-capturable `IntegrityInstallSourceProbe`; see `../detection-cli-panel-parity/RESULT.md`). The 2 critical failures are both validator-confirmed REAL signal: **`root.su_detection = 1.0`** (rank 3, Magisk `su`) and **`integrity.play_integrity = 0.95`** (rank 2, rooted no-GMS container fails the live-verdict inference — `pm list packages` confirms ZERO Google packages). Full-confidence root signals also firing on REAL captured state: **`buildprop.fingerprint_cross_partition = 1.0`** (NOW a GENUINE divergent-fingerprint MHPC tell — captured `ro.vendor.build.fingerprint = redroid/redroid_x86_64_only/...` diverges from the spoofed `google/panther/...` system fp), **`root.magisk_module_dir = 0.95`** (captured `/data/adb/modules` present-but-empty → Magisk installed), **`root.magisk_uds = 0.95`**, **`root.overlayfs_present = 0.85`**, **`ui.touch_pressure = 0.95`** (captured: genuinely no `ro.hardware.touchscreen` HAL + zero `/dev/input/event*` devices), **`runtime.init_svc_enumeration = 0.5`** (62 captured `init.svc.*` services, none AOSP-canonical). The build/identity/radio surface is still clean; **root remains DETECTABLE**. 
+
+**The capture-gaps are now CLOSED, not "tracked follow-ups."** `live_matrix.py` was extended to capture the inputs the bucket-B probes previously scored from ABSENCE (vendor fingerprint, touch/audio HAL props + `/dev/input/event*` + `/dev/snd`, GMS package+props, usb config + redroid/qemud props, `/data/adb/modules` listing, `init.svc.*` map) so each probe now discriminates on the container's REAL state. The honest capture also revealed that two of the previously-firing probes were PURE absence-noise: `network.ip_asn` (0.5 → **0.0**: its `no_usb_plus_emu` signal needed an EMPTY `persist.sys.usb.config`, but the real value is `adb`) and `ui.audio_fingerprint` (its no-HAL branch needs a SET-EMPTY prop, but `ro.hardware.audio` is genuinely UNSET → null → clean). `integrity.install_source` (0.85) was EXCLUDED (un-capturable). Net vs the prior 0.1697/83-panel: fingerprint_cross_partition rose 0.85→1.0 (real divergence > absence-guess) and magisk_module_dir/init_svc rose from 0.0 (genuine root signals now MEASURED), while install_source/network.ip_asn/audio absence-noise was removed — the honest figure is **0.1764 SUSPICIOUS, 2 GENUINE critical**. The earlier **0.0850 CLEAN headline was an OVERCLAIM**; see **`CAPTURE-ROOT-HONESTY.md`**. (Superseded figures: 0.0850-CLEAN, 0.1403-lower-bound, 0.1279-69-probe, 0.1853-84-probe, and 0.1697-83-probe → all replaced by **0.1764 (82-panel, capture-gaps closed)**.)
 **Posture:** hardened, NON-privileged (B4 recipe via `container_lifecycle.build_hardened_run_argv`), Magisk-rooted (`redroid/redroid:12.0.0_magisk`, B1).
 **Launcher:** `agents/stability/stack/launch-l2-l6-sensor-lte-spoof.sh`
 **Container under test:** `b2-build-work` (also relaunched as `b2-l2l6-*` / `b2-fix` for the snapshot pass).
@@ -37,7 +39,8 @@ Supporting "post-boot overlay" hardening also applied by the launcher (not core 
 | `after` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | + L2/L6 props; honest su/Magisk-path capture (`su_detection=1.0`) **+ mount-ns/UDS capture → `magisk_uds=0.95`, `overlayfs_present=0.85` now MEASURED at full confidence** |
 | `after-augmented` (RE-MEASURED, fuller capture, 69-probe) | **0.1279** | **SUSPICIOUS** | same device state, telephony-aware + full root-surface capture incl. `/proc/{self,1}/mountinfo` + `/proc/net/unix` |
 | ~~`parity-build`-fresh (84-probe panel, SUPERSEDED)~~ | ~~0.1853~~ | ~~DETECTED~~ | **SUPERSEDED** — its 3rd critical `keystore_attestation=0.70` is absence-noise (same 0.70 on a clean Pixel); excluded → see row below |
-| **`parity-build`-fresh (RE-MEASURED 2026-06-01, HONEST 83-probe snapshot panel)** | **0.1697** | **SUSPICIOUS** | **same device state, fresh live boot+capture, 83-probe panel (canonical 84 MINUS live-only `keystore_attestation`) — 2 GENUINE critical (`su_detection=1.0`, `play_integrity=0.95`). See `../detection-cli-panel-parity/RESULT.md`.** |
+| ~~`parity-build`-fresh (83-probe panel, SUPERSEDED)~~ | ~~0.1697~~ | ~~SUSPICIOUS~~ | **SUPERSEDED** — still carried absence-noise (`install_source=0.85`, `network.ip_asn=0.5`, `fingerprint_cross_partition=0.85`-vendor_absent, `touch_pressure` from uncaptured inputs); capture-gaps now closed → see row below |
+| **`an-build`-honest (RE-MEASURED 2026-06-01, HONEST 82-probe panel — CAPTURE-GAPS CLOSED)** | **0.1764** | **SUSPICIOUS** | **fresh live boot+capture with EXTENDED `live_matrix.py` (vendor fp, touch/audio/usb/redroid props, `/dev/input/event*`, `/data/adb/modules`, `init.svc.*`); 82-probe panel (canonical 84 MINUS live-only `keystore_attestation` + un-capturable `install_source`). Every nonzero probe now scores its REAL captured state — 2 GENUINE critical (`su_detection=1.0`, `play_integrity=0.95`); `fingerprint_cross_partition=1.0` is now a GENUINE divergent-vendor-fp tell. Snapshot+report: `an-build-honest-{snapshot.yml,report.json}`. See `../detection-cli-panel-parity/RESULT.md`.** |
 | ~~`after-augmented` (CORRECTED, 65-probe lower bound)~~ | ~~0.1403~~ | ~~SUSPICIOUS~~ | **LOWER BOUND** — mount-ns/UDS probes absent from panel + no capture data; see §3a |
 | ~~`after-augmented` (old, SUPERSEDED)~~ | ~~0.0850~~ | ~~CLEAN~~ | **OVERCLAIM** — capture under-reported root (`su_detection=0.0`); see `CAPTURE-ROOT-HONESTY.md` |
 
@@ -99,6 +102,70 @@ REAL signals; only the non-discriminating keystore noise was removed. Several of
 the remaining firing probes are amplified by live_matrix capture-gaps (their
 inputs aren't read yet); those gaps are tracked as follow-ups in the parity
 RESULT and do not affect the genuine root signal.
+
+### 3a-ter. Capture-gaps CLOSED (2026-06-01) — honest 0.1764 SUSPICIOUS (82-panel)
+
+The 0.1697/83-panel figure above still rested on **absence-noise**: four
+bucket-B probes scored nonzero on B2 because `live_matrix.py` did not capture
+their inputs, so they hit an "absent → anomalous" branch. This was the SAME
+class of bug as the excluded keystore probe — just on non-critical probes that
+slipped the clean-fixture gate. Each of the 14 newly-registered bucket-B probes
+was re-classified **A/B/C/D** (see `../detection-cli-panel-parity/RESULT.md` for
+the full table) and acted on:
+
+- **A — CAPTURABLE (extend `live_matrix.py`):** `fingerprint_cross_partition`
+  (capture `ro.vendor.build.fingerprint`), `touch_pressure` (capture
+  `ro.hardware.touchscreen` + `/dev/input/event0..4`), `play_integrity` (capture
+  GMS package + `ro.com.google.*`/`ro.boot.veritymode`), `network.ip_asn`
+  (capture `persist.sys.usb.config` + `redroid.*`/qemud/docker props), plus the
+  genuinely-capturable root/runtime inputs `magisk_module_dir`
+  (`/data/adb/modules` listing), `init_svc_enumeration` (`init.svc.*` map),
+  `kernelsu`/`apatch` (`/data/adb/{ksu*,ap*}`), `audio_fingerprint`
+  (`ro.hardware.audio` + `/dev/snd/controlC0`).
+- **B — UN-CAPTURABLE on the snapshot path (EXCLUDE):** `install_source`. Its
+  only signal is the detector app's OWN `PackageManager.getInstallSourceInfo()`
+  — an APPLICATION-layer fact a read-only `docker exec` harness is NOT running
+  inside and cannot observe. Its uncaptured `null` is a false 0.85
+  absence-nonzero, exactly like keystore. **Excluded** (`EXPECTED_COUNT`
+  83 → 82); retained in the canonical/live panel.
+- **C — ALREADY-GENUINE:** none left firing from absence after A. (The prior
+  doc's `network.ip_asn = 0.5` "genuine" claim was WRONG — `ro.boot.hardware`
+  alone fires NO signal; the 0.5 came from the absence-fabricated empty
+  `persist.sys.usb.config`. Real value is `adb` → signal does not fire → 0.0.)
+- **D — BENIGN-ABSENT (0.0, keep):** the native frida/prologue/GOT probes +
+  `third_party_artifacts` (positive-observation only; absent → 0.0).
+
+**The decisive honesty fix:** the prop capture was rewritten to parse the FULL
+`getprop` bracket-dump (`[key]: [value]`) so a GENUINELY-UNSET prop is OMITTED
+from `systemProperties` (→ `getSystemProperty` null) instead of being recorded
+as a fabricated empty string. The previous `getprop <key>` form printed empty
+for BOTH unset and set-empty props, so adding new keys with a `""` default
+created NEW false-presence signals (e.g. `network.ip_asn`'s
+`qemudExists = prop != null` fired on a `""` for a prop that does not exist).
+With the dump parse, `qemud`/`touchscreen`/`audio` HAL are correctly null on
+ReDroid and the probes score their honest branch.
+
+**Result on the fresh `an-build` boot, 82-panel:** **0.1764 — SUSPICIOUS, 2
+GENUINE critical.** Per-probe honesty:
+
+| probe | prior (83-panel) | honest (82-panel) | why the change is HONEST |
+|-------|------------------|-------------------|--------------------------|
+| `buildprop.fingerprint_cross_partition` | 0.85 `vendor_absent` (absence) | **1.0 `divergent_fingerprints`** | captured real `ro.vendor.build.fingerprint=redroid/...` DIVERGES from spoofed Pixel system fp — a GENUINE MHPC tell, stronger than the absence-guess |
+| `ui.touch_pressure` | 0.95 (from uncaptured props) | **0.95 `no_touch_hal`** (GENUINE) | captured: `ro.hardware.touchscreen` genuinely unset + ZERO `/dev/input/event*` — ReDroid truly has no touchscreen HAL |
+| `root.magisk_module_dir` | 0.0 (uncaptured dir) | **0.95 `dir_empty`** | captured `/data/adb/modules` present-but-empty → Magisk genuinely installed (was UNDER-reported) |
+| `runtime.init_svc_enumeration` | 0.0 (uncaptured) | **0.5 `few_unknown_services`** | captured 62 real `init.svc.*` services, none AOSP-canonical |
+| `integrity.play_integrity` | 0.95 (capture-amplified) | **0.95 `NO_VERDICT`** (GENUINE) | `pm list packages` confirms ZERO Google packages — the container truly has no GMS |
+| `network.ip_asn` | 0.5 (absence) | **0.0** | real `persist.sys.usb.config=adb` (not empty) → `no_usb_plus_emu` does NOT fire; absence-noise removed |
+| `ui.audio_fingerprint` | 0.0 | **0.0** | `ro.hardware.audio` genuinely unset → null → clean (no false set-empty tell) |
+| `integrity.install_source` | 0.85 (absence) | **EXCLUDED** | un-capturable APPLICATION-layer fact — removed from panel |
+
+No probe now contributes a nonzero score to B2 from absence-of-capture: every
+firing probe scores its REAL captured value, or is excluded. The 2 genuine
+criticals (`root.su_detection=1.0`, `integrity.play_integrity=0.95`) remain. The
+aggregate moved **0.1697 → 0.1764** (UP), because closing the gaps added two
+genuine root signals (`magisk_module_dir`, `init_svc`) and turned the
+fingerprint tell from a 0.85 guess into a 1.0 measured divergence, which
+outweighs removing the install_source / network.ip_asn absence-noise.
 
 ---
 

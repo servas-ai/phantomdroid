@@ -1,4 +1,21 @@
-# detection-cli panel parity — 69 → 84 → 83 probes (snapshot panel = canonical minus 1 live-only)
+# detection-cli panel parity — 69 → 84 → 83 → 82 probes (snapshot panel = canonical minus 2 un-snapshot-able)
+
+> **CAPTURE-GAP CLOSURE (2026-06-01, builder follow-up — supersedes the
+> "tracked follow-up" hand-waving below):** every bucket-B probe that scored
+> nonzero on B2 **from absence of capture** has been resolved. The 14
+> newly-registered bucket-B probes were re-classified **A/B/C/D** and acted on:
+> the CAPTURABLE ones (A) are now captured by an extended `live_matrix.py`
+> (vendor fingerprint, touch/audio HAL props + `/dev/input/event*` + `/dev/snd`,
+> GMS package+props, usb config + redroid/qemud props, `/data/adb/modules`
+> listing, `init.svc.*` map) so they discriminate on the container's REAL state;
+> the UN-CAPTURABLE one (B) — `IntegrityInstallSourceProbe`, whose only signal
+> is the detector app's OWN `getInstallSourceInfo()` (an APPLICATION-layer fact
+> a `docker exec` capture cannot observe) — was **EXCLUDED** like keystore
+> (`EXPECTED_COUNT` 83 → **82**). The honest B2 re-measure on the **82-panel** is
+> **0.1764 SUSPICIOUS, 2 GENUINE critical** (see the
+> **Capture-gap closure (A/B/C/D resolution)** section at the bottom + the full
+> per-probe table in `../b2-sensor-lte/RESULT.md` §3a-ter). Relationship:
+> `CLI(82) == canonical(84) − {KeystoreAttestationProbe, IntegrityInstallSourceProbe}`.
 
 **Date:** 2026-06-01
 **Branch:** session/e2e-2026-05-30
@@ -60,21 +77,21 @@ network) is *honored by* `NetworkIpAsnProbe` precisely because it is declarative
 
 | # | Probe | Accessors | Impl in SnapshotReplayContext? | Backing field populated by live_matrix? | Bucket | Registered? |
 |---|-------|-----------|-------------------------------|-----------------------------------------|--------|-------------|
-| 1 | APatchRootProbe | fileExists, getSystemProperty | yes | `existingFiles` populated; `/data/adb/ap` NOT in capture path-set; `ro.apatch.*` NOT in `_PROP_KEYS` | **B** | yes |
-| 2 | KernelSURootProbe | fileExists, getSystemProperty | yes | `existingFiles` populated; `/data/adb/ksu*` NOT in capture path-set; `ro.kernelsu.version` NOT in `_PROP_KEYS` | **B** | yes |
-| 3 | MagiskModuleDirProbe | queryDirEntries | yes | `dirEntries` NOT populated (capture never lists `/data/adb/modules` contents) | **B** | yes |
-| 4 | FingerprintCrossPartitionProbe | getSystemProperty | yes | `ro.build.fingerprint` populated; `ro.vendor.build.fingerprint` NOT in `_PROP_KEYS` | **B** | yes |
-| 5 | ThirdPartyEmulatorArtifactsProbe | fileExists | yes | `existingFiles` populated; Nox/Andy/MEmu/BlueStacks init.rc paths NOT in capture path-set | **B** | yes |
-| 6 | InitSvcEnumerationProbe | queryInitSvcProps | yes | `initSvcProps` NOT populated (capture reads only `init.svc.zygote` as a flat prop, not the enumerated map) | **B** | yes |
-| 7 | FridaMemoryMapsProbe | queryProcSelfMapsLibs, queryRuntimeThreadNames, queryOpenTcpPorts | yes | none populated (native-side `/proc/self/maps` + task comm + `/proc/net/tcp` not captured) | **B** | yes |
-| 8 | NativePrologueHashProbe | queryPrologueHashDeltas, queryTrampolinePatternCount | yes | none populated (needs a native ptrace harness) | **B** | yes |
-| 9 | PrologueGotHooksProbe | queryGotPltAnomalies, queryRwxpMemorySegments | yes | none populated (needs a native GOT walker) | **B** | yes |
-| 10 | IntegrityInstallSourceProbe | queryInstallSourcePackage | yes | `installSourcePackage` NOT populated | **B** | yes |
-| 11 | NetworkIpAsnProbe | getSystemProperty, readFile | yes | `ro.boot.hardware` populated (REAL signal); `redroid.*`/`qemud`/`ro.docker.*` NOT in `_PROP_KEYS`; `/proc/net/route` NOT in `readableFiles` | **A/B (partial)** | yes |
-| 12 | PlayIntegrityLiveProbe | getSystemProperty, queryPackageManager | yes | `ro.boot.flash.locked` populated (REAL); GMS package + `ro.com.google.*` + `ro.boot.veritymode` NOT captured | **B** | yes |
-| 13 | KeystoreAttestationProbe | fileExists, getSystemProperty | yes | only non-zero snapshot branch is `SCORE_HARDWARE_KEYSTORE_ABSENT=0.70` from ABSENCE of `ro.hardware.keystore`/`/dev/keymaster` — fires 0.70 identically on clean Pixel/Samsung AND ReDroid (non-discriminating); real attestation needs a LIVE TEE challenge | **C (live-only)** | **NO — excluded** |
-| 14 | AudioFingerprintProbe | fileExists, getSystemProperty | yes | `ro.hardware.audio`/`/dev/snd/*`/`persist.audio.*` NOT captured | **B** | yes |
-| 15 | TouchPressureProbe | fileExists, getSystemProperty | yes | `ro.hardware.touchscreen`/`/dev/input/event*` NOT captured | **B** | yes |
+| 1 | APatchRootProbe | fileExists, getSystemProperty | yes | absent-branch 0.0; NOW captures `/data/adb/ap*` (none present → clean) | **D→A (captured)** | yes |
+| 2 | KernelSURootProbe | fileExists, getSystemProperty | yes | absent-branch 0.0; NOW captures `/data/adb/ksu*` (none present → clean) | **D→A (captured)** | yes |
+| 3 | MagiskModuleDirProbe | queryDirEntries | yes | NOW captures `/data/adb/modules` listing → B2 = present-but-empty → **0.95 GENUINE** (Magisk installed) | **A (captured)** | yes |
+| 4 | FingerprintCrossPartitionProbe | getSystemProperty | yes | NOW captures `ro.vendor.build.fingerprint` → B2 vendor=redroid DIVERGES from spoofed system → **1.0 GENUINE** | **A (captured)** | yes |
+| 5 | ThirdPartyEmulatorArtifactsProbe | fileExists | yes | absent-branch 0.0 (positive-observation only; Nox/MEmu init.rc genuinely absent) | **D** | yes |
+| 6 | InitSvcEnumerationProbe | queryInitSvcProps | yes | NOW captures the full `init.svc.*` map → B2 = 62 services, few_unknown → **0.5 GENUINE** | **A (captured)** | yes |
+| 7 | FridaMemoryMapsProbe | queryProcSelfMapsLibs, queryRuntimeThreadNames, queryOpenTcpPorts | yes | absent-branch 0.0 (positive-observation only; native ptrace harness out of scope) | **D** | yes |
+| 8 | NativePrologueHashProbe | queryPrologueHashDeltas, queryTrampolinePatternCount | yes | absent-branch 0.0 (native ptrace harness out of scope) | **D** | yes |
+| 9 | PrologueGotHooksProbe | queryGotPltAnomalies, queryRwxpMemorySegments | yes | absent-branch 0.0 (native GOT walker out of scope) | **D** | yes |
+| 10 | IntegrityInstallSourceProbe | queryInstallSourcePackage | yes | absent-branch 0.85 `unknown_installer`; signal is the detector app's OWN `getInstallSourceInfo()` — an APPLICATION-layer fact a `docker exec` capture is NOT inside the app to observe → un-capturable on the snapshot path | **B (un-capturable) → EXCLUDED** | **NO — excluded** |
+| 11 | NetworkIpAsnProbe | getSystemProperty, readFile | yes | NOW captures `persist.sys.usb.config`/`redroid.*`/qemud → B2 usb=`adb` (not empty), qemud unset → **0.0** (prior 0.5 was absence-noise, NOT a genuine board inference) | **A (captured)** | yes |
+| 12 | PlayIntegrityLiveProbe | getSystemProperty, queryPackageManager | yes | NOW captures GMS package + `ro.com.google.*` → B2 has ZERO Google pkgs → **0.95 GENUINE** noGmsAtAll | **A (captured)** | yes |
+| 13 | KeystoreAttestationProbe | fileExists, getSystemProperty | yes | only non-zero snapshot branch is `SCORE_HARDWARE_KEYSTORE_ABSENT=0.70` from ABSENCE of `ro.hardware.keystore`/`/dev/keymaster` — fires 0.70 identically on clean Pixel/Samsung AND ReDroid (non-discriminating); real attestation needs a LIVE TEE challenge | **C (live-only) → EXCLUDED** | **NO — excluded** |
+| 14 | AudioFingerprintProbe | fileExists, getSystemProperty | yes | NOW captures `ro.hardware.audio`/`/dev/snd/controlC0` → B2 HAL genuinely UNSET (null, not set-empty) → **0.0 clean** (the no-HAL branch needs a SET-EMPTY prop; honest capture gives null) | **A (captured)** | yes |
+| 15 | TouchPressureProbe | fileExists, getSystemProperty | yes | NOW captures `ro.hardware.touchscreen` + `/dev/input/event0..4` → B2 genuinely no HAL + 0 event devices → **0.95 GENUINE** no_touch_hal | **A (captured)** | yes |
 
 **Bucket A (scoreable + data fully captured today):** none are purely-A; the
 closest is NetworkIpAsnProbe whose `ro.boot.hardware` input IS captured (so it
@@ -251,3 +268,92 @@ verdict, `live_matrix.capture_live_snapshot` must additionally capture:
 
 None of these were fabricated for the B2 measurement — the absent fields stay
 empty/default and the probes score their honest conservative branch.
+
+---
+
+## Capture-gap closure (A/B/C/D resolution) — 2026-06-01
+
+The "Tracked capture-gap follow-ups" list above is now **CLOSED**. Every
+bucket-B probe was re-classified and acted on; no probe contributes a nonzero
+score to B2 from absence-of-capture anymore.
+
+### `live_matrix.py` extensions (A — CAPTURABLE)
+
+`capture_live_snapshot` now additionally captures (all read-only `docker exec`,
+nothing fabricated; a genuinely-absent input stays null/empty so the probe
+scores its honest branch):
+
+1. **Prop dump rewrite (the decisive honesty fix):** props are now parsed from
+   the FULL `getprop` bracket-dump (`[key]: [value]`) via `_parse_getprop_dump`.
+   A genuinely-UNSET prop is OMITTED from `systemProperties` (→
+   `getSystemProperty` null); a SET-EMPTY prop (`[key]: []`) is recorded as `""`.
+   The previous `getprop <key>` form could not distinguish the two and recorded
+   every requested key as `""` (non-null) — which FABRICATES presence for probes
+   that key off non-null-ness (`NetworkIpAsn.qemudExists = prop != null`,
+   `Audio.noHalNoDevice = hal != null && hal.isEmpty()`). This eliminated the
+   only NEW absence-noise the extension could have introduced.
+2. `ro.vendor.build.fingerprint` (+ touch/audio/usb/gms/redroid prop keys) added
+   to `_PROP_KEYS`.
+3. `capture_probe_filesystem` — `/dev/input/event0..4`, `/dev/snd/controlC0`,
+   `/data/adb/{ksu,ksud,ap,ap/bin/apd}` (records only paths that exist).
+4. `capture_dir_entries` — `/data/adb/modules` listing → `dirEntries` map
+   (present-empty `[]` = Magisk installed; absent = key omitted → null).
+5. `capture_init_svc_props` — the full `init.svc.*` map → `initSvcProps`.
+
+The SnapshotDto already deserialized `dirEntries` / `initSvcProps`; the YAML
+emitter was extended to render them.
+
+### Exclusion (B — UN-CAPTURABLE on the snapshot path)
+
+`IntegrityInstallSourceProbe` (`integrity.install_source`) was **removed from
+`ProbeRegistry.allProbes()`** and **`EXPECTED_COUNT` set 83 → 82**. Its only
+signal is the detector app's OWN `PackageManager.getInstallSourceInfo()` — an
+APPLICATION-layer fact observable only from inside the running detector app. The
+`live_matrix` capture is a read-only `docker exec` harness NOT running inside
+that app, so the field is structurally un-capturable on the snapshot path and
+its uncaptured `null` is a false 0.85 absence-nonzero (the same class as
+keystore). It is retained in the canonical/live `FullProbeRunnerSpoofTest` panel
+(84). Relationship asserted in code + the count test:
+`CLI(82) == canonical(84) − {KeystoreAttestationProbe, IntegrityInstallSourceProbe}`.
+
+### Clean-fixture verification on the 82-panel (the bar: 0 critical, no absence-noise)
+
+| fixture | totalProbes | weightedScore | criticalFailures | anyDetected | category |
+|---------|-------------|---------------|------------------|-------------|----------|
+| Pixel7Clean | 82 | 0.1010 | **0** | false | CLEAN (exit 0) |
+| SamsungS22Clean | 82 | 0.0720 | **0** | false | CLEAN (exit 0) |
+| RedroidSpoofed | 82 | **0.0000** | **0** | false | CLEAN (exit 0) |
+
+Both real-device clean fixtures stay **0 critical**. NONE of the resolved
+bucket-B probes (`fingerprint_cross_partition`, `touch_pressure`,
+`magisk_module_dir`, `init_svc_enumeration`, `play_integrity`, `network.ip_asn`,
+`audio_fingerprint`) fires on either clean fixture (their clean-branch inputs are
+populated by the in-source fixtures). The Pixel7Clean residual 0.1010 is driven
+by **pre-existing** fixture-data probes (`identity.android_id` `(null)`,
+`env.language_country` `<unreadable>`), NOT introduced here and NOT criticals.
+`RedroidSpoofed` is now **strictly exactly 0.0** — the install_source 0.05 floor
+that was the sole permitted residual is gone (probe excluded), so the
+`ReplaySnapshotCliTest` CLEAN invariant tightened to "NO probe scores > 0.0".
+
+### Honest B2 re-measure (the payoff)
+
+Fresh ONE-container boot (`an-build`, port 5825, `build_hardened_run_argv`,
+Privileged=false, root uid=0), live-captured via the EXTENDED
+`live_matrix.capture_live_snapshot`, scored on the 82-panel. Container + datadir
+removed after.
+
+| panel | weightedScore | criticalFailures | category |
+|-------|---------------|------------------|----------|
+| 69-probe (prior) | 0.1279 | 1 | SUSPICIOUS |
+| 83-probe (keystore excluded; SUPERSEDED — still carried absence-noise) | 0.1697 | 2 | SUSPICIOUS |
+| **82-probe (HONEST — capture-gaps CLOSED, install_source excluded)** | **0.1764** | **2** | **SUSPICIOUS** |
+
+The aggregate moved **0.1697 → 0.1764** (UP). WHY (honest): closing the gaps
+added two GENUINE root signals that were previously UNDER-reported
+(`magisk_module_dir` 0.0→0.95, `init_svc_enumeration` 0.0→0.5) and turned the
+fingerprint tell from a 0.85 absence-guess into a **1.0 measured vendor
+divergence** — these outweigh removing the `install_source` (0.85) and
+`network.ip_asn` (0.5) absence-noise. The 2 GENUINE criticals remain:
+`root.su_detection = 1.0` and `integrity.play_integrity = 0.95`. Snapshot +
+report: `../b2-sensor-lte/an-build-honest-{snapshot.yml,report.json}`. Full
+per-probe before/after table: `../b2-sensor-lte/RESULT.md` §3a-ter.

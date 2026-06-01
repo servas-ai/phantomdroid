@@ -56,8 +56,24 @@ class CliIntegrationTest {
         val probes = ProbeRegistry.allProbes(ctx)
         assertEquals(
             ProbeRegistry.EXPECTED_COUNT, probes.size,
-            "ProbeRegistry must match the 83-probe snapshot inventory " +
-                "(canonical 84-probe panel MINUS the live-only KeystoreAttestationProbe)",
+            "ProbeRegistry must match the 82-probe snapshot inventory " +
+                "(canonical 84-probe panel MINUS the two probes that cannot be " +
+                "honestly assessed from a read-only snapshot: KeystoreAttestationProbe " +
+                "+ IntegrityInstallSourceProbe)",
+        )
+        // CLI(82) == canonical(84) − {keystore_attestation, install_source}:
+        // both excluded IDs must be ABSENT from the snapshot panel (they fired
+        // false absence-nonzero scores from inputs the snapshot path cannot
+        // observe). They remain in the canonical/live FullProbeRunnerSpoofTest.
+        val ids = probes.map { it.id }.toSet()
+        assertTrue(
+            "integrity.keystore_attestation" !in ids,
+            "KeystoreAttestationProbe must be EXCLUDED from the snapshot panel (live-only)",
+        )
+        assertTrue(
+            "integrity.install_source" !in ids,
+            "IntegrityInstallSourceProbe must be EXCLUDED from the snapshot panel " +
+                "(its getInstallSourceInfo() signal is un-capturable by the docker-exec live path)",
         )
 
         val runner = ProbeRunner(

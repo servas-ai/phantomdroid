@@ -1,19 +1,32 @@
 // agents/detection-cli/src/main/kotlin/com/detectorlab/cli/ProbeRegistry.kt
 //
-// Explicit instantiation of the CLI SNAPSHOT production inventory (83 probes).
+// Explicit instantiation of the CLI SNAPSHOT production inventory (82 probes).
 // This is the canonical `FullProbeRunnerSpoofTest.allProbes()` 84-probe panel
-// MINUS the one genuinely-live-only probe `KeystoreAttestationProbe`
-// (id `integrity.keystore_attestation`). Hardware-backed key attestation can
-// only be honestly assessed via a LIVE TEE challenge-response; its static
-// snapshot proxy scores SCORE_HARDWARE_KEYSTORE_ABSENT=0.70 from mere ABSENCE
-// of `ro.hardware.keystore` / `/dev/keymaster` — fields that real clean-device
-// snapshots (Pixel7Clean, SamsungS22Clean) do not record — so the snapshot
-// proxy fires 0.70 IDENTICALLY on a clean Pixel, a clean Samsung, and a
-// ReDroid container. It is non-discriminating absence-noise on the snapshot
-// panel and is therefore EXCLUDED here (bucket-C live-only). It REMAINS in the
-// canonical/live FullProbeRunnerSpoofTest panel (84) for the live detection
-// path, where a real attestation challenge can run. See
-// proof/detection-cli-panel-parity/RESULT.md.
+// MINUS the two genuinely-live-only / un-capturable probes:
+//   1. `KeystoreAttestationProbe` (id `integrity.keystore_attestation`).
+//      Hardware-backed key attestation can only be honestly assessed via a
+//      LIVE TEE challenge-response; its static snapshot proxy scores
+//      SCORE_HARDWARE_KEYSTORE_ABSENT=0.70 from mere ABSENCE of
+//      `ro.hardware.keystore` / `/dev/keymaster` — fields real clean-device
+//      snapshots do not record — so it fires 0.70 IDENTICALLY on clean Pixel,
+//      clean Samsung, and a ReDroid container (non-discriminating
+//      absence-noise).
+//   2. `IntegrityInstallSourceProbe` (id `integrity.install_source`).
+//      Its only signal is `PackageManager.getInstallSourceInfo()` — the
+//      installer-package of the DETECTOR APP ITSELF, an APPLICATION-layer fact
+//      observable only from inside the running app process. The live_matrix
+//      capture is a read-only `docker exec` harness that is NOT running inside
+//      the detector app and CANNOT observe the app's installer, so the field
+//      is structurally un-capturable on the snapshot path. Its uncaptured
+//      `null` hits PATTERN_UNKNOWN_INSTALLER=0.85 — a false absence-nonzero
+//      that inflated B2 exactly like the keystore probe. Excluded here
+//      (bucket-C, un-capturable on the snapshot path) and RETAINED in the
+//      canonical/live panel where the app's real install source is available.
+// Both REMAIN in the canonical/live FullProbeRunnerSpoofTest panel (84) for
+// the live detection path. See proof/detection-cli-panel-parity/RESULT.md.
+//
+// Relationship: CLI(82) == canonical(84) − {KeystoreAttestationProbe,
+//                                            IntegrityInstallSourceProbe}.
 //
 // The four mount-namespace / UDS root probes
 // (MountNsMismatch / OverlayFsPresent / SystemRwMount / MagiskUds) were added
@@ -87,7 +100,6 @@ import com.detectorlab.probes.identity.SimIccidProbe
 import com.detectorlab.probes.identity.WifiMacProbe
 import com.detectorlab.probes.identity.WifiSsidBssidProbe
 import com.detectorlab.probes.integrity.AppSignatureProbe
-import com.detectorlab.probes.integrity.IntegrityInstallSourceProbe
 import com.detectorlab.probes.integrity.PlayIntegrityLiveProbe
 import com.detectorlab.probes.integrity.PlayIntegrityProbe
 import com.detectorlab.probes.integrity.PrologueGotHooksProbe
@@ -130,18 +142,20 @@ import com.detectorlab.probes.ui.SystemFontsProbe
 import com.detectorlab.probes.ui.TouchPressureProbe
 
 /**
- * The CLI SNAPSHOT probe inventory (83 probes) — the canonical
+ * The CLI SNAPSHOT probe inventory (82 probes) — the canonical
  * `FullProbeRunnerSpoofTest.allProbes()` 84-probe panel in the :detection test
- * source set MINUS the one genuinely-live-only probe `KeystoreAttestationProbe`
- * (`integrity.keystore_attestation`). TEE hardware-key attestation needs a LIVE
- * challenge-response; its static snapshot proxy is non-discriminating
- * absence-noise (fires 0.70 identically on clean Pixel/Samsung and ReDroid), so
- * it is excluded from the snapshot panel but retained in the canonical/live
- * panel. Relationship: CLI(83) == canonical(84) − {KeystoreAttestationProbe}.
+ * source set MINUS the two probes that cannot be honestly assessed from a
+ * read-only snapshot: `KeystoreAttestationProbe` (`integrity.keystore_attestation`,
+ * needs a live TEE challenge — non-discriminating 0.70 absence-noise) and
+ * `IntegrityInstallSourceProbe` (`integrity.install_source`, reads the detector
+ * app's own `getInstallSourceInfo()` — an APPLICATION-layer fact the docker-exec
+ * live capture cannot observe, so its uncaptured `null` is a false 0.85
+ * absence-nonzero). Both are retained in the canonical/live panel. Relationship:
+ * CLI(82) == canonical(84) − {KeystoreAttestationProbe, IntegrityInstallSourceProbe}.
  */
 object ProbeRegistry {
 
-    const val EXPECTED_COUNT: Int = 83
+    const val EXPECTED_COUNT: Int = 82
 
     fun allProbes(ctx: ProbeContext): List<Probe> = listOf(
         // app (2)
@@ -192,11 +206,14 @@ object ProbeRegistry {
         SimIccidProbe(),
         WifiMacProbe(),
         WifiSsidBssidProbe(),
-        // integrity (5) — KeystoreAttestationProbe EXCLUDED (live-only, bucket-C;
-        // TEE attestation needs a live challenge — its snapshot proxy is
-        // non-discriminating absence-noise). It stays in the canonical/live panel.
+        // integrity (4) — two probes EXCLUDED (both retained in canonical/live panel):
+        //  • KeystoreAttestationProbe (live-only; TEE attestation needs a live
+        //    challenge — its snapshot proxy is non-discriminating 0.70 absence-noise).
+        //  • IntegrityInstallSourceProbe (un-capturable on the snapshot path; its
+        //    only signal is the detector app's OWN getInstallSourceInfo(), an
+        //    APPLICATION-layer fact a docker-exec capture cannot observe — uncaptured
+        //    null = false 0.85 absence-nonzero that inflated B2).
         AppSignatureProbe(),
-        IntegrityInstallSourceProbe(),
         PlayIntegrityLiveProbe(),
         PlayIntegrityProbe(),
         PrologueGotHooksProbe(),
