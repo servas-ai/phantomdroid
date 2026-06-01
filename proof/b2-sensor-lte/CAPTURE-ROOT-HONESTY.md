@@ -299,3 +299,34 @@ absence-noise. Snapshot+report: `an-build-honest-{snapshot.yml,report.json}`;
 full A/B/C/D resolution: `../detection-cli-panel-parity/RESULT.md` + this
 file's sibling `RESULT.md` §3a-ter. The capture-gaps are now CLOSED — no probe
 contributes a nonzero score to B2 from absence-of-capture.
+
+### Addendum (2026-06-01, later still) — cross-partition vendor-fp tell CLOSED; 82-probe HONEST headline `0.1541 SUSPICIOUS`
+
+The `0.1764` figure above was honest but reflected a REAL, fixable weakness:
+the L1 spoof set `ro.build.fingerprint` to a Pixel-7 value but left the
+vendor/product/odm/etc. partition fingerprints at redroid's defaults, so
+`buildprop.fingerprint_cross_partition` (Momo probe #9.5) GENUINELY fired at
+1.0 — the canonical MagiskHidePropsConfig "system spoofed, vendor untouched"
+tell. This is now CLOSED as a **real spoof improvement, not a measurement
+change**: the launcher's L1 resetprop block sets ALL partition build
+fingerprints — `ro.vendor.build.fingerprint`, `ro.product.build.fingerprint`,
+`ro.odm.build.fingerprint`, `ro.system.build.fingerprint`,
+`ro.system_ext.build.fingerprint`, `ro.bootimage.build.fingerprint` —
+byte-identical to the spoofed Pixel-7 system fp
+(`google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys`),
+matching a factory-clean Pixel where every partition carries the same
+OEM-pipeline fingerprint.
+
+**Honesty check (signal not hidden by under-capture):** `live_matrix.py` still
+captures `ro.vendor.build.fingerprint` (it is in the snapshot at line 35 with
+the now-spoofed Pixel value), and on-device `docker exec vfp-build su -c
+'getprop ...'` confirmed all 7 partition fingerprints are byte-identical. The
+probe scores `partitions_consistent`/0.0 because the partitions GENUINELY match
+on the device — NOT because capture stopped recording the vendor fp.
+
+Fresh ONE-container boot (`vfp-build`, hardened non-privileged, root uid=0),
+82-panel: **0.1541 — SUSPICIOUS, 2 GENUINE critical** (`root.su_detection=1.0`,
+`integrity.play_integrity=0.95`). `buildprop.fingerprint_cross_partition`
+dropped **1.0 → 0.0**; the aggregate dropped **0.1764 → 0.1541**. **The B2
+headline is updated to `0.1541 SUSPICIOUS`; `0.1764` and all earlier figures are
+superseded.** Snapshot+report: `L1-L0b-L2-L6-{snapshot.yml,report.json}`.

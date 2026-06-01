@@ -88,6 +88,17 @@ docker exec "$NAME" su -c "
   \$RP ro.board.platform gs201
   \$RP ro.hardware gs201
   \$RP ro.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  # Cross-partition fingerprint coherence (probe #9.5 buildprop.fingerprint_cross_partition):
+  # a factory-clean Pixel 7 carries the SAME OEM-pipeline fingerprint on EVERY partition
+  # (system/vendor/product/odm/system_ext/bootimage). Leaving any partition at redroid's value
+  # creates a divergence that MHPC-detection (Momo) scores 1.0. Set ALL partitions byte-identical
+  # to the system fingerprint so the cross-partition divergence rule no longer fires.
+  \$RP ro.vendor.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  \$RP ro.product.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  \$RP ro.odm.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  \$RP ro.system.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  \$RP ro.system_ext.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
+  \$RP ro.bootimage.build.fingerprint 'google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys'
   \$RP ro.build.display.id TQ3A.230805.001
   \$RP ro.build.tags release-keys
   \$RP ro.build.type user
