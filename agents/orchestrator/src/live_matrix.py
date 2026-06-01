@@ -47,6 +47,55 @@ _PROP_KEYS = [
 ]
 
 
+# Canonical root-detection surface — MUST mirror
+# agents/detection/src/probes/root/SuDetectionProbe.kt exactly. The detector's
+# SuDetectionProbe scores 1.0 if ANY of these binary/artifact paths exist, or
+# 0.85 if only a superuser package is installed. The live capture therefore has
+# to probe every one of these paths honestly (recording each present path in
+# existingFiles) and enumerate installed superuser packages — otherwise it
+# under-reports root and yields a false su_detection=0.0 (the B2 overclaim bug).
+# DO NOT special-case / omit Magisk's own /sbin paths: record what is present.
+_SU_BINARY_PATHS = [
+    "/system/bin/su",
+    "/system/xbin/su",
+    "/sbin/su",
+    "/system/sd/xbin/su",
+    "/system/bin/failsafe/su",
+    "/data/local/xbin/su",
+    "/data/local/bin/su",
+    "/data/local/su",
+    "/system/sbin/su",
+    "/vendor/bin/su",
+    "/su/bin/su",
+    "/magisk/.core/bin/su",
+]
+
+_MAGISK_ARTIFACT_PATHS = [
+    "/sbin/.magisk",
+    "/system/bin/magisk",
+    "/cache/magisk.log",
+    "/data/adb/magisk",
+]
+
+# Additional Magisk/superuser filesystem artifacts that SuDetectionProbe does not
+# itself enumerate but which the detector's broader root surface (and any honest
+# capture) should still record when present. Kept separate so the canonical
+# probe-mirroring lists above stay byte-identical to SuDetectionProbe.kt.
+_MAGISK_EXTRA_PATHS = [
+    "/data/adb/modules",
+]
+
+# Mirrors SuDetectionProbe.SUPERUSER_PACKAGES. The capture runs `pm list packages`
+# (the same surface the probe's queryPackageManager()/isPackageInstalled() reads)
+# and records any present package in installedPackages so the package check is honest.
+_SUPERUSER_PACKAGES = [
+    "com.topjohnwu.magisk",
+    "eu.chainfire.supersu",
+    "com.koushikdutta.superuser",
+    "com.thirdparty.superuser",
+]
+
+
 def _docker_exec(container: str, shell_cmd: str) -> str:
     out = subprocess.run(
         ["docker", "exec", container, "sh", "-c", shell_cmd],
@@ -140,6 +189,38 @@ def capture_telephony(container: str) -> dict[str, str | None]:
     }
 
 
+def capture_root_surface(container: str) -> tuple[list[str], list[str]]:
+    """HONEST live read of the device root-detection surface.
+
+    Probes EVERY canonical su-binary, Magisk-artifact and extra-artifact path
+    (mirroring SuDetectionProbe.kt) and enumerates installed superuser packages
+    via `pm list packages`. Returns ``(present_root_files, present_superuser_packages)``.
+
+    This MUST NOT special-case or omit Magisk's own /sbin paths (e.g. /sbin/su,
+    /sbin/.magisk): on a Magisk-rooted container those are PRESENT and recording
+    them is exactly what keeps the capture honest. Under-reporting them is the
+    root-honesty bug this function exists to prevent (false su_detection=0.0).
+    """
+    all_paths = _SU_BINARY_PATHS + _MAGISK_ARTIFACT_PATHS + _MAGISK_EXTRA_PATHS
+    # One shell round-trip: for each path, emit "PATH" only when it exists (-e).
+    probe = "; ".join(f'[ -e "{p}" ] && echo "{p}"' for p in all_paths)
+    raw = _docker_exec(container, probe)
+    present_files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+
+    # Package surface: `pm list packages` lists installed packages as
+    # "package:<name>". Match against the canonical superuser set.
+    pm_raw = _docker_exec(container, "pm list packages 2>/dev/null")
+    installed = set()
+    for ln in pm_raw.splitlines():
+        name = ln.strip()
+        if name.startswith("package:"):
+            name = name[len("package:"):].strip()
+        if name in _SUPERUSER_PACKAGES:
+            installed.add(name)
+    present_packages = [p for p in _SUPERUSER_PACKAGES if p in installed]
+    return present_files, present_packages
+
+
 def capture_live_snapshot(container: str, label: str) -> dict:
     """Fresh read-only capture of a booted container's identity surface."""
     raw = _docker_exec(container, "; ".join(f'echo "{k}|$(getprop {k})"' for k in _PROP_KEYS))
@@ -152,7 +233,11 @@ def capture_live_snapshot(container: str, label: str) -> dict:
     if boot != "1":
         raise RuntimeError(f"container {container} not booted (sys.boot_completed={boot!r})")
     proc_version = _docker_exec(container, "cat /proc/version").strip()
-    su_present = bool(_docker_exec(container, "test -x /system/xbin/su && echo yes").strip())
+    # HONEST root surface: probe EVERY canonical su/Magisk path (not just
+    # /system/xbin/su) and enumerate installed superuser packages, mirroring
+    # SuDetectionProbe.kt. Records what is actually present so root is never
+    # under-reported (the false su_detection=0.0 bug).
+    root_files, superuser_packages = capture_root_surface(container)
     # font files present (ui.system_fonts probe fileExists fallback: NotoColorEmoji + Roboto = real set)
     font_files = [ln.strip() for ln in
                   _docker_exec(container, "ls /system/fonts/*.ttf 2>/dev/null").splitlines() if ln.strip()]
@@ -199,10 +284,11 @@ def capture_live_snapshot(container: str, label: str) -> dict:
         "capturedAt": captured_at,
         "sdkInt": int(props.get("ro.build.version.sdk") or 31),
         "systemProperties": {k: props.get(k, "") for k in _PROP_KEYS},
-        "existingFiles": ((["/system/xbin/su"] if su_present else []) + font_files),
+        "existingFiles": (root_files + font_files),
         "readableFiles": readable,
         "settingsSecure": secure, "settingsGlobal": glob, "settingsSystem": {},
-        "telephony": telephony, "installedPackages": ["android", "com.android.systemui"],
+        "telephony": telephony,
+        "installedPackages": (["android", "com.android.systemui"] + superuser_packages),
         "sensorTypes": [], "bluetoothMac": None,
         "timezoneId": tz, "localeLanguage": loc_lang, "localeCountry": loc_country,
         "displayWidthPixels": w, "displayHeightPixels": h, "displayDensityDpi": dens,

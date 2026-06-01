@@ -1,7 +1,7 @@
 # B2 — L2/L6 identity + LTE-radio spoof on the Magisk-rooted ReDroid 12 image (RESULT)
 
-**Status:** L1 / L0b / L2 / L6 **DONE (CLEAN)**. L5 (sensors) **GENUINELY BLOCKED** (no sensor HAL). L3 / L4 out of B2 scope.
-**Headline detector score:** **0.0850 — CLEAN** (down from 0.3294 DETECTED). Justification in §4.
+**Status:** L1 / L0b / L2 / L6 spoof layers **ACHIEVED on-device**. L5 (sensors) **GENUINELY BLOCKED** (no sensor HAL). L3 / L4 out of B2 scope.
+**Headline detector score (CORRECTED 2026-06-01):** **0.1403 — SUSPICIOUS** (down from 0.3294 DETECTED), with **`root.su_detection = 1.0`** (1 critical failure). The build/identity/radio surface is clean, but **root remains DETECTABLE** (Magisk `su` + `/data/adb/magisk` are present and NOT durably hideable — L4 fresh-fork blocker). The previously-stated **0.0850 CLEAN headline was an OVERCLAIM** caused by a capture bug that probed only `/system/xbin/su` (one of N su paths) and recorded `su_detection=0.0`. See **`CAPTURE-ROOT-HONESTY.md`** for the bug, the fix, and the corrected numbers. The 0.0850-CLEAN artifacts are SUPERSEDED.
 **Posture:** hardened, NON-privileged (B4 recipe via `container_lifecycle.build_hardened_run_argv`), Magisk-rooted (`redroid/redroid:12.0.0_magisk`, B1).
 **Launcher:** `agents/stability/stack/launch-l2-l6-sensor-lte-spoof.sh`
 **Container under test:** `b2-build-work` (also relaunched as `b2-l2l6-*` / `b2-fix` for the snapshot pass).
@@ -34,17 +34,19 @@ Supporting "post-boot overlay" hardening also applied by the launcher (not core 
 | `mid` | 0.2159 | SUSPICIOUS | + L1 build props |
 | `mid2` | 0.1715 | SUSPICIOUS | + L0b verified-boot / debuggable lock |
 | `mid3` | 0.1062 | SUSPICIOUS | + display/proc overlays |
-| `after` | 0.1062 | SUSPICIOUS | + L2/L6 props set on-device (standard capture — telephony NOT read; see §4) |
-| `after-augmented` | **0.0850** | **CLEAN** | same device state, telephony-aware capture reads the real spoofed telephony/serial (IMEI honestly null) |
+| `after` (CORRECTED) | **0.1403** | **SUSPICIOUS** | + L2/L6 props on-device; **honest root capture probes all su/Magisk paths → `su_detection=1.0`** |
+| `after-augmented` (CORRECTED) | **0.1403** | **SUSPICIOUS** | same device state, telephony-aware + honest root capture (su present, IMEI honestly null) |
+| ~~`after-augmented` (old, SUPERSEDED)~~ | ~~0.0850~~ | ~~CLEAN~~ | **OVERCLAIM** — capture under-reported root (`su_detection=0.0`); see `CAPTURE-ROOT-HONESTY.md` |
 
-Net: **0.3294 DETECTED → 0.0850 CLEAN**, 4 critical (`buildprop.*`, `root.su_detection`, `ui.screen_resolution`) → 0 critical.
+Net (CORRECTED): **0.3294 DETECTED → 0.1403 SUSPICIOUS** with **1 critical (`root.su_detection`) remaining**. `buildprop.*`, `ui.screen_resolution` cleared; **root NOT cleared** (Magisk `su`/`/data/adb/magisk` present, not durably hideable — see `CAPTURE-ROOT-HONESTY.md` and `../b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md`).
 
 ---
 
-## 3. What still scores (the irreducible residue at 0.0850)
+## 3. What still scores (the irreducible residue at 0.1403)
 
 | probe | score | why it remains |
 |-------|-------|----------------|
+| `root.su_detection` | **1.00** (critical) | **Root is present and NOT durably hideable.** Magisk `su` (`/sbin/su`), `/sbin/.magisk`, and `/data/adb/magisk` are present in the rooted image. Per-app hiding requires fork-time Zygisk injection, which does not work on this system-as-root x86_64 image (`../b2-l4-zygisk/BLOCKER-L4-FRESH-FORK.md`). This is the honest cost of running the **rooted** (B1) image: CLEAN-without-root vs rooted-but-detectable is the real tradeoff. See `CAPTURE-ROOT-HONESTY.md`. |
 | `emulator.cpu_abi` | **1.00** | **x86_64 ABI ceiling.** ReDroid runs x86_64; a Pixel 7 is arm64. This is architectural and cannot be spoofed by props — it is the hard ceiling for this image class. |
 | `identity.bluetooth_mac` | 0.85 | no Bluetooth adapter in ReDroid (capture reports null MAC) |
 | `sensors.{light,magnetometer,proximity}` | 0.85 ea. | MISSING_ON_PHONE — phone-class model with no sensor HAL (see §5 / `BLOCKER-L5.md`) |
@@ -52,13 +54,18 @@ Net: **0.3294 DETECTED → 0.0850 CLEAN**, 4 critical (`buildprop.*`, `root.su_d
 | `sensors.accelerometer_gyro` | 0.50 | NO_SIGNAL — accessor reports zero sensors |
 | `env.location_mock_rasp`, `identity.wifi_mac` | 0.50 ea. | no GPS/Wi-Fi backing in this image |
 
-The two largest residual buckets (`emulator.cpu_abi` and the `sensors.*` family) are both **architectural ceilings of ReDroid**, not gaps in the L2/L6 work. The `identity.imei_serial = 0.50` residue is the honest cost of NOT inventing an IMEI: a null IMEI paired with a valid serial is the benign, expected reading.
+The dominant residual is **`root.su_detection = 1.0`** (the single critical), followed by the **architectural ceilings of ReDroid** (`emulator.cpu_abi` + the `sensors.*` family), neither of which is a gap in the L2/L6 work. The `identity.imei_serial = 0.50` residue is the honest cost of NOT inventing an IMEI: a null IMEI paired with a valid serial is the benign, expected reading.
 
 ---
 
-## 4. The "L2 measurement-path gap" — why `after-augmented` (0.0850) is lower than `after` (0.1062)
+## 4. Telephony-aware capture (honest serial/ICCID) and why both `after` snapshots now read 0.1403
 
-**This is a legitimate capture-completeness fix, not probe suppression.** Verified by diffing the two reports and snapshots:
+**This is a legitimate capture-completeness fix, not probe suppression.** Two separate capture bugs were corrected (both raised honesty, one raised the score):
+
+1. **Telephony blind spot (lowers two telephony probes, honestly):** the old `capture_live_snapshot` hardcoded `telephony: {}`, so `identity.imei_serial`/`identity.sim_iccid` saw an *empty* map and applied a NULL penalty (0.70) to telephony the device genuinely sets. The committed `capture_telephony(container)` helper now reads the live device.
+2. **Root blind spot (RAISES `root.su_detection`, the decisive correction):** the old capture probed only `/system/xbin/su` (1 of 16 paths) with `test -x`, missing Magisk's `/sbin/su` + `/data/adb/magisk` → a FALSE `su_detection=0.0`. The committed `capture_root_surface(container)` now probes the full `SuDetectionProbe` set → honest `su_detection=1.0`. **This is why the headline is 0.1403 SUSPICIOUS, not 0.0850 CLEAN** (see `CAPTURE-ROOT-HONESTY.md`).
+
+After fix #2, the regenerated `after` and `after-augmented` reports are **identical (0.1403)** — the root signal dominates and the old telephony-path distinction (after-augmented < after) is moot. The telephony detail below documents fix #1 (still valid):
 
 - Both reports contain the **same 65 probes** — none were dropped, disabled, or hidden. Only **two probe scores** change:
   - `identity.sim_iccid`: 0.70 → **0.00** (the real, valid 89-prefix Luhn-passing ICCID is now visible)
@@ -87,7 +94,7 @@ The two largest residual buckets (`emulator.cpu_abi` and the `sensors.*` family)
 
 Note that `identity.carrier_mccmnc` was already **0.00 in `after`** (it is scored from `gsm.operator.*` props that the standard capture *does* read), confirming the L6 operator spoof was effective independently of the telephony-aware capture.
 
-**Conclusion: the headline is 0.0850 CLEAN.** The device-side L2 spoof is real and present; `after-augmented` is the honest measurement of it, produced by the committed telephony-aware `capture_live_snapshot`. (`after` = 0.1062 is the conservative / telephony-blind number you get from the old capture path that read `telephony: {}` and penalised serial + ICCID it could not see.) The telephony-aware capture is more accurate because it reads the telephony the device actually sets instead of treating all telephony as missing — and it still records the genuinely-absent IMEI as null rather than fabricating one.
+**Conclusion: the headline is 0.1403 SUSPICIOUS, dominated by `root.su_detection = 1.0`.** The device-side L1/L0b/L2/L6 spoof is real and present (build/identity/radio all clean), and the telephony-aware capture honestly reads serial + ICCID + operator while leaving the genuinely-absent IMEI null. But the **rooted** image carries Magisk `su` that cannot be durably hidden per-app on this stack, so root is detectable — that is the honest residual. The earlier 0.0850-CLEAN figure was an artifact of the root-capture blind spot and is SUPERSEDED.
 
 ---
 
@@ -114,7 +121,7 @@ Root + `resetprop` cannot synthesize a sensor — `SensorManager.getSensorList()
 
 ## 6. Done vs blocked (final)
 
-- **DONE (CLEAN):** L1 build props, L0b verified-boot/debuggable lock, **L2 identity (serial + telephony)**, **L6 LTE/radio operator+SIM**. Aggregate 0.3294 DETECTED → **0.0850 CLEAN**.
+- **ACHIEVED on-device (surface clean):** L1 build props, L0b verified-boot/debuggable lock, **L2 identity (serial + telephony)**, **L6 LTE/radio operator+SIM**. Aggregate 0.3294 DETECTED → **0.1403 SUSPICIOUS** (CORRECTED). These four surfaces score clean; the residual non-clean score is **root** (`su_detection=1.0`, 1 critical) — see `CAPTURE-ROOT-HONESTY.md`. The earlier "0.0850 CLEAN" was an overclaim from the capture root-honesty bug.
 - **GENUINELY BLOCKED:** L5 sensors (no sensor HAL — architectural; see `BLOCKER-L5.md`).
 - **ARCHITECTURAL CEILING (cannot be spoofed on ReDroid):** `emulator.cpu_abi` (x86_64), Bluetooth/Wi-Fi/GPS MACs, sensor family.
 - **OUT OF B2 SCOPE:** L3 attestation (keybox — `L3-DEFAULT.md`), L4 runtime hiding (Zygisk/Shamiko/HMA).

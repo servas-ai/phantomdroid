@@ -1,12 +1,12 @@
 {
   "schemaVersion": "1.0",
-  "deviceLabel": "b2-l2l6-augmented",
-  "timestamp": "2026-05-31T13:16:32.338789157Z",
+  "deviceLabel": "b2-honest-recapture",
+  "timestamp": "2026-06-01T06:27:50.187049718Z",
   "appVersion": "0.1.0",
   "aggregate": {
-    "weightedScore": 0.08499999999999999,
-    "criticalFailures": 0,
-    "category": "CLEAN"
+    "weightedScore": 0.14029411764705885,
+    "criticalFailures": 1,
+    "category": "SUSPICIOUS"
   },
   "probes": [
     {
@@ -17,7 +17,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": true,
       "failureReason": "skipped: Capture file not found — mitmproxy harness not running or sandbox account not configured."
     },
@@ -29,7 +29,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 7,
+      "runtimeMs": 10,
       "failed": true,
       "failureReason": "skipped: TikTok not installed (checked: com.zhiliaoapp.musically, com.ss.android.ugc.tiktok)"
     },
@@ -77,7 +77,7 @@
         }
       ],
       "method": "Read ro.product.board + ro.board.platform + ro.hardware + ro.hardware.chipname + ro.board.manufacturer; detect goldfish/ranchu/vbox86/redroid emulator markers; cross-check board codename vs claimed model",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -289,7 +289,7 @@
         }
       ],
       "method": "Read Build.SUPPORTED_ABIS + ro.product.cpu.abilist; detect x86 primary on ARM-claimed model, dual-arch Houdini bridge, and minimal emulator-stripped ABI lists",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -734,7 +734,7 @@
         }
       ],
       "method": "Enumerate CameraManager.getCameraIdList() + characteristics per camera; detect zero/single-camera on phone-class, LEGACY-level on flagship, implausible sensor sizes, and emulator vendor keywords",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -863,7 +863,7 @@
         }
       ],
       "method": "LocationManager.getLastKnownLocation() + Location.isFromMockProvider() (API >= 18). Five signals: mock-provider flag, null-island sentinel coords, missing-fix-on-phone, sub-meter accuracy, fused-without-GPS-hardware. Max-wins.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -916,7 +916,7 @@
         }
       ],
       "method": "Read Locale.getDefault() + ro.product.locale.* properties; detect empty-country/language defaults, invalid ISO codes, and runtime-vs-build locale divergence. No live IP geolocation.",
-      "runtimeMs": 7,
+      "runtimeMs": 8,
       "failed": false,
       "failureReason": null
     },
@@ -992,7 +992,7 @@
         }
       ],
       "method": "Read Location.isFromMockProvider() + ALLOW_MOCK_LOCATION setting + MOCK_LOCATION_APP setting; focused RASP-attribution probe per freeRASP T16. Augments rank 39 LocationMockProbe with explicit RASP-mapped score.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1081,12 +1081,12 @@
       "evidence": [
         {
           "key": "wall_clock_ms",
-          "value": 1780233392299,
+          "value": 1780295270145,
           "expected": null
         },
         {
           "key": "elapsed_realtime_ms",
-          "value": 1780233392299,
+          "value": 1780295270145,
           "expected": null
         },
         {
@@ -1202,7 +1202,7 @@
         }
       ],
       "method": "Read /proc/uptime + SystemClock.uptimeMillis() + elapsedRealtime; detect zero-uptime stubs, implausible >10y values, future-boot-time, round-minute-multiples, and short (<60s) uptime patterns",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1214,7 +1214,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": true,
       "failureReason": "skipped: ACCESS_FINE_LOCATION not granted"
     },
@@ -1222,32 +1222,32 @@
       "id": "identity.android_id",
       "rank": 11,
       "category": "identity",
-      "score": 0.0,
+      "score": 0.85,
       "confidence": 0.95,
       "evidence": [
         {
           "key": "android_id",
-          "value": "4d83e3fdfe60d442",
+          "value": "7274912a83eac23",
           "expected": "<unique 16-hex>"
         },
         {
           "key": "android_id.length",
-          "value": "16",
+          "value": "15",
           "expected": "16"
         },
         {
           "key": "android_id.pattern",
-          "value": "normal",
+          "value": "non_hex",
           "expected": "normal"
         },
         {
           "key": "android_id.entropy_bits_per_char",
-          "value": "3.031",
+          "value": "0.000",
           "expected": ">=3.0"
         }
       ],
       "method": "Read Settings.Secure.ANDROID_ID and check against known factory defaults, sequential patterns, and Shannon entropy threshold",
-      "runtimeMs": 9,
+      "runtimeMs": 12,
       "failed": false,
       "failureReason": null
     },
@@ -1565,7 +1565,7 @@
         }
       ],
       "method": "Query MediaDrm Widevine UUID for security level + vendor + version + 32-byte device unique ID; detect L3 software fallback and zero/low-entropy unique-ID stubs",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1727,7 +1727,7 @@
         }
       ],
       "method": "package-name-scan-for-tamper-frameworks",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1845,7 +1845,7 @@
         }
       ],
       "method": "Read net.dns1-4 properties + ConnectivityManager link DNS + Settings.Global private DNS; detect emulator DNS subnets (10.0.2.x, 192.168.42.x) and isolated public-DNS-only configs. No live DNS lookups.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1941,7 +1941,7 @@
         }
       ],
       "method": "Read ConnectivityManager.activeNetwork transport + TelephonyManager.dataNetworkType + simState; classify WiFi-only-no-SIM and TRANSPORT_USB as emulator signals. No live network requests.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2020,7 +2020,7 @@
       "id": "root.su_detection",
       "rank": 3,
       "category": "root",
-      "score": 0.0,
+      "score": 1.0,
       "confidence": 0.95,
       "evidence": [
         {
@@ -2030,12 +2030,12 @@
         },
         {
           "key": "/system/xbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
           "key": "/sbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2085,7 +2085,7 @@
         },
         {
           "key": "/sbin/.magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2100,7 +2100,7 @@
         },
         {
           "key": "/data/adb/magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2193,7 +2193,7 @@
         }
       ],
       "method": "accessibility_settings+package_manager+proc_net_tcp+overlay/capture/control_package_scan (Power-13 Gap #13)",
-      "runtimeMs": 1,
+      "runtimeMs": 2,
       "failed": false,
       "failureReason": null
     },
@@ -2287,7 +2287,7 @@
         }
       ],
       "method": "user_handle+clone_suffix_scan+oem_framework_check|talsec_disclosure:more_techniques_coming",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2546,7 +2546,7 @@
         }
       ],
       "method": "Check SensorManager for TYPE_PRESSURE presence + emulator vendor names + plausibility (300-1100 hPa range) + AVD-stub-value detection (1013.25 / 1000.0 / 0.0). Score 'missing sensor' lower than other sensor probes since barometer is not universal.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2867,7 +2867,7 @@
         }
       ],
       "method": "Read DisplayMetrics + ro.product.model and cross-check resolution/density/dpi against known device profiles and emulator defaults",
-      "runtimeMs": 9,
+      "runtimeMs": 10,
       "failed": false,
       "failureReason": null
     },
@@ -2910,7 +2910,7 @@
         }
       ],
       "method": "Enumerate /system/fonts/ directory; detect missing NotoColorEmoji, low font count (<50), low Roboto variant count, non-standard default family",
-      "runtimeMs": 8,
+      "runtimeMs": 3,
       "failed": false,
       "failureReason": null
     }

@@ -1,5 +1,5 @@
-label: "b2-l2-augmented"
-capturedAt: "2026-05-31T13:16:54Z"
+label: "b2-L2-augmented"
+capturedAt: "2026-06-01T06:28:02Z"
 sdkInt: 31
 systemProperties:
   "ro.build.fingerprint": "google/panther/panther:13/TQ3A.230805.001/10316531:user/release-keys"
@@ -39,6 +39,11 @@ systemProperties:
   "net.dns1": "1.1.1.1"
   "net.dns2": "1.0.0.1"
 existingFiles:
+  - "/system/xbin/su"
+  - "/sbin/su"
+  - "/sbin/.magisk"
+  - "/data/adb/magisk"
+  - "/data/adb/modules"
   - "/system/fonts/AndroidClock.ttf"
   - "/system/fonts/CarroisGothicSC-Regular.ttf"
   - "/system/fonts/ComingSoon.ttf"
@@ -205,15 +210,15 @@ existingFiles:
   - "/system/fonts/SourceSansPro-SemiBoldItalic.ttf"
 readableFiles:
   "/proc/version": "Linux version 5.10.107-android13-4-00018-g0e9b9b9f9f9f-ab9999999 (kleaf@build-host) (Android clang version 14.0.7, LLD 14.0.7) #1 SMP PREEMPT Thu Jan 1 00:00:00 UTC 2026"
-  "/proc/self/status": "Name:\tcat\nUmask:\t0022\nState:\tR (running)\nTgid:\t7993\nNgid:\t0\nPid:\t7993\nPPid:\t7986\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t0 \nNStgid:\t7993\nNSpid:\t7993\nNSpgid:\t7986\nNSsid:\t7986\nKthread:\t0\nVmPeak:\t10819364 kB\nVmSize:\t10819064 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    4712 kB\nVmRSS:\t    4712 kB\nRssAnon:\t     700 kB\nRssFile:\t    3836 kB\nRssShmem:\t     176 kB\nVmData:\t    8316 kB\nVmStk:\t     132 kB\nVmExe:\t     276 kB\nVmLib:\t    3956 kB\nVmPTE:\t     132 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t4/256855\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000080000000\nSigIgn:\t0000002000000000\nSigCgt:\t0000004c400084f8\nCapInh:\t0000000000000000\nCapPrm:\t00000018abed75ff\nCapEff:\t00000018abed75ff\nCapBnd:\t00000018abed75ff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t2\nSeccomp_filters:\t1\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tffff\nCpus_allowed_list:\t0-15\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t0\nnonvoluntary_ctxt_switches:\t2\nx86_Thread_features:\t\nx86_Thread_features_locked:"
+  "/proc/self/status": "Name:\tcat\nUmask:\t0022\nState:\tR (running)\nTgid:\t7509\nNgid:\t0\nPid:\t7509\nPPid:\t7503\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t64\nGroups:\t0 \nNStgid:\t7509\nNSpid:\t7509\nNSpgid:\t7503\nNSsid:\t7503\nKthread:\t0\nVmPeak:\t10856228 kB\nVmSize:\t10855928 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    4700 kB\nVmRSS:\t    4700 kB\nRssAnon:\t     708 kB\nRssFile:\t    3816 kB\nRssShmem:\t     176 kB\nVmData:\t    8316 kB\nVmStk:\t     132 kB\nVmExe:\t     276 kB\nVmLib:\t    3956 kB\nVmPTE:\t     136 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t3/256855\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000080000000\nSigIgn:\t0000002000000000\nSigCgt:\t0000004c400084f8\nCapInh:\t0000000000000000\nCapPrm:\t00000018abed75ff\nCapEff:\t00000018abed75ff\nCapBnd:\t00000018abed75ff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t2\nSeccomp_filters:\t1\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tffff\nCpus_allowed_list:\t0-15\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t0\nnonvoluntary_ctxt_switches:\t0\nx86_Thread_features:\t\nx86_Thread_features_locked:"
 settingsSecure:
-  "android_id": "4d83e3fdfe60d442"
+  "android_id": "7274912a83eac23"
   "default_input_method": "com.android.inputmethod.latin/.LatinIME"
   "mock_location": "0"
 settingsGlobal:
   "adb_enabled": "0"
   "development_settings_enabled": "0"
-  "boot_count": "1"
+  "boot_count": "2"
   "data_roaming": "0"
 settingsSystem: {}
 telephony:

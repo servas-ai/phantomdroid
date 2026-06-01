@@ -1,12 +1,12 @@
 {
   "schemaVersion": "1.0",
-  "deviceLabel": "b2-l2-augmented",
-  "timestamp": "2026-05-31T13:16:56.789160859Z",
+  "deviceLabel": "b2-L2-augmented",
+  "timestamp": "2026-06-01T06:28:04.605222455Z",
   "appVersion": "0.1.0",
   "aggregate": {
-    "weightedScore": 0.08499999999999999,
-    "criticalFailures": 0,
-    "category": "CLEAN"
+    "weightedScore": 0.14029411764705885,
+    "criticalFailures": 1,
+    "category": "SUSPICIOUS"
   },
   "probes": [
     {
@@ -17,7 +17,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": true,
       "failureReason": "skipped: Capture file not found — mitmproxy harness not running or sandbox account not configured."
     },
@@ -29,7 +29,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 9,
+      "runtimeMs": 6,
       "failed": true,
       "failureReason": "skipped: TikTok not installed (checked: com.zhiliaoapp.musically, com.ss.android.ugc.tiktok)"
     },
@@ -77,7 +77,7 @@
         }
       ],
       "method": "Read ro.product.board + ro.board.platform + ro.hardware + ro.hardware.chipname + ro.board.manufacturer; detect goldfish/ranchu/vbox86/redroid emulator markers; cross-check board codename vs claimed model",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -125,7 +125,7 @@
         }
       ],
       "method": "Compare ro.build.* against expected manufacturer pattern + emulator markers",
-      "runtimeMs": 2,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -815,7 +815,7 @@
         }
       ],
       "method": "Read Settings.Global dev/adb/verifier toggles + ro.debuggable, score escalation pattern from any-flag → both-flags-set",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -863,7 +863,7 @@
         }
       ],
       "method": "LocationManager.getLastKnownLocation() + Location.isFromMockProvider() (API >= 18). Five signals: mock-provider flag, null-island sentinel coords, missing-fix-on-phone, sub-meter accuracy, fused-without-GPS-hardware. Max-wins.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -916,7 +916,7 @@
         }
       ],
       "method": "Read Locale.getDefault() + ro.product.locale.* properties; detect empty-country/language defaults, invalid ISO codes, and runtime-vs-build locale divergence. No live IP geolocation.",
-      "runtimeMs": 8,
+      "runtimeMs": 5,
       "failed": false,
       "failureReason": null
     },
@@ -1081,12 +1081,12 @@
       "evidence": [
         {
           "key": "wall_clock_ms",
-          "value": 1780233416743,
+          "value": 1780295284567,
           "expected": null
         },
         {
           "key": "elapsed_realtime_ms",
-          "value": 1780233416743,
+          "value": 1780295284567,
           "expected": null
         },
         {
@@ -1121,7 +1121,7 @@
         }
       ],
       "method": "cross-validate bootEpoch anchor + wall/GPS/NTP per freeRASP T15",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1159,7 +1159,7 @@
         }
       ],
       "method": "Compare java.util.TimeZone.getDefault() against java.util.Locale.getDefault().country using a static table of common timezone→country mappings",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1222,32 +1222,32 @@
       "id": "identity.android_id",
       "rank": 11,
       "category": "identity",
-      "score": 0.0,
+      "score": 0.85,
       "confidence": 0.95,
       "evidence": [
         {
           "key": "android_id",
-          "value": "4d83e3fdfe60d442",
+          "value": "7274912a83eac23",
           "expected": "<unique 16-hex>"
         },
         {
           "key": "android_id.length",
-          "value": "16",
+          "value": "15",
           "expected": "16"
         },
         {
           "key": "android_id.pattern",
-          "value": "normal",
+          "value": "non_hex",
           "expected": "normal"
         },
         {
           "key": "android_id.entropy_bits_per_char",
-          "value": "3.031",
+          "value": "0.000",
           "expected": ">=3.0"
         }
       ],
       "method": "Read Settings.Secure.ANDROID_ID and check against known factory defaults, sequential patterns, and Shannon entropy threshold",
-      "runtimeMs": 14,
+      "runtimeMs": 9,
       "failed": false,
       "failureReason": null
     },
@@ -1295,7 +1295,7 @@
         }
       ],
       "method": "Read BluetoothAdapter.address + /sys/class/bluetooth/hci0/address; validate OUI prefix against emulator-vendor allowlist; check locally-administered bit. Cross-reference rank-15 WifiMac OUI table.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1373,7 +1373,7 @@
         }
       ],
       "method": "Read TelephonyManager.networkOperator + networkOperatorName + line1Number + subscriberId; detect known emulator-default carrier names, MCC/MNC values, AOSP-block phone numbers (strazzere/anti-emulator 16-entry list), and AOSP canonical IMSI 310260000000000. Power-13 Gap #6.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1464,7 +1464,7 @@
         }
       ],
       "method": "Read Google Services Framework android_id via ContentProvider gservices, validate 16-hex format, check against factory-default and entropy thresholds",
-      "runtimeMs": 2,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1699,7 +1699,7 @@
         }
       ],
       "method": "Read WifiManager.connectionInfo SSID + BSSID; detect emulator-default SSIDs (AndroidWifi/Genymotion) + cross-reference rank-15 OUI table for BSSID prefix",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1845,7 +1845,7 @@
         }
       ],
       "method": "Read net.dns1-4 properties + ConnectivityManager link DNS + Settings.Global private DNS; detect emulator DNS subnets (10.0.2.x, 192.168.42.x) and isolated public-DNS-only configs. No live DNS lookups.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2020,7 +2020,7 @@
       "id": "root.su_detection",
       "rank": 3,
       "category": "root",
-      "score": 0.0,
+      "score": 1.0,
       "confidence": 0.95,
       "evidence": [
         {
@@ -2030,12 +2030,12 @@
         },
         {
           "key": "/system/xbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
           "key": "/sbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2085,7 +2085,7 @@
         },
         {
           "key": "/sbin/.magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2100,7 +2100,7 @@
         },
         {
           "key": "/data/adb/magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2287,7 +2287,7 @@
         }
       ],
       "method": "user_handle+clone_suffix_scan+oem_framework_check|talsec_disclosure:more_techniques_coming",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2299,7 +2299,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 6,
+      "runtimeMs": 3,
       "failed": true,
       "failureReason": "skipped: api_too_low: SDK_INT=0 < 34"
     },
@@ -2352,7 +2352,7 @@
         }
       ],
       "method": "Read ActivityManager getRunningServices + getRunningAppProcesses; scan service/process names for hostile root-tool/instrumentation/MITM substrings; document Android 8+ visibility filter as confidence-degradation.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2445,7 +2445,7 @@
         }
       ],
       "method": "Filesystem path + package-list scan + /proc/self/maps hook-library detection (narrow Xposed-family scoring markers, generic libzygisk emitted as observability- only evidence — Power-13 Gap #11). Classloader signal class deferred — see KDoc.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2743,7 +2743,7 @@
         }
       ],
       "method": "Read DisplayCutout via WindowInsets / Display.cutout; detect missing cutout on flagship-with-notch models, implausible inset values, and inset-vs-bounds contradictions",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2867,7 +2867,7 @@
         }
       ],
       "method": "Read DisplayMetrics + ro.product.model and cross-check resolution/density/dpi against known device profiles and emulator defaults",
-      "runtimeMs": 7,
+      "runtimeMs": 11,
       "failed": false,
       "failureReason": null
     },
@@ -2910,7 +2910,7 @@
         }
       ],
       "method": "Enumerate /system/fonts/ directory; detect missing NotoColorEmoji, low font count (<50), low Roboto variant count, non-standard default family",
-      "runtimeMs": 3,
+      "runtimeMs": 2,
       "failed": false,
       "failureReason": null
     }

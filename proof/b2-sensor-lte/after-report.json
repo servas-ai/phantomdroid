@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0",
-  "deviceLabel": "b2-l2l6-after",
-  "timestamp": "2026-05-31T12:51:22.771682492Z",
+  "deviceLabel": "b2-honest-after",
+  "timestamp": "2026-06-01T06:28:01.584665564Z",
   "appVersion": "0.1.0",
   "aggregate": {
-    "weightedScore": 0.10617647058823532,
-    "criticalFailures": 0,
+    "weightedScore": 0.14029411764705885,
+    "criticalFailures": 1,
     "category": "SUSPICIOUS"
   },
   "probes": [
@@ -17,7 +17,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": true,
       "failureReason": "skipped: Capture file not found — mitmproxy harness not running or sandbox account not configured."
     },
@@ -29,7 +29,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 9,
+      "runtimeMs": 5,
       "failed": true,
       "failureReason": "skipped: TikTok not installed (checked: com.zhiliaoapp.musically, com.ss.android.ugc.tiktok)"
     },
@@ -168,7 +168,7 @@
         }
       ],
       "method": "Read ro.product.brand + model + manufacturer; detect emulator keywords in model, 'unknown' sentinel values, empty fields, and brand-vs-manufacturer mismatches modulo known-OEM aliases. Focused-extraction probe separate from rank 1 BuildFingerprint.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -380,7 +380,7 @@
         }
       ],
       "method": "Read /proc/version and parse for emulator kernel-name markers, x86 arch leak, localhost build host, GCC compiler leak",
-      "runtimeMs": 2,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -428,7 +428,7 @@
         }
       ],
       "method": "Read ro.kernel.qemu / ro.kernel.qemu.gles + check /dev/qemu_*, /dev/goldfish_*, /dev/socket/qemud/baseband_genyd device nodes; detect canonical AVD marker + QEMU/Goldfish-specific kernel surface",
-      "runtimeMs": 2,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -815,7 +815,7 @@
         }
       ],
       "method": "Read Settings.Global dev/adb/verifier toggles + ro.debuggable, score escalation pattern from any-flag → both-flags-set",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -916,7 +916,7 @@
         }
       ],
       "method": "Read Locale.getDefault() + ro.product.locale.* properties; detect empty-country/language defaults, invalid ISO codes, and runtime-vs-build locale divergence. No live IP geolocation.",
-      "runtimeMs": 13,
+      "runtimeMs": 6,
       "failed": false,
       "failureReason": null
     },
@@ -1035,7 +1035,7 @@
         }
       ],
       "method": "Read NfcAdapter + PackageManager.FEATURE_NFC; detect adapter-vs-feature contradictions and missing-NFC on flagship-model devices. Score 'no NFC' only weakly since NFC is not universal.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1068,7 +1068,7 @@
         }
       ],
       "method": "KeyguardManager.isDeviceSecure() + isKeyguardSecure() with API<23 unknown-fallback",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -1081,12 +1081,12 @@
       "evidence": [
         {
           "key": "wall_clock_ms",
-          "value": 1780231882703,
+          "value": 1780295281555,
           "expected": null
         },
         {
           "key": "elapsed_realtime_ms",
-          "value": 1780231882703,
+          "value": 1780295281555,
           "expected": null
         },
         {
@@ -1121,7 +1121,7 @@
         }
       ],
       "method": "cross-validate bootEpoch anchor + wall/GPS/NTP per freeRASP T15",
-      "runtimeMs": 2,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1222,32 +1222,32 @@
       "id": "identity.android_id",
       "rank": 11,
       "category": "identity",
-      "score": 0.0,
+      "score": 0.85,
       "confidence": 0.95,
       "evidence": [
         {
           "key": "android_id",
-          "value": "6f9929ffccddf471",
+          "value": "7274912a83eac23",
           "expected": "<unique 16-hex>"
         },
         {
           "key": "android_id.length",
-          "value": "16",
+          "value": "15",
           "expected": "16"
         },
         {
           "key": "android_id.pattern",
-          "value": "normal",
+          "value": "non_hex",
           "expected": "normal"
         },
         {
           "key": "android_id.entropy_bits_per_char",
-          "value": "2.953",
+          "value": "0.000",
           "expected": ">=3.0"
         }
       ],
       "method": "Read Settings.Secure.ANDROID_ID and check against known factory defaults, sequential patterns, and Shannon entropy threshold",
-      "runtimeMs": 12,
+      "runtimeMs": 7,
       "failed": false,
       "failureReason": null
     },
@@ -1304,36 +1304,36 @@
       "rank": 22,
       "category": "identity",
       "score": 0.0,
-      "confidence": 0.3,
+      "confidence": 0.95,
       "evidence": [
         {
           "key": "telephony.network_operator",
-          "value": "null",
+          "value": "310410",
           "expected": "<5-6 digit MCC+MNC>"
         },
         {
           "key": "telephony.network_operator_name",
-          "value": "null",
+          "value": "AT&T",
           "expected": "<non-test carrier>"
         },
         {
           "key": "telephony.sim_operator",
-          "value": "null",
+          "value": "310410",
           "expected": "<5-6 digit MCC+MNC>"
         },
         {
           "key": "telephony.sim_operator_name",
-          "value": "null",
+          "value": "AT&T",
           "expected": "<non-test carrier>"
         },
         {
           "key": "telephony.mcc",
-          "value": "unknown",
+          "value": "310",
           "expected": "<3-digit ITU code, not 000/001>"
         },
         {
           "key": "telephony.mnc",
-          "value": "unknown",
+          "value": "410",
           "expected": "<2-3 digit operator code>"
         },
         {
@@ -1343,7 +1343,7 @@
         },
         {
           "key": "telephony.pattern",
-          "value": "null",
+          "value": "valid",
           "expected": "valid"
         },
         {
@@ -1373,7 +1373,7 @@
         }
       ],
       "method": "Read TelephonyManager.networkOperator + networkOperatorName + line1Number + subscriberId; detect known emulator-default carrier names, MCC/MNC values, AOSP-block phone numbers (strazzere/anti-emulator 16-entry list), and AOSP canonical IMSI 310260000000000. Power-13 Gap #6.",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1464,7 +1464,7 @@
         }
       ],
       "method": "Read Google Services Framework android_id via ContentProvider gservices, validate 16-hex format, check against factory-default and entropy thresholds",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -1472,7 +1472,7 @@
       "id": "identity.imei_serial",
       "rank": 12,
       "category": "identity",
-      "score": 0.7,
+      "score": 0.5,
       "confidence": 0.95,
       "evidence": [
         {
@@ -1502,12 +1502,12 @@
         },
         {
           "key": "build.serial",
-          "value": "null",
+          "value": "2A111FDH2002KQ",
           "expected": "<unique non-default>"
         },
         {
           "key": "serial.pattern",
-          "value": "unknown",
+          "value": "valid",
           "expected": "valid"
         }
       ],
@@ -1573,27 +1573,27 @@
       "id": "identity.sim_iccid",
       "rank": 21,
       "category": "identity",
-      "score": 0.7,
-      "confidence": 0.5,
+      "score": 0.0,
+      "confidence": 0.95,
       "evidence": [
         {
           "key": "sim_iccid",
-          "value": "null",
+          "value": "8901410329988776652",
           "expected": "<89-prefix 19-or-20-digit Luhn-valid>"
         },
         {
           "key": "sim_iccid.length",
-          "value": 0,
+          "value": 19,
           "expected": "19 or 20"
         },
         {
           "key": "sim_iccid.prefix_valid",
-          "value": "false",
+          "value": "true",
           "expected": "true"
         },
         {
           "key": "sim_iccid.luhn_valid",
-          "value": "false",
+          "value": "true",
           "expected": "true"
         },
         {
@@ -1603,7 +1603,7 @@
         },
         {
           "key": "sim_iccid.pattern",
-          "value": "null",
+          "value": "valid",
           "expected": "valid"
         }
       ],
@@ -1797,7 +1797,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 1,
+      "runtimeMs": 0,
       "failed": true,
       "failureReason": "skipped: cpuinfo unavailable (/proc/cpuinfo not readable)"
     },
@@ -1941,7 +1941,7 @@
         }
       ],
       "method": "Read ConnectivityManager.activeNetwork transport + TelephonyManager.dataNetworkType + simState; classify WiFi-only-no-SIM and TRANSPORT_USB as emulator signals. No live network requests.",
-      "runtimeMs": 0,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2020,7 +2020,7 @@
       "id": "root.su_detection",
       "rank": 3,
       "category": "root",
-      "score": 0.0,
+      "score": 1.0,
       "confidence": 0.95,
       "evidence": [
         {
@@ -2030,12 +2030,12 @@
         },
         {
           "key": "/system/xbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
           "key": "/sbin/su",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2085,7 +2085,7 @@
         },
         {
           "key": "/sbin/.magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2100,7 +2100,7 @@
         },
         {
           "key": "/data/adb/magisk",
-          "value": "absent",
+          "value": "present",
           "expected": "absent"
         },
         {
@@ -2226,7 +2226,7 @@
         }
       ],
       "method": "Read /proc/self/status and parse TracerPid field; non-zero value indicates ptrace-attached debugger (freeRASP T2 / MASTG-RESILIENCE-2)",
-      "runtimeMs": 2,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     },
@@ -2299,7 +2299,7 @@
       "confidence": 0.0,
       "evidence": [],
       "method": "(skipped)",
-      "runtimeMs": 5,
+      "runtimeMs": 3,
       "failed": true,
       "failureReason": "skipped: api_too_low: SDK_INT=0 < 34"
     },
@@ -2352,7 +2352,7 @@
         }
       ],
       "method": "Read ActivityManager getRunningServices + getRunningAppProcesses; scan service/process names for hostile root-tool/instrumentation/MITM substrings; document Android 8+ visibility filter as confidence-degradation.",
-      "runtimeMs": 2,
+      "runtimeMs": 0,
       "failed": false,
       "failureReason": null
     },
@@ -2867,7 +2867,7 @@
         }
       ],
       "method": "Read DisplayMetrics + ro.product.model and cross-check resolution/density/dpi against known device profiles and emulator defaults",
-      "runtimeMs": 14,
+      "runtimeMs": 7,
       "failed": false,
       "failureReason": null
     },
@@ -2910,7 +2910,7 @@
         }
       ],
       "method": "Enumerate /system/fonts/ directory; detect missing NotoColorEmoji, low font count (<50), low Roboto variant count, non-standard default family",
-      "runtimeMs": 14,
+      "runtimeMs": 1,
       "failed": false,
       "failureReason": null
     }

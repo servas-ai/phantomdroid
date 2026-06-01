@@ -111,6 +111,42 @@ def test_capture_telephony_reflects_device_and_keeps_null_imei(monkeypatch):
     assert parsed["telephony"]["SIM_SERIAL"] == "8901410329988776652"
 
 
+def test_capture_root_surface_does_not_underreport_magisk(monkeypatch):
+    """ROOT-HONESTY invariant: a Magisk-rooted device where /sbin/su and
+    /data/adb/magisk are present MUST have those paths recorded in the captured
+    root surface — root is NOT under-reported. This guards the B2 overclaim bug
+    where the capture probed only /system/xbin/su and yielded a false
+    su_detection=0.0 (false CLEAN) on a rooted container."""
+    from agents.orchestrator.src import live_matrix
+
+    # Live Magisk-rooted device: /sbin/su + /sbin/.magisk + /data/adb/magisk
+    # present; the Magisk manager APK installed. /system/xbin/su (the path the
+    # OLD buggy capture probed) is ABSENT — proving the fix probes the full set.
+    present_on_device = {"/sbin/su", "/sbin/.magisk", "/data/adb/magisk", "/data/adb/modules"}
+
+    def fake_exec(container, shell_cmd):
+        if "pm list packages" in shell_cmd:
+            return "package:android\npackage:com.topjohnwu.magisk\npackage:com.android.systemui\n"
+        # Root-path probe shell: `[ -e "P" ] && echo "P"` per path. Emit only
+        # the paths that actually exist on this simulated device.
+        if "[ -e " in shell_cmd:
+            return "\n".join(p for p in present_on_device if f'[ -e "{p}" ]' in shell_cmd)
+        return ""
+
+    monkeypatch.setattr(live_matrix, "_docker_exec", fake_exec)
+    root_files, pkgs = live_matrix.capture_root_surface("b2-test")
+
+    # The Magisk root artifacts are recorded — NOT hidden / under-reported.
+    assert "/sbin/su" in root_files
+    assert "/data/adb/magisk" in root_files
+    assert "/sbin/.magisk" in root_files
+    # The buggy single-path (/system/xbin/su) is absent on this device, yet root
+    # is still detected via the OTHER paths — the whole point of the fix.
+    assert "/system/xbin/su" not in root_files
+    # Superuser package captured honestly so the detector's package check is real.
+    assert "com.topjohnwu.magisk" in pkgs
+
+
 def test_capture_telephony_never_invents_imei_from_garbage(monkeypatch):
     """Even if `service call iphonesubinfo` returns a non-empty hex blob, the
     capture must not coerce it into a fake IMEI — non-digit -> null."""
