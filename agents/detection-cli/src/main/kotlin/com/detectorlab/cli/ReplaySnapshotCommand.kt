@@ -2,7 +2,7 @@
 //
 // Power-18 D1 — `detection-cli replay-snapshot <name>` subcommand.
 //
-// Runs the full 65-probe production inventory against a NAMED in-source
+// Runs the full 69-probe production inventory against a NAMED in-source
 // snapshot fixture (no YAML/JSON file required — the snapshot is looked up
 // against the active SnapshotRegistry) and emits a deterministic JSON
 // document on stdout, with exit codes:
@@ -86,7 +86,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlin.system.exitProcess
 
 /**
- * Result of running a named snapshot through the full 65-probe panel.
+ * Result of running a named snapshot through the full 69-probe panel.
  *
  * The [exitCode] is what `main()` would have returned had this been invoked
  * as the CLI subcommand; tests exercise the API path directly and assert on
@@ -292,7 +292,7 @@ class ReplaySnapshotCommand(
     private val registry: SnapshotRegistry = MainSnapshotRegistry,
 ) : CliktCommand(
     name = "replay-snapshot",
-    help = "Run all 65 probes against a NAMED in-source snapshot fixture and emit deterministic JSON.",
+    help = "Run all 69 probes against a NAMED in-source snapshot fixture and emit deterministic JSON.",
 ) {
 
     private val snapshotName: String by argument(
