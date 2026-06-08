@@ -14,7 +14,7 @@
 //   gradle :detection:dependencies   → expect no com.example.* references
 
 plugins {
-    kotlin("jvm") version "1.9.25"
+    kotlin("jvm") version "2.4.0"
 }
 
 group = "com.detectorlab"
