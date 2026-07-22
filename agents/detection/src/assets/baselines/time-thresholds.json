@@ -1,7 +1,0 @@
-{
-  "_comment": "Thresholds for env.time_spoofing probe (freeRASP T15). All values in milliseconds.",
-  "wall_vs_elapsed_ms": 30000,
-  "wall_vs_gps_ms": 10000,
-  "wall_vs_ntp_ms": 10000,
-  "gps_vs_ntp_ms": 5000
-}
